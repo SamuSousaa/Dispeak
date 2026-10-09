@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  mediasoup: true
+  esbuild: true
+  '@node-rs/argon2': true

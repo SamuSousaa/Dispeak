@@ -1,0 +1,66 @@
+# Development infrastructure.
+#   pnpm dev          -> Postgres + Redis here, web/api/media on the host
+#   pnpm dev:docker   -> additionally runs the media service in a container (profile "media")
+name: frequencia-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: frequencia
+      POSTGRES_PASSWORD: frequencia
+      POSTGRES_DB: frequencia
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U frequencia -d frequencia']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  media:
+    profiles: ['media']
+    build:
+      context: .
+      dockerfile: apps/media/Dockerfile
+      target: dev
+    environment:
+      MEDIA_HOST: 0.0.0.0
+      MEDIA_PORT: 4100
+      MEDIA_NUM_WORKERS: ${MEDIA_NUM_WORKERS:-2}
+      # Docker Desktop cannot expose the container IP to browsers, so the published host
+      # address is announced. Add the host LAN IP to reach the SFU from other devices:
+      #   RTC_ANNOUNCED_ADDRESSES=127.0.0.1,192.168.0.10 pnpm dev:docker
+      RTC_ANNOUNCED_ADDRESSES: ${RTC_ANNOUNCED_ADDRESSES:-127.0.0.1}
+      RTC_MIN_PORT: 40000
+      RTC_MAX_PORT: 40015
+      MEDIA_SHARED_SECRET: ${MEDIA_SHARED_SECRET:-dev-media-shared-secret-change-me}
+    ports:
+      - '4100:4100'
+      - '40000-40015:40000-40015/udp'
+      - '40000-40015:40000-40015/tcp'
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/media/src
+          target: /repo/apps/media/src
+        - action: sync
+          path: ./packages/shared/src
+          target: /repo/packages/shared/src
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+
+volumes:
+  postgres-data:
