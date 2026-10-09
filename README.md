@@ -1,5 +1,7 @@
 # Frequência
 
+[English version](README.en.md)
+
 App de voz, transmissão de tela e chat no estilo Discord/TeamSpeak, com **toda a infraestrutura de
 mídia e tempo real implementada no próprio projeto**: um SFU construído sobre mediasoup, um
 gateway WebSocket com retomada de sessão e um protocolo de sinalização tipado de ponta a ponta.
