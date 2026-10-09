@@ -29,8 +29,8 @@ RPC interno (`/media/internal`) e as métricas ficam na rede interna do Docker.
 
 No console da Oracle Cloud:
 
-- **Shape:** `VM.Standard.A1.Flex` (Ampere ARM). O nível gratuito cobre até 4 OCPUs e 24 GB; use
-  os 4 OCPUs — o mediasoup usa um worker por núcleo.
+- **Shape:** `VM.Standard.A1.Flex` (Ampere ARM). Desde junho de 2026 o nível gratuito cobre até
+  2 OCPUs e 12 GB no total; use os 2 OCPUs — o mediasoup usa um worker por núcleo.
 - **Imagem:** Ubuntu 24.04 (aarch64).
 - **Rede:** VCN com sub-rede pública e IPv4 público. Reserve o IP (Networking → Reserved Public IPs)
   para ele não mudar se a instância for recriada.
@@ -70,7 +70,7 @@ São dois firewalls, e os dois precisam ser abertos.
 | 49160–49200 | UDP       | Faixa de relay do TURN                                   |
 
 A faixa do mediasoup é pequena porque cada worker usa uma porta fixa por endereço anunciado
-(`WebRtcServer`): 4 workers × 2 endereços = 8 portas; 16 dão folga.
+(`WebRtcServer`): 2 workers × 2 endereços = 4 portas; 16 dão folga.
 
 ### 3.1 Firewall da Oracle (Security List)
 
@@ -156,7 +156,7 @@ nano .env.prod
 | `MEDIA_SHARED_SECRET` | `openssl rand -hex 32` — tokens de voz e RPC interno API ↔ mídia         |
 | `TURN_SECRET`         | `openssl rand -hex 32` — credenciais temporárias do coturn               |
 | `METRICS_TOKEN`       | Opcional. Se definido, `/metrics` exige `Authorization: Bearer`          |
-| `MEDIA_NUM_WORKERS`   | Número de núcleos da VM (4)                                              |
+| `MEDIA_NUM_WORKERS`   | Número de núcleos da VM (2)                                              |
 
 Para gerar os quatro segredos de uma vez:
 
@@ -185,7 +185,7 @@ que acrescenta de 5 a 10 minutos. As migrations do banco rodam sozinhas quando a
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod ps    # todos "healthy"/"running"
 curl -s https://$DOMAIN/api/health      # {"status":"ok","service":"api",...,"media":true}
-curl -s https://$DOMAIN/media/health    # {"status":"ok","service":"media","workers":4}
+curl -s https://$DOMAIN/media/health    # {"status":"ok","service":"media","workers":2}
 curl -s -o /dev/null -w '%{http_code}\n' https://$DOMAIN/media/stats   # 404: não é público
 ```
 

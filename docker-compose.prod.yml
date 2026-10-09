@@ -66,7 +66,7 @@ services:
       NODE_ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MEDIA_SHARED_SECRET: ${MEDIA_SHARED_SECRET}
-      MEDIA_NUM_WORKERS: ${MEDIA_NUM_WORKERS:-4}
+      MEDIA_NUM_WORKERS: ${MEDIA_NUM_WORKERS:-2}
       # Browsers are told to send media to these addresses. The private address lets the
       # TURN relay on the same host reach the SFU without leaving the machine.
       RTC_ANNOUNCED_ADDRESSES: ${PUBLIC_IP:?set PUBLIC_IP}${PRIVATE_IP:+,${PRIVATE_IP}}

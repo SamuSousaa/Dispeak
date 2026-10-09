@@ -158,4 +158,4 @@ que deve e libera o que deve. Não prova:
   processo; um servidor com ~1.000 pessoas entrando ao mesmo tempo atrasa a entrega de eventos.
   Nada disso afeta o uso pretendido, e as correções estão descritas no documento.
 - **Teste de carga na VM alvo.** Os números são de um Ryzen 7 5700G com o gerador na mesma máquina,
-  não da VM ARM de 4 núcleos.
+  não da VM ARM de 2 núcleos.

@@ -20,7 +20,7 @@ Duas ressalvas que valem para tudo o que segue:
 
 - **Gerador e servidor dividem a CPU.** Os números são um piso, não um teto: numa execução com o
   gerador em outra máquina o servidor teria mais CPU, mas a rede deixaria de ser `localhost`.
-- **Não é a VM de produção.** O alvo de deploy é uma VM ARM de 4 núcleos, mais lenta por núcleo do
+- **Não é a VM de produção.** O alvo de deploy é uma VM ARM de 2 núcleos, mais lenta por núcleo do
   que esta máquina. Repetir os testes lá está na lista de pendências.
 
 ## Como reproduzir
