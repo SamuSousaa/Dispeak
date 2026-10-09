@@ -25,6 +25,7 @@ function ServiceRow({
 }
 
 const labs = [
+  { to: '/app', code: 'APP', title: 'ABRIR O APLICATIVO' },
   { to: '/lab/p2p', code: 'LAB.01', title: 'P2P 1:1' },
   { to: '/lab/voice', code: 'LAB.02', title: 'VOZ (SFU)' },
 ];
@@ -45,7 +46,7 @@ export function HomePage() {
     <main className="grid-bg flex min-h-dvh items-center justify-center p-4">
       <section className="w-full max-w-md border border-line bg-surface">
         <header className="border-b border-line px-4 py-5">
-          <p className="label text-muted">00. SISTEMA</p>
+          <p className="label text-muted">LAB / SISTEMA</p>
           <h1 className="display mt-1 text-2xl text-fg">{APP_NAME}</h1>
         </header>
         <ul>

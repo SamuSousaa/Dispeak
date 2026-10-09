@@ -52,6 +52,17 @@ export interface VoiceSessionOptions {
   getToken: () => Promise<VoiceTokenResponse>;
 }
 
+/**
+ * Thrown by `getToken` when the user may not join the channel at all. Unlike a network
+ * failure, this ends the session instead of retrying.
+ */
+export class VoiceAccessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VoiceAccessError';
+  }
+}
+
 const set = useVoiceStore.setState;
 const get = useVoiceStore.getState;
 
@@ -355,6 +366,10 @@ export class VoiceSession {
       console.warn('[voice] connection attempt failed', error);
       if (error instanceof RpcError && error.code === VoiceErrorCode.RoomFull) {
         this.fail('O canal está cheio.');
+        return;
+      }
+      if (error instanceof VoiceAccessError) {
+        this.fail(error.message);
         return;
       }
       this.scheduleReconnect();

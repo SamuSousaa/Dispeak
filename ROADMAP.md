@@ -62,20 +62,20 @@ passar e de um commit ser feito.
 
 ## Etapa 4 — API REST e gateway estilo Discord
 
-- [ ] Auth: cadastro/login (argon2), JWT de acesso curto, refresh rotativo em cookie httpOnly, logout e revogação
-- [ ] Servidores: CRUD, convites com código, expiração e limite de usos
-- [ ] Canais de texto e voz, ordenação, categorias
-- [ ] Cargos e permissões em bitflags, hierarquia, sobrescritas por canal, testes unitários extensos
-- [ ] Gateway: autenticação, heartbeat, sequência, `resume`; eventos de presença, voz, canais e membros
-- [ ] Presença e estado de voz em Redis com pub/sub (múltiplas instâncias da API)
-- [ ] Token de voz de curta duração emitido pela API e validado pelo serviço de mídia
-- [ ] Rate limiting por rota e no gateway
-- [ ] OpenAPI em `/docs`
+- [x] Auth: cadastro/login (argon2), JWT de acesso curto, refresh rotativo em cookie httpOnly, logout e revogação
+- [x] Servidores: CRUD, convites com código, expiração e limite de usos
+- [x] Canais de texto e voz, ordenação, categorias
+- [x] Cargos e permissões em bitflags, hierarquia, sobrescritas por canal, testes unitários extensos
+- [x] Gateway: autenticação, heartbeat, sequência, `resume`; eventos de presença, voz, canais e membros
+- [x] Presença e estado de voz em Redis com pub/sub (múltiplas instâncias da API)
+- [x] Token de voz de curta duração emitido pela API e validado pelo serviço de mídia
+- [x] Rate limiting por rota e no gateway
+- [x] OpenAPI em `/docs`
 
 **Aceite**
 
-- [ ] Fluxo criar conta → criar servidor → convidar amigo → entrar no canal de voz → transmitir, respeitando permissões
-- [ ] e2e no Playwright cobrindo o fluxo
+- [x] Fluxo criar conta → criar servidor → convidar amigo → entrar no canal de voz → transmitir, respeitando permissões
+- [x] e2e no Playwright cobrindo o fluxo
 
 ## Etapa 5 — Chat de texto, produção e portfólio
 
@@ -104,6 +104,10 @@ desenvolvimento.
     **não executados localmente**. Precisam de uma primeira execução após instalar o Docker Desktop.
   - O serviço de mídia roda nativamente no Windows com o worker pré-compilado do mediasoup; é assim
     que tudo foi desenvolvido e testado.
+  - Sem Docker, `pnpm dev` e `pnpm test` sobem um Postgres 18 e um Redis embutidos
+    (`embedded-postgres` e `redis-memory-server`, que no Windows baixa o Memurai). Todos os testes
+    de integração e e2e rodaram contra eles. No CI os testes usam Postgres 17 e Redis 7 em
+    containers de serviço; essa combinação ainda não foi executada.
 - **Repositório remoto e CI:** o `gh` CLI não está instalado e não há remoto configurado. O workflow
   `.github/workflows/ci.yml` roda os mesmos comandos de `pnpm check` + `pnpm build`, que passam
   localmente, mas a primeira execução no GitHub Actions depende de criar o repositório e dar push.
@@ -121,3 +125,13 @@ desenvolvimento.
   texto, o preset 1080p60 com um jogo e a captura de áudio do sistema, que depende do navegador e
   do sistema operacional (no Chrome/Windows funciona para tela inteira e abas; Firefox e Safari
   não entregam áudio — a UI avisa quando a transmissão sai sem áudio).
+- **Resume do gateway entre instâncias (etapa 4):** eventos, presença e estado de voz atravessam
+  instâncias da API via Redis pub/sub (coberto por teste com duas instâncias). O buffer de replay
+  do `resume`, porém, vive na memória da instância que atendia o socket: se o cliente reconectar
+  em outra instância, recebe `INVALID_SESSION` e faz um `identify` completo (sem perda de
+  consistência, só um resync). Com mais de uma instância em produção, vale configurar afinidade
+  de sessão no balanceador. Decisão registrada em `docs/adr/`.
+- **Revalidação de permissões durante a chamada (etapa 4):** perder `CONNECT` derruba a pessoa do
+  canal e mudar `SPEAK`/`STREAM` força um reingresso com token novo, mas isso depende do elo
+  API → mídia estar de pé no momento da mudança. Se ele estiver fora do ar, a revalidação só
+  acontece na próxima vez que a pessoa entrar no canal.

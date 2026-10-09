@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { cx } from '../lib/cx';
 
 interface LabLayoutProps {
   code: string;
@@ -16,10 +17,10 @@ export function LabLayout({ code, title, status, footer, children }: LabLayoutPr
       <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link
-            to="/"
+            to="/lab"
             className="label whitespace-nowrap text-muted transition-colors hover:text-accent"
           >
-            ← INÍCIO
+            ← LAB
           </Link>
           <span className="label text-muted" aria-hidden="true">
             /
@@ -40,9 +41,17 @@ export function LabLayout({ code, title, status, footer, children }: LabLayoutPr
   );
 }
 
-export function Metric({ label, value }: { label: string; value: ReactNode }) {
+export function Metric({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: ReactNode;
+  className?: string;
+}) {
   return (
-    <span className="whitespace-nowrap">
+    <span className={cx('whitespace-nowrap', className)}>
       {label} <span className="text-fg">{value}</span>
     </span>
   );

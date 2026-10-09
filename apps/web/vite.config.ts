@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': { target: apiTarget, ws: true, changeOrigin: true },
+        '/docs': { target: apiTarget, changeOrigin: true },
         '/media': { target: mediaTarget, ws: true, changeOrigin: true },
       },
     },
@@ -30,6 +31,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': { target: apiTarget, ws: true, changeOrigin: true },
+        '/docs': { target: apiTarget, changeOrigin: true },
         '/media': { target: mediaTarget, ws: true, changeOrigin: true },
       },
     },

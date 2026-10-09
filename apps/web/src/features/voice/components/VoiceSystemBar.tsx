@@ -37,6 +37,7 @@ export function VoiceSystemBar() {
       />
       <Metric label="RTT" value={dash(stats.rttMs, ' MS')} />
       <Metric
+        className="hidden sm:inline"
         label="↑"
         value={<span data-testid="voice-send">{dash(stats.sendKbps, ' KBPS')}</span>}
       />
@@ -44,8 +45,12 @@ export function VoiceSystemBar() {
         label="↓"
         value={<span data-testid="voice-receive">{dash(stats.receiveKbps, ' KBPS')}</span>}
       />
-      <Metric label="PERDA" value={dash(stats.lossPercent, '%')} />
-      <Metric label="CODEC" value={dash(stats.audioCodec?.toUpperCase() ?? null)} />
+      <Metric className="hidden sm:inline" label="PERDA" value={dash(stats.lossPercent, '%')} />
+      <Metric
+        className="hidden sm:inline"
+        label="CODEC"
+        value={dash(stats.audioCodec?.toUpperCase() ?? null)}
+      />
       <Metric label="PARTICIPANTES" value={<span data-testid="voice-count">{participants}</span>} />
     </>
   );
