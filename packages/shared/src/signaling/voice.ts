@@ -10,6 +10,9 @@ export const VOICE_SIGNALING_PATH = '/voice';
 export const VOICE_TOKEN_AUDIENCE = 'frequencia:voice';
 export const VOICE_TOKEN_ISSUER = 'frequencia:api';
 
+/** Screen shares are published as VP8 simulcast with this many spatial layers. */
+export const SIMULCAST_LAYERS = 3;
+
 export const VoiceErrorCode = {
   NotJoined: 'not_joined',
   AlreadyJoined: 'already_joined',
@@ -166,6 +169,18 @@ export const voiceServerSide = defineSide({
     resumeConsumer: { request: consumerRef, response: empty },
     pauseConsumer: { request: consumerRef, response: empty },
     closeConsumer: { request: consumerRef, response: empty },
+    /** Picks the simulcast layer a video consumer should receive (0 = lowest resolution). */
+    setConsumerLayers: {
+      request: z.object({
+        consumerId: z.string(),
+        spatialLayer: z
+          .number()
+          .int()
+          .min(0)
+          .max(SIMULCAST_LAYERS - 1),
+      }),
+      response: empty,
+    },
     setState: {
       request: z.object({ muted: z.boolean(), deafened: z.boolean() }),
       response: empty,
@@ -187,6 +202,11 @@ export const voiceClientSide = defineSide({
     /** Session ids of the peers currently speaking, loudest first. */
     speaking: z.object({ peerIds: z.array(z.string()) }),
     'consumer-closed': consumerRef,
+    /** The simulcast layer actually being forwarded changed (`null` while nothing flows). */
+    'consumer-layers': z.object({
+      consumerId: z.string(),
+      spatialLayer: z.number().int().nullable(),
+    }),
     /** The server dropped a transport (ICE/DTLS failure); the client must reconnect. */
     'transport-closed': z.object({ transportId: z.string() }),
   },

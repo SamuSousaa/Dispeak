@@ -213,6 +213,19 @@ export function vp8RtpParameters() {
   };
 }
 
+/** VP8 simulcast with three spatial layers, as browsers publish a screen share. */
+export function simulcastRtpParameters() {
+  const base = nextSsrc;
+  nextSsrc += 3;
+  return {
+    mid: String(base),
+    codecs: [{ mimeType: 'video/VP8', payloadType: 96, clockRate: 90000, parameters: {} }],
+    headerExtensions: [],
+    encodings: [{ ssrc: base }, { ssrc: base + 1 }, { ssrc: base + 2 }],
+    rtcp: { cname: 'test' },
+  };
+}
+
 /** Creates and "connects" a transport for a joined test peer. */
 export async function openTransport(peer: TestPeer, direction: 'send' | 'recv'): Promise<string> {
   const transport = await peer.rpc.request('createTransport', { direction });

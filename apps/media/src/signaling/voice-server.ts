@@ -182,6 +182,11 @@ export class VoiceServer {
       return {};
     });
 
+    rpc.handle('setConsumerLayers', async ({ consumerId, spatialLayer }) => {
+      await (await room()).setConsumerLayers(peer, consumerId, spatialLayer);
+      return {};
+    });
+
     rpc.handle('setState', async (state) => {
       await (await room()).setState(peer, state);
       return {};

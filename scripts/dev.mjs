@@ -8,11 +8,15 @@
 // DATABASE_URL / REDIS_URL (see README).
 import { spawn, spawnSync } from 'node:child_process';
 
-const isWindows = process.platform === 'win32';
 const dockerMedia = process.argv.includes('--docker-media');
 
+// With `shell: true` Node wants a single command string rather than an args array.
+function run(command, options = {}) {
+  return spawnSync(command, { stdio: 'inherit', shell: true, ...options });
+}
+
 function docker(args, options = {}) {
-  return spawnSync('docker', args, { stdio: 'inherit', shell: isWindows, ...options });
+  return run(`docker ${args.join(' ')}`, options);
 }
 
 const hasDocker = docker(['info'], { stdio: 'ignore' }).status === 0;
@@ -24,10 +28,7 @@ if (hasDocker) {
   if (up.status !== 0) process.exit(up.status ?? 1);
   if (dockerMedia) {
     // Keeps the container sources in sync with the working tree.
-    spawn('docker', ['compose', '--profile', 'media', 'watch', '--no-up', 'media'], {
-      stdio: 'ignore',
-      shell: isWindows,
-    });
+    spawn('docker compose --profile media watch --no-up media', { stdio: 'ignore', shell: true });
   }
 } else if (dockerMedia) {
   console.error('[dev] --docker-media requires a running Docker daemon.');
@@ -36,11 +37,8 @@ if (hasDocker) {
   console.warn('[dev] Docker is not available: skipping the Postgres/Redis containers.');
 }
 
-const filter = dockerMedia ? ['--filter=!@frequencia/media'] : [];
-const turbo = spawn('pnpm', ['exec', 'turbo', 'run', 'dev', ...filter], {
-  stdio: 'inherit',
-  shell: isWindows,
-});
+const filter = dockerMedia ? ' --filter=!@frequencia/media' : '';
+const turbo = spawn(`pnpm exec turbo run dev${filter}`, { stdio: 'inherit', shell: true });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => turbo.kill(signal));

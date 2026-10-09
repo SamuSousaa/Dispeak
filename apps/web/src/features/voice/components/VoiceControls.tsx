@@ -1,9 +1,17 @@
 import { Button } from '../../../components/Button';
 import { leaveVoice, toggleDeafen, toggleMute } from '../voice-actions';
 import { useVoiceStore } from '../voice-store';
+import { ScreenShareButton } from './ScreenShareButton';
 
 /** Mute, deafen and leave. Shortcuts: M and D (or Ctrl+Shift+M / Ctrl+Shift+D). */
-export function VoiceControls({ onLeave }: { onLeave?: () => void }) {
+export function VoiceControls({
+  onLeave,
+  canStream = true,
+}: {
+  onLeave?: () => void;
+  /** Whether the user may share their screen in this channel. */
+  canStream?: boolean;
+}) {
   const muted = useVoiceStore((state) => state.muted);
   const deafened = useVoiceStore((state) => state.deafened);
   const micAvailable = useVoiceStore((state) => state.micAvailable);
@@ -28,6 +36,7 @@ export function VoiceControls({ onLeave }: { onLeave?: () => void }) {
       >
         {deafened ? 'ENSURDECIDO' : 'ENSURDECER'}
       </Button>
+      <ScreenShareButton allowed={canStream} />
       <Button
         variant="danger"
         onClick={() => {

@@ -37,13 +37,24 @@ export interface RoomStats {
     muted: boolean;
     deafened: boolean;
     transports: number;
-    producers: Array<{ id: string; kind: MediaKind; source: ProducerSource; paused: boolean }>;
+    producers: Array<{
+      id: string;
+      kind: MediaKind;
+      source: ProducerSource;
+      paused: boolean;
+      /** `simulcast` for screen shares published with several layers. */
+      type: string;
+      layers: number;
+    }>;
     consumers: Array<{
       id: string;
       producerId: string;
       kind: MediaKind;
       source: ProducerSource;
       paused: boolean;
+      /** Simulcast layer requested by the viewer and the one currently forwarded. */
+      preferredSpatialLayer: number | null;
+      currentSpatialLayer: number | null;
     }>;
   }>;
 }
@@ -368,6 +379,13 @@ export class Room {
       if (!peer.consumers.delete(consumer.id)) return;
       if (!peer.closed) peer.rpc.notify('consumer-closed', { consumerId: consumer.id });
     });
+    consumer.on('layerschange', (layers) => {
+      if (peer.closed) return;
+      peer.rpc.notify('consumer-layers', {
+        consumerId: consumer.id,
+        spatialLayer: layers?.spatialLayer ?? null,
+      });
+    });
 
     return {
       consumerId: consumer.id,
@@ -397,6 +415,12 @@ export class Room {
     const consumer = this.getConsumer(peer, consumerId);
     peer.consumers.delete(consumer.id);
     consumer.close();
+  }
+
+  async setConsumerLayers(peer: Peer, consumerId: string, spatialLayer: number): Promise<void> {
+    const consumer = this.getConsumer(peer, consumerId);
+    if (consumer.type !== 'simulcast') return;
+    await consumer.setPreferredLayers({ spatialLayer });
   }
 
   // --- state --------------------------------------------------------------------------------
@@ -444,6 +468,8 @@ export class Room {
           kind: producer.kind,
           source: producer.appData.source,
           paused: producer.paused,
+          type: producer.type,
+          layers: producer.rtpParameters.encodings?.length ?? 1,
         })),
         consumers: [...peer.consumers.values()].map((consumer) => ({
           id: consumer.id,
@@ -451,6 +477,8 @@ export class Room {
           kind: consumer.kind,
           source: consumer.appData.source,
           paused: consumer.paused,
+          preferredSpatialLayer: consumer.preferredLayers?.spatialLayer ?? null,
+          currentSpatialLayer: consumer.currentLayers?.spatialLayer ?? null,
         })),
       })),
     };

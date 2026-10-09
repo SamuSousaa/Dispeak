@@ -47,18 +47,18 @@ passar e de um commit ser feito.
 
 ## Etapa 3 — Transmissão de tela
 
-- [ ] `getDisplayMedia` com áudio do sistema quando disponível (aviso na UI quando não houver)
-- [ ] Simulcast VP8 em 3 camadas; camada escolhida conforme o tamanho exibido
-- [ ] Assistir sob demanda (consumer só existe enquanto se assiste)
-- [ ] Várias transmissões simultâneas no mesmo canal
-- [ ] Presets de qualidade (720p30, 1080p30, 1080p60)
-- [ ] Tela cheia e modo foco
-- [ ] Painel de estatísticas reais via `getStats`
+- [x] `getDisplayMedia` com áudio do sistema quando disponível (aviso na UI quando não houver)
+- [x] Simulcast VP8 em 3 camadas; camada escolhida conforme o tamanho exibido
+- [x] Assistir sob demanda (consumer só existe enquanto se assiste)
+- [x] Várias transmissões simultâneas no mesmo canal
+- [x] Presets de qualidade (720p30, 1080p30, 1080p60)
+- [x] Tela cheia e modo foco
+- [x] Painel de estatísticas reais via `getStats`
 
 **Aceite**
 
-- [ ] Duas pessoas transmitindo ao mesmo tempo
-- [ ] Espectador assistindo só uma recebe apenas aquele vídeo (verificável nas estatísticas do servidor)
+- [x] Duas pessoas transmitindo ao mesmo tempo
+- [x] Espectador assistindo só uma recebe apenas aquele vídeo (verificável nas estatísticas do servidor)
 
 ## Etapa 4 — API REST e gateway estilo Discord
 
@@ -116,3 +116,8 @@ desenvolvimento.
   microfone sintético do Chromium e verifica áudio fluindo, indicador de fala, mute/deafen e
   liberação de recursos. Qualidade subjetiva do áudio (eco, ruído, volume) e o comportamento em
   redes reais só podem ser avaliados com pessoas e dispositivos de verdade.
+- **Transmissão com tela e áudio reais (etapa 3):** o e2e usa a captura sintética do Chromium
+  (três camadas de simulcast confirmadas: 270p/540p/1080p). Falta validar manualmente a nitidez de
+  texto, o preset 1080p60 com um jogo e a captura de áudio do sistema, que depende do navegador e
+  do sistema operacional (no Chrome/Windows funciona para tela inteira e abas; Firefox e Safari
+  não entregam áudio — a UI avisa quando a transmissão sai sem áudio).

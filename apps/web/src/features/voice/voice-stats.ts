@@ -1,4 +1,4 @@
-import type { VoiceConnectionStats } from './voice-store';
+import type { StreamLayerStats, StreamStats, VoiceConnectionStats } from './voice-store';
 
 export interface StatsSample {
   at: number;
@@ -11,6 +11,7 @@ export interface StatsSample {
 type StatsEntry = Record<string, unknown> & { type: string; id: string };
 
 const number = (value: unknown): number => (typeof value === 'number' ? value : 0);
+const optional = (value: unknown): number | null => (typeof value === 'number' ? value : null);
 
 export function entries(report: RTCStatsReport): StatsEntry[] {
   const list: StatsEntry[] = [];
@@ -97,6 +98,99 @@ export function collectConnectionStats(
       receiveKbps: kbps(sample.bytesReceived, previous.bytesReceived, seconds),
       lossPercent: expected > 0 ? Math.round((lost / expected) * 1000) / 10 : 0,
       audioCodec,
+    },
+  };
+}
+
+/** Counters remembered between two polls of one stream. */
+export interface StreamSample {
+  at: number;
+  /** Bytes per RTP stream, keyed by rid (or `default` for a single stream). */
+  bytes: Record<string, number>;
+  packetsReceived: number;
+  packetsLost: number;
+}
+
+/** Stats of a stream being watched, from its video consumer. */
+export function collectInboundStreamStats(
+  report: RTCStatsReport,
+  previous: StreamSample | null,
+  now = performance.now(),
+): { stats: StreamStats; sample: StreamSample } {
+  const inbound = entries(report).find(
+    (entry) => entry.type === 'inbound-rtp' && entry.kind === 'video',
+  );
+  const sample: StreamSample = {
+    at: now,
+    bytes: { default: number(inbound?.bytesReceived) },
+    packetsReceived: number(inbound?.packetsReceived),
+    packetsLost: number(inbound?.packetsLost),
+  };
+  const seconds = previous ? (now - previous.at) / 1000 : 0;
+  const lost = previous ? Math.max(0, sample.packetsLost - previous.packetsLost) : 0;
+  const arrived = previous ? Math.max(0, sample.packetsReceived - previous.packetsReceived) : 0;
+
+  return {
+    sample,
+    stats: {
+      width: optional(inbound?.frameWidth),
+      height: optional(inbound?.frameHeight),
+      fps:
+        inbound?.framesPerSecond === undefined ? null : Math.round(number(inbound.framesPerSecond)),
+      kbps: previous ? kbps(sample.bytes.default ?? 0, previous.bytes.default ?? 0, seconds) : null,
+      lossPercent:
+        previous && lost + arrived > 0 ? Math.round((lost / (lost + arrived)) * 1000) / 10 : 0,
+      codec: codecOf(report, inbound),
+    },
+  };
+}
+
+/** Stats of the local screen share, from its producer: one row per simulcast layer. */
+export function collectOutboundStreamStats(
+  report: RTCStatsReport,
+  previous: StreamSample | null,
+  now = performance.now(),
+): { stats: StreamStats; sample: StreamSample } {
+  const outbound = entries(report)
+    .filter((entry) => entry.type === 'outbound-rtp' && entry.kind === 'video')
+    .sort((a, b) => String(a.rid ?? '').localeCompare(String(b.rid ?? '')));
+  const seconds = previous ? (now - previous.at) / 1000 : 0;
+
+  const sample: StreamSample = { at: now, bytes: {}, packetsReceived: 0, packetsLost: 0 };
+  const layers: StreamLayerStats[] = outbound.map((entry, index) => {
+    const rid = typeof entry.rid === 'string' ? entry.rid : `r${index}`;
+    const bytes = number(entry.bytesSent);
+    sample.bytes[rid] = bytes;
+    const before = previous?.bytes[rid];
+    return {
+      rid,
+      width: optional(entry.frameWidth),
+      height: optional(entry.frameHeight),
+      fps: entry.framesPerSecond === undefined ? null : Math.round(number(entry.framesPerSecond)),
+      kbps: before === undefined ? null : kbps(bytes, before, seconds),
+    };
+  });
+
+  // The headline numbers describe the best layer currently being encoded.
+  const top = [...layers].reverse().find((layer) => (layer.fps ?? 0) > 0) ?? layers.at(-1);
+  const total = layers.some((layer) => layer.kbps !== null)
+    ? layers.reduce((sum, layer) => sum + (layer.kbps ?? 0), 0)
+    : null;
+  const limitation = outbound
+    .map((entry) => entry.qualityLimitationReason)
+    .find((reason) => typeof reason === 'string' && reason !== 'none');
+
+  return {
+    sample,
+    stats: {
+      width: top?.width ?? null,
+      height: top?.height ?? null,
+      fps: top?.fps ?? null,
+      kbps: total,
+      lossPercent: null,
+      codec: codecOf(report, outbound[0]),
+      layers,
+      limitation: typeof limitation === 'string' ? limitation : null,
     },
   };
 }

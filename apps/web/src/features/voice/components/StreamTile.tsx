@@ -1,0 +1,190 @@
+import { SIMULCAST_LAYERS } from '@frequencia/shared';
+import { useEffect, useRef, useState } from 'react';
+import { Button } from '../../../components/Button';
+import { MediaVideo } from '../../../components/MediaVideo';
+import { cx } from '../../../lib/cx';
+import { setStreamViewport } from '../voice-actions';
+import { SELF_STREAM, useVoiceStore, type StreamStats } from '../voice-store';
+import { LiveBadge } from './LiveBadge';
+
+interface StreamTileProps {
+  /** Streamer session id, or `SELF_STREAM` for the local preview. */
+  id: string;
+  name: string;
+  stream: MediaStream | null;
+  focused: boolean;
+  /** Thumbnail rendition shown next to a focused stream. */
+  compact?: boolean;
+  onToggleFocus: () => void;
+  /** Stop watching (or stop sharing, for the local preview). */
+  onClose: () => void;
+}
+
+const dash = (value: number | string | null | undefined, unit = '') =>
+  value === null || value === undefined ? '—' : `${value}${unit}`;
+
+function StatsPanel({ id, stats }: { id: string; stats: StreamStats | undefined }) {
+  const rttMs = useVoiceStore((state) => state.stats.rttMs);
+  const layer = useVoiceStore((state) => state.watching[id]?.spatialLayer ?? null);
+  const isSelf = id === SELF_STREAM;
+
+  const rows: Array<[string, string]> = [
+    ['RESOLUÇÃO', stats?.width && stats.height ? `${stats.width}×${stats.height}` : '—'],
+    ['FPS', dash(stats?.fps)],
+    ['BITRATE', dash(stats?.kbps, ' KBPS')],
+    ['RTT', dash(rttMs, ' MS')],
+    ['CODEC', dash(stats?.codec?.toUpperCase())],
+  ];
+  if (isSelf) {
+    rows.push(['LIMITAÇÃO', dash(stats?.limitation?.toUpperCase() ?? 'NENHUMA')]);
+    for (const item of stats?.layers ?? []) {
+      rows.push([
+        `CAMADA ${item.rid.toUpperCase()}`,
+        item.fps
+          ? `${dash(item.height)}P · ${dash(item.fps)} FPS · ${dash(item.kbps, ' KBPS')}`
+          : 'INATIVA',
+      ]);
+    }
+  } else {
+    rows.splice(3, 0, ['PERDA', dash(stats?.lossPercent, '%')]);
+    rows.push(['CAMADA', layer === null ? '—' : `${layer + 1}/${SIMULCAST_LAYERS}`]);
+  }
+
+  return (
+    <dl
+      data-testid="stream-stats"
+      className="label absolute bottom-8 left-0 grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5 border border-line bg-bg px-3 py-2"
+    >
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-muted">{label}</dt>
+          <dd className="text-fg" data-stat={label}>
+            {value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** A live screen share: the video plus focus, fullscreen and statistics controls. */
+export function StreamTile({
+  id,
+  name,
+  stream,
+  focused,
+  compact = false,
+  onToggleFocus,
+  onClose,
+}: StreamTileProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [showStats, setShowStats] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const stats = useVoiceStore((state) => state.streamStats[id]);
+  const isSelf = id === SELF_STREAM;
+
+  // The displayed size drives which simulcast layer the server forwards to this viewer.
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element || isSelf) return;
+    let timer: number | undefined;
+    const report = () => setStreamViewport(id, element.clientHeight);
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(report, 250);
+    });
+    observer.observe(element);
+    report();
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [id, isSelf]);
+
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === containerRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void containerRef.current?.requestFullscreen().catch(() => undefined);
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      data-testid="stream-tile"
+      data-stream={isSelf ? 'self' : name}
+      className={cx(
+        'group relative h-full min-h-0 w-full overflow-hidden border bg-bg',
+        focused ? 'border-accent' : 'border-line',
+      )}
+    >
+      <MediaVideo
+        stream={stream}
+        muted
+        data-testid="stream-video"
+        className="h-full w-full object-contain"
+        onDoubleClick={toggleFullscreen}
+      />
+      {!stream && (
+        <div className="label absolute inset-0 flex items-center justify-center text-muted">
+          CARREGANDO TRANSMISSÃO
+        </div>
+      )}
+
+      <div className="absolute top-0 left-0 flex max-w-full items-center">
+        <LiveBadge />
+        <span className="label truncate border-r border-b border-line bg-bg px-2 py-0.5 text-fg">
+          {isSelf ? 'SUA TRANSMISSÃO' : name}
+        </span>
+      </div>
+
+      {compact ? (
+        <button
+          type="button"
+          aria-label={`Focar na transmissão de ${name}`}
+          className="absolute inset-0"
+          onClick={onToggleFocus}
+        />
+      ) : (
+        <>
+          {showStats && <StatsPanel id={id} stats={stats} />}
+          <div
+            className={cx(
+              'absolute right-0 bottom-0 left-0 flex flex-wrap items-center justify-end gap-px border-t border-line bg-bg',
+              // Always visible on touch devices and while anything inside has focus.
+              'transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100',
+              (showStats || fullscreen) && 'md:opacity-100',
+            )}
+          >
+            <Button
+              className="border-transparent"
+              variant={showStats ? 'active' : 'default'}
+              aria-pressed={showStats}
+              onClick={() => setShowStats((value) => !value)}
+            >
+              STATS
+            </Button>
+            <Button
+              className="border-transparent"
+              variant={focused ? 'active' : 'default'}
+              aria-pressed={focused}
+              onClick={onToggleFocus}
+            >
+              {focused ? 'GRADE' : 'FOCO'}
+            </Button>
+            <Button className="border-transparent" onClick={toggleFullscreen}>
+              {fullscreen ? 'SAIR DA TELA CHEIA' : 'TELA CHEIA'}
+            </Button>
+            <Button className="border-transparent" variant="danger" onClick={onClose}>
+              {isSelf ? 'PARAR TRANSMISSÃO' : 'PARAR DE ASSISTIR'}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

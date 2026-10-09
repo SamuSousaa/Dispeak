@@ -13,8 +13,28 @@ import {
 } from '@frequencia/shared';
 import { Device, type types } from 'mediasoup-client';
 import { connectRpc, type RpcConnection } from '../../lib/rpc-client';
-import { collectConnectionStats, type StatsSample } from './voice-stats';
-import { emptyVoiceStats, initialVoiceState, useVoiceStore } from './voice-store';
+import {
+  layerForViewport,
+  SCREEN_PRESETS,
+  simulcastEncodings,
+  type ScreenPresetId,
+} from './screen-presets';
+import {
+  collectConnectionStats,
+  collectInboundStreamStats,
+  collectOutboundStreamStats,
+  type StatsSample,
+  type StreamSample,
+} from './voice-stats';
+import {
+  emptyVoiceStats,
+  initialVoiceState,
+  screenOff,
+  SELF_STREAM,
+  useVoiceStore,
+  type StreamStats,
+  type WatchedStream,
+} from './voice-store';
 
 type Connection = RpcConnection<typeof voiceClientSide, typeof voiceServerSide>;
 
@@ -38,6 +58,7 @@ const get = useVoiceStore.getState;
 const RECONNECT_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 8000, 8000];
 const ICE_RESTART_GRACE_MS = 4000;
 const STATS_INTERVAL_MS = 2000;
+const SCREEN_AUDIO_BITRATE = 128_000;
 
 /** Close codes after which reconnecting would be wrong. */
 const FATAL_CLOSE: Record<number, string> = {
@@ -46,10 +67,13 @@ const FATAL_CLOSE: Record<number, string> = {
   [VoiceCloseCode.RoomClosed]: 'O canal foi encerrado.',
 };
 
+const isScreenSource = (source: ProducerSource) => source === 'screen' || source === 'screen-audio';
+
 /**
  * One voice channel connection: signaling socket, mediasoup device and transports, the
- * microphone producer and one consumer per remote audio producer. It survives network drops
- * by rebuilding everything from scratch (the server replaces the previous session).
+ * microphone and screen producers, and the consumers for remote audio and watched streams.
+ * It survives network drops by rebuilding everything from scratch (the server replaces the
+ * previous session), republishing whatever was live.
  */
 export class VoiceSession {
   private connection: Connection | null = null;
@@ -57,13 +81,24 @@ export class VoiceSession {
   private sendTransport: types.Transport | null = null;
   private recvTransport: types.Transport | null = null;
   private iceServers: RTCIceServer[] = [];
+
   private micTrack: MediaStreamTrack | null = null;
   private micProducer: types.Producer | null = null;
+  private screenStream: MediaStream | null = null;
+  private screenProducer: types.Producer | null = null;
+  private screenAudioProducer: types.Producer | null = null;
+
   private readonly consumers = new Map<string, ActiveConsumer>();
   private readonly consuming = new Set<string>();
+  /** Streamers this client chose to watch. */
+  private readonly watched = new Set<string>();
+  /** Simulcast layer wanted for each watched stream, from the size it is displayed at. */
+  private readonly wantedLayers = new Map<string, number>();
+
   private readonly iceTimers = new Map<string, number>();
   private statsTimer: number | null = null;
   private statsSample: StatsSample | null = null;
+  private readonly streamSamples = new Map<string, StreamSample>();
   private reconnectTimer: number | null = null;
   private attempt = 0;
   private generation = 0;
@@ -92,8 +127,7 @@ export class VoiceSession {
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
     this.connection?.rpc.request('leave', {}).catch(() => undefined);
     this.teardownConnection();
-    this.micTrack?.stop();
-    this.micTrack = null;
+    this.releaseLocalMedia();
     set(initialVoiceState);
   }
 
@@ -121,6 +155,119 @@ export class VoiceSession {
     } else {
       this.mutedBeforeDeafen = muted;
       await this.applyState(true, true);
+    }
+  }
+
+  async startScreenShare(presetId: ScreenPresetId): Promise<void> {
+    if (get().screen.status !== 'off' || get().status !== 'connected') return;
+    const preset = SCREEN_PRESETS[presetId];
+    set({ screen: { ...screenOff, status: 'starting', preset: presetId } });
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: preset.width, max: preset.width },
+          height: { ideal: preset.height, max: preset.height },
+          frameRate: { ideal: preset.frameRate, max: preset.frameRate },
+        },
+        // System/tab audio is only offered by some browsers and capture surfaces.
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        systemAudio: 'include',
+      } as DisplayMediaStreamOptions);
+    } catch (error) {
+      // Dismissing the browser picker is not an error worth showing.
+      const cancelled = error instanceof DOMException && error.name === 'NotAllowedError';
+      set({
+        screen: {
+          ...screenOff,
+          error: cancelled ? null : 'Não foi possível capturar a tela neste navegador.',
+        },
+      });
+      return;
+    }
+
+    const [videoTrack] = stream.getVideoTracks();
+    if (!videoTrack) {
+      for (const track of stream.getTracks()) track.stop();
+      set({ screen: { ...screenOff, error: 'A captura não retornou vídeo.' } });
+      return;
+    }
+    videoTrack.contentHint = preset.contentHint;
+    // The browser's own "stop sharing" button ends the track.
+    videoTrack.addEventListener('ended', () => void this.stopScreenShare());
+    this.screenStream = stream;
+
+    try {
+      await this.publishScreen();
+    } catch (error) {
+      console.warn('[voice] failed to publish the screen', error);
+      const forbidden = error instanceof RpcError && error.code === VoiceErrorCode.Forbidden;
+      await this.stopScreenShare();
+      set({
+        screen: {
+          ...screenOff,
+          error: forbidden
+            ? 'Você não tem permissão para transmitir neste canal.'
+            : 'Falha ao iniciar a transmissão.',
+        },
+      });
+    }
+  }
+
+  async stopScreenShare(): Promise<void> {
+    const producers = [this.screenProducer, this.screenAudioProducer];
+    this.screenProducer = null;
+    this.screenAudioProducer = null;
+    for (const producer of producers) {
+      if (!producer || producer.closed) continue;
+      producer.close();
+      await this.connection?.rpc
+        .request('closeProducer', { producerId: producer.id })
+        .catch(() => undefined);
+    }
+    for (const track of this.screenStream?.getTracks() ?? []) track.stop();
+    this.screenStream = null;
+    this.streamSamples.delete(SELF_STREAM);
+    const { [SELF_STREAM]: _self, ...streamStats } = get().streamStats;
+    set({ screen: screenOff, streamStats });
+  }
+
+  /** Starts receiving a participant's screen share (video and, when present, its audio). */
+  watch(peerId: string): void {
+    const peer = get().peers[peerId];
+    if (!peer || this.watched.has(peerId)) return;
+    this.watched.add(peerId);
+    this.setWatching(peerId, { stream: null, spatialLayer: null });
+    for (const producer of peer.producers) {
+      if (isScreenSource(producer.source)) void this.consume(peerId, producer.id, producer.source);
+    }
+  }
+
+  /** Stops receiving a stream: its consumers are closed on the server as well. */
+  unwatch(peerId: string): void {
+    if (!this.watched.delete(peerId)) return;
+    this.wantedLayers.delete(peerId);
+    for (const [consumerId, entry] of this.consumers) {
+      if (entry.peerId !== peerId || !isScreenSource(entry.source)) continue;
+      this.connection?.rpc.request('closeConsumer', { consumerId }).catch(() => undefined);
+      this.removeConsumer(consumerId);
+    }
+    this.forgetStream(peerId);
+  }
+
+  /** Reports the size a watched stream is displayed at, to pick its simulcast layer. */
+  setStreamViewport(peerId: string, cssHeight: number): void {
+    if (!this.watched.has(peerId)) return;
+    const layer = layerForViewport(cssHeight, window.devicePixelRatio);
+    if (this.wantedLayers.get(peerId) === layer) return;
+    this.wantedLayers.set(peerId, layer);
+    for (const [consumerId, entry] of this.consumers) {
+      if (entry.peerId === peerId && entry.source === 'screen') {
+        this.connection?.rpc
+          .request('setConsumerLayers', { consumerId, spatialLayer: layer })
+          .catch(() => undefined);
+      }
     }
   }
 
@@ -174,11 +321,27 @@ export class VoiceSession {
       this.sendTransport = await this.createTransport('send');
       if (stale()) return;
 
+      // Streams watched before a reconnection are resumed if their streamer is still live.
+      for (const peerId of [...this.watched]) {
+        const stillLive = joined.peers
+          .find((peer) => peer.id === peerId)
+          ?.producers.some((producer) => producer.source === 'screen');
+        if (!stillLive) {
+          this.watched.delete(peerId);
+          this.forgetStream(peerId);
+        }
+      }
+
       await Promise.all([
         this.publishMicrophone(),
+        this.screenStream ? this.publishScreen().catch(() => this.stopScreenShare()) : undefined,
         ...joined.peers.flatMap((peer) =>
           peer.producers
-            .filter((producer) => producer.source === 'mic')
+            .filter(
+              (producer) =>
+                producer.source === 'mic' ||
+                (this.watched.has(peer.id) && isScreenSource(producer.source)),
+            )
             .map((producer) => this.consume(peer.id, producer.id, producer.source)),
         ),
       ]);
@@ -231,22 +394,25 @@ export class VoiceSession {
   private fail(message: string): void {
     this.generation += 1;
     this.teardownConnection();
-    this.micTrack?.stop();
-    this.micTrack = null;
+    this.releaseLocalMedia();
     this.disposed = true;
     set({ ...initialVoiceState, status: 'error', error: message });
   }
 
+  /** Closes everything tied to the current socket. Local capture tracks stay alive. */
   private teardownConnection(): void {
     if (this.statsTimer !== null) window.clearInterval(this.statsTimer);
     this.statsTimer = null;
     this.statsSample = null;
+    this.streamSamples.clear();
     for (const timer of this.iceTimers.values()) window.clearTimeout(timer);
     this.iceTimers.clear();
 
     for (const consumerId of [...this.consumers.keys()]) this.removeConsumer(consumerId);
     this.consuming.clear();
     this.micProducer = null;
+    this.screenProducer = null;
+    this.screenAudioProducer = null;
     this.sendTransport?.close();
     this.recvTransport?.close();
     this.sendTransport = null;
@@ -254,7 +420,16 @@ export class VoiceSession {
     this.device = null;
     this.connection?.close();
     this.connection = null;
-    set({ stats: emptyVoiceStats });
+    set({ stats: emptyVoiceStats, streamStats: {} });
+  }
+
+  private releaseLocalMedia(): void {
+    this.micTrack?.stop();
+    this.micTrack = null;
+    for (const track of this.screenStream?.getTracks() ?? []) track.stop();
+    this.screenStream = null;
+    this.watched.clear();
+    this.wantedLayers.clear();
   }
 
   private bindEvents({ rpc }: Connection): void {
@@ -268,6 +443,8 @@ export class VoiceSession {
       for (const [consumerId, entry] of this.consumers) {
         if (entry.peerId === peerId) this.removeConsumer(consumerId);
       }
+      this.watched.delete(peerId);
+      this.forgetStream(peerId);
     });
 
     rpc.on('peer-state', ({ peerId, muted, deafened }) => {
@@ -280,10 +457,14 @@ export class VoiceSession {
 
     rpc.on('producer-added', ({ peerId, producer }) => {
       this.updatePeer(peerId, (peer) => ({ ...peer, producers: [...peer.producers, producer] }));
-      if (producer.source === 'mic') void this.consume(peerId, producer.id, producer.source);
+      // Microphones are always heard; screens only when the user asked to watch them.
+      if (producer.source === 'mic' || this.watched.has(peerId)) {
+        void this.consume(peerId, producer.id, producer.source);
+      }
     });
 
     rpc.on('producer-removed', ({ peerId, producerId }) => {
+      const removed = get().peers[peerId]?.producers.find((producer) => producer.id === producerId);
       this.updatePeer(peerId, (peer) => ({
         ...peer,
         producers: peer.producers.filter((producer) => producer.id !== producerId),
@@ -291,16 +472,37 @@ export class VoiceSession {
       for (const [consumerId, entry] of this.consumers) {
         if (entry.consumer.producerId === producerId) this.removeConsumer(consumerId);
       }
+      if (removed?.source === 'screen') {
+        this.watched.delete(peerId);
+        this.forgetStream(peerId);
+      }
     });
 
     rpc.on('speaking', ({ peerIds }) => set({ speaking: peerIds }));
     rpc.on('consumer-closed', ({ consumerId }) => this.removeConsumer(consumerId));
+    rpc.on('consumer-layers', ({ consumerId, spatialLayer }) => {
+      const entry = this.consumers.get(consumerId);
+      const current = entry ? get().watching[entry.peerId] : undefined;
+      if (entry && current) this.setWatching(entry.peerId, { ...current, spatialLayer });
+    });
     rpc.on('transport-closed', () => this.scheduleReconnect());
   }
 
   private updatePeer(peerId: string, update: (peer: VoicePeer) => VoicePeer): void {
     const peer = get().peers[peerId];
     if (peer) set({ peers: { ...get().peers, [peerId]: update(peer) } });
+  }
+
+  private setWatching(peerId: string, value: WatchedStream): void {
+    set({ watching: { ...get().watching, [peerId]: value } });
+  }
+
+  private forgetStream(peerId: string): void {
+    this.wantedLayers.delete(peerId);
+    this.streamSamples.delete(peerId);
+    const { [peerId]: _watching, ...watching } = get().watching;
+    const { [peerId]: _stats, ...streamStats } = get().streamStats;
+    set({ watching, streamStats });
   }
 
   // --- transports ---------------------------------------------------------------------------
@@ -430,6 +632,51 @@ export class VoiceSession {
       .catch((error: unknown) => console.warn('[voice] failed to sync state', error));
   }
 
+  // --- screen share -------------------------------------------------------------------------
+
+  /** Publishes the captured screen as VP8 simulcast, plus its audio track when there is one. */
+  private async publishScreen(): Promise<void> {
+    const { sendTransport, device, screenStream } = this;
+    const presetId = get().screen.preset;
+    if (!sendTransport || !device || !screenStream || !presetId) return;
+    const [videoTrack] = screenStream.getVideoTracks();
+    const [audioTrack] = screenStream.getAudioTracks();
+    if (!videoTrack || videoTrack.readyState !== 'live') throw new Error('screen track ended');
+
+    const vp8 = device.rtpCapabilities.codecs?.find(
+      (codec) => codec.mimeType.toLowerCase() === 'video/vp8',
+    );
+    this.screenProducer = await sendTransport.produce({
+      track: videoTrack,
+      stopTracks: false,
+      encodings: simulcastEncodings(SCREEN_PRESETS[presetId]),
+      codecOptions: { videoGoogleStartBitrate: 1000 },
+      codec: vp8,
+      appData: { source: 'screen' satisfies ProducerSource },
+    });
+
+    if (audioTrack?.readyState === 'live') {
+      this.screenAudioProducer = await sendTransport.produce({
+        track: audioTrack,
+        stopTracks: false,
+        // Music and game audio: stereo, no DTX, higher bitrate than speech.
+        codecOptions: { opusStereo: true, opusDtx: false, opusFec: true },
+        encodings: [{ maxBitrate: SCREEN_AUDIO_BITRATE }],
+        appData: { source: 'screen-audio' satisfies ProducerSource },
+      });
+    }
+
+    set({
+      screen: {
+        status: 'live',
+        preset: presetId,
+        hasAudio: Boolean(this.screenAudioProducer),
+        stream: screenStream,
+        error: null,
+      },
+    });
+  }
+
   // --- consumers ----------------------------------------------------------------------------
 
   private async consume(peerId: string, producerId: string, source: ProducerSource): Promise<void> {
@@ -447,15 +694,35 @@ export class VoiceSession {
       });
       if (recvTransport.closed) return;
 
+      // The user may have stopped watching while the consumer was being set up.
+      if (isScreenSource(source) && !this.watched.has(peerId)) {
+        consumer.close();
+        connection.rpc.request('closeConsumer', { consumerId: consumer.id }).catch(() => undefined);
+        return;
+      }
+
       const entry: ActiveConsumer = { consumer, peerId, source };
+      this.consumers.set(consumer.id, entry);
+
       if (consumer.kind === 'audio') {
         const audio = new Audio();
         audio.srcObject = new MediaStream([consumer.track]);
         audio.muted = get().deafened;
         audio.play().catch((error: unknown) => console.warn('[voice] playback blocked', error));
         entry.audio = audio;
+      } else {
+        const layer = this.wantedLayers.get(peerId);
+        if (layer !== undefined) {
+          await connection.rpc.request('setConsumerLayers', {
+            consumerId: consumer.id,
+            spatialLayer: layer,
+          });
+        }
+        this.setWatching(peerId, {
+          stream: new MediaStream([consumer.track]),
+          spatialLayer: get().watching[peerId]?.spatialLayer ?? null,
+        });
       }
-      this.consumers.set(consumer.id, entry);
       await connection.rpc.request('resumeConsumer', { consumerId: consumer.id });
     } catch (error) {
       // The producer may be gone by the time we ask for it; that is not an error.
@@ -476,26 +743,50 @@ export class VoiceSession {
       entry.audio.srcObject = null;
     }
     entry.consumer.close();
+    if (entry.source === 'screen' && get().watching[entry.peerId]) {
+      this.setWatching(entry.peerId, { stream: null, spatialLayer: null });
+    }
   }
 
   // --- stats --------------------------------------------------------------------------------
 
   private startStats(): void {
     if (this.statsTimer !== null) window.clearInterval(this.statsTimer);
-    this.statsTimer = window.setInterval(async () => {
-      const { sendTransport, recvTransport } = this;
-      if (!sendTransport || !recvTransport || sendTransport.closed || recvTransport.closed) return;
-      try {
-        const [sent, received] = await Promise.all([
-          sendTransport.getStats(),
-          recvTransport.getStats(),
-        ]);
-        const { stats, sample } = collectConnectionStats(sent, received, this.statsSample);
-        this.statsSample = sample;
-        set({ stats });
-      } catch {
-        // Transports can close between the check and the call.
+    this.statsTimer = window.setInterval(() => void this.pollStats(), STATS_INTERVAL_MS);
+  }
+
+  private async pollStats(): Promise<void> {
+    const { sendTransport, recvTransport } = this;
+    if (!sendTransport || !recvTransport || sendTransport.closed || recvTransport.closed) return;
+    try {
+      const [sent, received] = await Promise.all([
+        sendTransport.getStats(),
+        recvTransport.getStats(),
+      ]);
+      const { stats, sample } = collectConnectionStats(sent, received, this.statsSample);
+      this.statsSample = sample;
+
+      const streamStats: Record<string, StreamStats> = {};
+      if (this.screenProducer && !this.screenProducer.closed) {
+        const result = collectOutboundStreamStats(
+          await this.screenProducer.getStats(),
+          this.streamSamples.get(SELF_STREAM) ?? null,
+        );
+        this.streamSamples.set(SELF_STREAM, result.sample);
+        streamStats[SELF_STREAM] = result.stats;
       }
-    }, STATS_INTERVAL_MS);
+      for (const { consumer, peerId, source } of this.consumers.values()) {
+        if (source !== 'screen' || consumer.closed) continue;
+        const result = collectInboundStreamStats(
+          await consumer.getStats(),
+          this.streamSamples.get(peerId) ?? null,
+        );
+        this.streamSamples.set(peerId, result.sample);
+        streamStats[peerId] = result.stats;
+      }
+      set({ stats, streamStats });
+    } catch {
+      // Transports can close between the check and the call.
+    }
   }
 }
