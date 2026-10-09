@@ -45,6 +45,8 @@ const envSchema = z.object({
   /** Requests per minute allowed per client, and the stricter limit for auth endpoints. */
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(20),
+  /** Messages per minute a single user may send. */
+  RATE_LIMIT_MESSAGES_MAX: z.coerce.number().int().min(1).default(60),
 
   GATEWAY_HEARTBEAT_MS: z.coerce.number().int().min(50).default(30_000),
   /** How long a dropped gateway session can still be resumed. */

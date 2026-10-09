@@ -8,6 +8,7 @@ import type { PresenceService } from './gateway/presence';
 import type { AuthService } from './modules/auth/service';
 import type { AccessClaims } from './modules/auth/tokens';
 import type { GuildService } from './modules/guilds/service';
+import type { MessageService } from './modules/messages/service';
 import type { MediaLink } from './modules/voice/media-link';
 import type { VoiceAccess } from './modules/voice/voice-access';
 import type { VoiceStateStore } from './modules/voice/voice-state';
@@ -24,6 +25,7 @@ export interface AppContext {
   voiceStates: VoiceStateStore;
   auth: AuthService;
   guilds: GuildService;
+  messages: MessageService;
   voice: VoiceAccess;
   media: MediaLink;
   hub: GatewayHub;

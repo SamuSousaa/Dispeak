@@ -9,7 +9,7 @@
 // nothing but Node installed.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
 
@@ -33,13 +33,48 @@ function isListening(port) {
   });
 }
 
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A dev run that was killed instead of stopped can leave Postgres backends behind without
+ * their postmaster: the port stays taken but nothing answers. Clears those out.
+ */
+async function removeOrphanedPostgres(databaseDir) {
+  const pidFile = path.join(databaseDir, 'postmaster.pid');
+  const pid = existsSync(pidFile) ? Number((await readFile(pidFile, 'utf8')).split('\n')[0]) : 0;
+  // A live postmaster means a healthy instance from another terminal: leave it alone.
+  if (pid && isAlive(pid)) return;
+  if (!(await isListening(5432))) return;
+
+  console.log('[dev] cleaning up a Postgres left over from an interrupted run');
+  if (process.platform === 'win32') {
+    run(
+      'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name=\'postgres.exe\'\\" | ' +
+        "Where-Object { $_.CommandLine -like '*embedded-postgres*' } | " +
+        'ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"',
+      { stdio: 'ignore' },
+    );
+  } else {
+    run(`pkill -f "${databaseDir}"`, { stdio: 'ignore' });
+  }
+  await rm(pidFile, { force: true });
+}
+
 async function startEmbeddedPostgres() {
+  const databaseDir = path.join(root, '.dev', 'postgres');
+  await removeOrphanedPostgres(databaseDir);
   if (await isListening(5432)) {
     console.log('[dev] Postgres already listening on 5432');
     return;
   }
   const { default: EmbeddedPostgres } = await import('embedded-postgres');
-  const databaseDir = path.join(root, '.dev', 'postgres');
   await mkdir(path.dirname(databaseDir), { recursive: true });
   const postgres = new EmbeddedPostgres({
     databaseDir,

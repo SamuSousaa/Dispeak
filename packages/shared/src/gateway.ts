@@ -4,6 +4,7 @@ import {
   guildSchema,
   idSchema,
   memberSchema,
+  messageSchema,
   presenceStatusSchema,
   userSchema,
 } from './api';
@@ -97,6 +98,12 @@ export const gatewayEvents = {
     deafened: z.boolean(),
     streaming: z.boolean(),
   }),
+
+  MESSAGE_CREATE: messageSchema,
+  MESSAGE_UPDATE: messageSchema,
+  MESSAGE_DELETE: z.object({ id: idSchema, channelId: idSchema, guildId: idSchema }),
+  /** Someone started typing in a text channel; clients expire it after a few seconds. */
+  TYPING_START: z.object({ guildId: idSchema, channelId: idSchema, userId: idSchema }),
 } as const;
 
 export type GatewayEventName = keyof typeof gatewayEvents;

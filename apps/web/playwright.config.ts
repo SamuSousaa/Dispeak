@@ -30,10 +30,18 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: 'pnpm --dir ../.. dev',
+        // Stale processes from an interrupted run would hold the ports.
+        command: 'node ../../scripts/kill-ports.mjs && pnpm --dir ../.. dev',
         url: `${baseURL}/api/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
         stdout: 'ignore',
+        env: {
+          // Every test runs from one address; production-like limits would throttle the suite.
+          RATE_LIMIT_MAX: '1000000',
+          RATE_LIMIT_AUTH_MAX: '1000000',
+          RATE_LIMIT_MESSAGES_MAX: '1000000',
+          MEDIA_NUM_WORKERS: process.env.MEDIA_NUM_WORKERS ?? '4',
+        },
       },
 });

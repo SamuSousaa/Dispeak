@@ -137,6 +137,12 @@ export const gatewayReducers: { [T in GatewayEventName]: Reducer<T> } = {
         ],
       };
     }),
+
+  // Chat events do not touch guild state; the chat feature keeps its own caches.
+  MESSAGE_CREATE: () => ({}),
+  MESSAGE_UPDATE: () => ({}),
+  MESSAGE_DELETE: () => ({}),
+  TYPING_START: () => ({}),
 };
 
 export function applyGatewayEvent<T extends GatewayEventName>(

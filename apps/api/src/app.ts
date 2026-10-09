@@ -23,6 +23,8 @@ import { authRoutes } from './modules/auth/routes';
 import { AuthService } from './modules/auth/service';
 import { guildRoutes } from './modules/guilds/routes';
 import { GuildService } from './modules/guilds/service';
+import { messageRoutes } from './modules/messages/routes';
+import { MessageService } from './modules/messages/service';
 import { MediaLink } from './modules/voice/media-link';
 import { voiceRoutes } from './modules/voice/routes';
 import { VoiceAccess } from './modules/voice/voice-access';
@@ -85,6 +87,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   });
   voice.attach(media);
   const guilds = new GuildService({ db: database.db, bus, live, voice });
+  const messages = new MessageService(database.db, bus);
   const hub = new GatewayHub({ db: database.db, bus, auth, live, config, log: app.log });
   hub.start();
   media.start();
@@ -99,6 +102,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     voiceStates,
     auth,
     guilds,
+    messages,
     voice,
     media,
     hub,
@@ -163,6 +167,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
 
       await api.register(authRoutes);
       await api.register(guildRoutes);
+      await api.register(messageRoutes);
       await api.register(voiceRoutes);
       if (config.LAB_ENABLED) await api.register(labRoutes, { iceServers });
     },

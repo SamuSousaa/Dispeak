@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   foreignKey,
   index,
   integer,
@@ -170,4 +172,29 @@ export const invites = pgTable(
     createdAt: createdAt(),
   },
   (table) => [index('invites_guild_idx').on(table.guildId)],
+);
+
+export const messages = pgTable(
+  'messages',
+  {
+    /** UUIDv7: sorts by creation time, so it doubles as the pagination cursor. */
+    id: uuid('id').primaryKey(),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    /** Users mentioned with `<@id>`, resolved when the message was written. */
+    mentions: uuid('mentions')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    mentionEveryone: boolean('mention_everyone').notNull().default(false),
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  // One index serves "latest messages of a channel" and "older than cursor".
+  (table) => [index('messages_channel_idx').on(table.channelId, table.id.desc())],
 );

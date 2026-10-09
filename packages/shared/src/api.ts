@@ -214,6 +214,57 @@ export const invitePreviewSchema = z.object({
 });
 export type InvitePreview = z.infer<typeof invitePreviewSchema>;
 
+// --- messages ------------------------------------------------------------------------------
+
+export const MESSAGE_MAX_LENGTH = 2000;
+export const MESSAGE_PAGE_SIZE = 50;
+
+/** How a user mention is written inside message content: `<@user-id>`. */
+export const MENTION_PATTERN = /<@([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})>/g;
+/** Mentions every member; honoured only with the MENTION_EVERYONE permission. */
+export const EVERYONE_MENTION = '@todos';
+
+export const formatMention = (userId: string) => `<@${userId}>`;
+
+/** Ids of the users mentioned in a piece of content, without duplicates. */
+export function extractMentions(content: string): string[] {
+  return [...new Set([...content.matchAll(MENTION_PATTERN)].map((match) => match[1] as string))];
+}
+
+export const messageContentSchema = z.string().trim().min(1).max(MESSAGE_MAX_LENGTH);
+
+export const messageSchema = z.object({
+  /** Time-ordered id; also the pagination cursor. */
+  id: idSchema,
+  channelId: idSchema,
+  guildId: idSchema,
+  author: userSchema,
+  content: z.string(),
+  /** Members mentioned with `<@id>` who can see the channel. */
+  mentions: z.array(idSchema),
+  mentionEveryone: z.boolean(),
+  createdAt: z.iso.datetime(),
+  editedAt: z.iso.datetime().nullable(),
+});
+export type Message = z.infer<typeof messageSchema>;
+
+export const sendMessageRequestSchema = z.object({ content: messageContentSchema });
+export const editMessageRequestSchema = sendMessageRequestSchema;
+
+export const listMessagesQuerySchema = z.object({
+  /** Return messages older than this id. */
+  before: idSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(MESSAGE_PAGE_SIZE),
+});
+
+export const messagePageSchema = z.object({
+  /** Oldest first. */
+  messages: z.array(messageSchema),
+  /** Pass as `before` to get the previous page; `null` at the beginning of the channel. */
+  nextCursor: idSchema.nullable(),
+});
+export type MessagePage = z.infer<typeof messagePageSchema>;
+
 // --- errors ---------------------------------------------------------------------------------
 
 /** Stable, machine-readable error codes returned as `{ error, message }`. */

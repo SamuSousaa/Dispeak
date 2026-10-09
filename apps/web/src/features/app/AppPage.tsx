@@ -1,8 +1,10 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { cx } from '../../lib/cx';
 import { useAuthStore } from '../auth/auth-store';
+import { applyChatEvent } from '../chat/chat-store';
 import { gateway } from '../gateway/gateway-client';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { AddGuildDialog } from '../guilds/dialogs/AddGuildDialog';
@@ -47,13 +49,17 @@ export function AppPage() {
 
   useVoiceShortcuts();
 
+  const queryClient = useQueryClient();
   useEffect(() => {
+    // Chat history lives in the query cache; gateway events keep it current.
+    const unsubscribe = gateway.subscribe((t, data) => applyChatEvent(queryClient, t, data));
     gateway.start();
     return () => {
+      unsubscribe();
       leaveVoice();
       gateway.stop();
     };
-  }, []);
+  }, [queryClient]);
 
   const guild = guildId ? guilds[guildId] : undefined;
   const groups = guild ? groupChannels(guild) : [];
@@ -193,7 +199,12 @@ export function AppPage() {
                 userId={user.id}
               />
             ) : (
-              <TextChannelView key={current.channel.id} channel={current.channel} />
+              <TextChannelView
+                key={current.channel.id}
+                guild={guild}
+                channel={current.channel}
+                userId={user.id}
+              />
             )}
           </div>
         </main>
