@@ -4,7 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import websocket from '@fastify/websocket';
-import { API_PREFIX, GATEWAY_PATH, type IceServer } from '@frequencia/shared';
+import { API_PREFIX, GATEWAY_PATH } from '@frequencia/shared';
 import Fastify, { LogController, type FastifyInstance } from 'fastify';
 import {
   jsonSchemaTransform,
@@ -19,6 +19,7 @@ import { GatewayBus } from './gateway/bus';
 import { GatewayHub } from './gateway/hub';
 import { PresenceService } from './gateway/presence';
 import { labRoutes } from './lab/routes';
+import { registerMetrics } from './metrics';
 import { authRoutes } from './modules/auth/routes';
 import { AuthService } from './modules/auth/service';
 import { guildRoutes } from './modules/guilds/routes';
@@ -58,7 +59,6 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   const { redis, subscriber, close: closeRedis } = connectRedis(config.REDIS_URL);
 
   // --- services -----------------------------------------------------------------------------
-  const iceServers: IceServer[] = config.STUN_URLS.length > 0 ? [{ urls: config.STUN_URLS }] : [];
   const bus = new GatewayBus(redis, subscriber);
   await bus.start();
   // Presence entries outlive two missed heartbeats plus the resume window.
@@ -76,7 +76,6 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     voiceStates,
     config,
     log: app.log,
-    iceServers,
   });
   const media = new MediaLink({
     url: config.MEDIA_INTERNAL_URL,
@@ -152,6 +151,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   await app.register(swaggerUi, { routePrefix: '/docs' });
 
   // --- routes -------------------------------------------------------------------------------
+  registerMetrics(app);
   await app.register(
     async (api) => {
       api.get('/health', { schema: { hide: true } }, async () => ({
@@ -169,7 +169,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       await api.register(guildRoutes);
       await api.register(messageRoutes);
       await api.register(voiceRoutes);
-      if (config.LAB_ENABLED) await api.register(labRoutes, { iceServers });
+      if (config.LAB_ENABLED) await api.register(labRoutes);
     },
     { prefix: API_PREFIX },
   );

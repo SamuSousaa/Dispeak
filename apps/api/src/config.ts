@@ -36,6 +36,11 @@ const envSchema = z.object({
 
   /** STUN servers handed to browsers for NAT traversal. */
   STUN_URLS: csv.default(['stun:stun.l.google.com:19302']),
+  /** TURN servers (coturn), e.g. `turn:turn.example.com:3478?transport=udp`. */
+  TURN_URLS: csv.default([]),
+  /** coturn `static-auth-secret`; enables time-limited TURN credentials. */
+  TURN_SECRET: z.string().min(16).optional(),
+  TURN_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
   /** Secret shared with the media service: signs voice tokens and authenticates internal RPC. */
   MEDIA_SHARED_SECRET: z.string().min(32).optional(),
   /** Internal WebSocket endpoint of the media service. */
@@ -53,6 +58,9 @@ const envSchema = z.object({
   GATEWAY_RESUME_WINDOW_MS: z.coerce.number().int().min(0).default(60_000),
   /** Gateway frames a connection may send per 10 seconds. */
   GATEWAY_RATE_LIMIT: z.coerce.number().int().min(1).default(60),
+
+  /** When set, `/metrics` requires `Authorization: Bearer <token>`. */
+  METRICS_TOKEN: z.string().min(16).optional(),
 
   /** Nickname-only lab routes (`/lab/*`). Off by default in production. */
   LAB_ENABLED: flag.optional(),

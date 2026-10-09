@@ -130,9 +130,10 @@ export class InternalServer {
       return {};
     });
 
-    link.handle('stats', () => ({
+    link.handle('stats', async () => ({
       ...this.rooms.stats().totals,
       connections: this.getConnectionCount(),
+      workers: await this.rooms.workerUsage(),
     }));
   }
 

@@ -18,7 +18,11 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "e2e": "pnpm --filter @frequencia/web e2e",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test"
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
+    "start:local": "node scripts/start-local.mjs",
+    "prod:up": "docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build",
+    "prod:down": "docker compose -f docker-compose.prod.yml --env-file .env.prod down",
+    "prod:logs": "docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f --tail 100"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

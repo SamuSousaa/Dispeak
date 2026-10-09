@@ -1,0 +1,23 @@
+{
+  "participants": 8,
+  "viewers": 7,
+  "preset": "1080P30",
+  "measuredSeconds": 60,
+  "server": {
+    "producers": 10,
+    "consumers": 70,
+    "workerCpuCores": 0.143,
+    "mediaProcessCpuCores": 0.006,
+    "apiProcessCpuCores": 0.005
+  },
+  "viewersPlayback": {
+    "fpsAverage": 20,
+    "fpsWorst": 20,
+    "droppedFramesPercent": 4.47,
+    "resolutions": {
+      "1920x1080": 7
+    },
+    "receiveKbpsAverage": 1018,
+    "rttMsAverage": 0.1
+  }
+}

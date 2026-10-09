@@ -72,6 +72,31 @@ export class RoomManager {
     if (room && room.peers.size === 0) room.close();
   }
 
+  /** CPU time each worker process has consumed so far. */
+  async workerUsage(): Promise<
+    Array<{
+      index: number;
+      pid: number;
+      routers: number;
+      cpuUserSeconds: number;
+      cpuSystemSeconds: number;
+    }>
+  > {
+    return Promise.all(
+      this.pool.all.map(async ({ index, worker, routers }) => {
+        // mediasoup reports ru_utime/ru_stime in milliseconds.
+        const usage = await worker.getResourceUsage();
+        return {
+          index,
+          pid: worker.pid,
+          routers,
+          cpuUserSeconds: usage.ru_utime / 1000,
+          cpuSystemSeconds: usage.ru_stime / 1000,
+        };
+      }),
+    );
+  }
+
   closeAll(): void {
     for (const room of [...this.rooms.values()]) room.close();
   }

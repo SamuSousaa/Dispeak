@@ -1,0 +1,55 @@
+
+
+  █ THRESHOLDS 
+
+    http_req_duration{name:GET /channels/:id/messages}
+    ✓ 'p(95)<300' p(95)=8.87ms
+
+    http_req_duration{name:GET /guilds/:id}
+    ✓ 'p(95)<300' p(95)=6.67ms
+
+    http_req_duration{name:POST /auth/register}
+    ✓ 'p(95)<5000' p(95)=22.43ms
+
+    http_req_duration{name:POST /channels/:id/messages}
+    ✓ 'p(95)<300' p(95)=8.33ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 3859    42.532205/s
+    checks_succeeded...: 100.00% 3859 out of 3859
+    checks_failed......: 0.00%   0 out of 3859
+
+    ✓ registered
+    ✓ joined guild
+    ✓ guild loaded
+    ✓ message sent
+    ✓ history loaded
+
+    HTTP
+    http_req_duration........................: avg=5.66ms  min=2.01ms   med=5.18ms  max=23.8ms  p(90)=7.67ms  p(95)=9.08ms 
+      { expected_response:true }.............: avg=5.66ms  min=2.01ms   med=5.18ms  max=23.8ms  p(90)=7.67ms  p(95)=9.08ms 
+      { name:GET /channels/:id/messages }....: avg=6.3ms   min=3.5ms    med=5.89ms  max=21.55ms p(90)=8.1ms   p(95)=8.87ms 
+      { name:GET /guilds/:id }...............: avg=4.62ms  min=2.01ms   med=4.37ms  max=17.1ms  p(90)=5.81ms  p(95)=6.67ms 
+      { name:POST /auth/register }...........: avg=19.86ms min=17.04ms  med=19.64ms max=23.8ms  p(90)=21.21ms p(95)=22.43ms
+      { name:POST /channels/:id/messages }...: avg=6ms     min=3.5ms    med=5.63ms  max=13.35ms p(90)=7.71ms  p(95)=8.33ms 
+    http_req_failed..........................: 0.00%  0 out of 3861
+    http_reqs................................: 3861   42.554248/s
+
+    EXECUTION
+    iteration_duration.......................: avg=1s      min=506.18ms med=1s      max=1.51s   p(90)=1.4s    p(95)=1.45s  
+    iterations...............................: 3758   41.419028/s
+    vus......................................: 4      min=2         max=50
+    vus_max..................................: 50     min=50        max=50
+
+    NETWORK
+    data_received............................: 43 MB  469 kB/s
+    data_sent................................: 1.9 MB 20 kB/s
+
+
+
+VUS=50 api_cpu_seconds= wall=

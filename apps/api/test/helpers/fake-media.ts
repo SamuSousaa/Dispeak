@@ -94,12 +94,13 @@ export async function startFakeMedia(): Promise<FakeMedia> {
       return {};
     });
     link.handle('stats', () => ({
-      rooms: 0,
-      peers: 0,
-      transports: 0,
-      producers: 0,
-      consumers: 0,
+      rooms: 2,
+      peers: 5,
+      transports: 10,
+      producers: 6,
+      consumers: 12,
       connections: 0,
+      workers: [{ index: 0, pid: 1234, routers: 2, cpuUserSeconds: 1.5, cpuSystemSeconds: 0.5 }],
     }));
   });
 

@@ -12,7 +12,11 @@ interface PeerStats {
 }
 
 async function peers(request: APIRequestContext, channel: string): Promise<PeerStats[]> {
-  const response = await request.get('/media/stats');
+  // Outside development the endpoint asks for the secret shared with the API.
+  const secret = process.env.E2E_MEDIA_SECRET;
+  const response = await request.get('/media/stats', {
+    headers: secret ? { authorization: `Bearer ${secret}` } : {},
+  });
   const stats = (await response.json()) as { rooms: Array<{ id: string; peers: PeerStats[] }> };
   return stats.rooms.find((room) => room.id === `lab:${channel}`)?.peers ?? [];
 }

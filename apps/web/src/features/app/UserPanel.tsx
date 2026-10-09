@@ -32,7 +32,7 @@ export function UserPanel({ user }: { user: User }) {
             </span>
             <span className="truncate text-muted">{channelName}</span>
           </p>
-          <div className="mt-2 grid grid-cols-3 gap-1.5">
+          <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-1.5">
             <button
               type="button"
               className={cx(smallButton, muted ? 'text-danger' : 'text-fg')}

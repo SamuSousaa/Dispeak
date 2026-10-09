@@ -1,0 +1,58 @@
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate>0.99' rate=100.00%
+
+    gateway_delivery_latency_ms
+    ✓ 'p(95)<250' p(95)=26ms
+
+    gateway_ready_ms
+    ✓ 'p(95)<2000' p(95)=318.09ms
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 2571    31.740894/s
+    checks_succeeded...: 100.00% 2571 out of 2571
+    checks_failed......: 0.00%   0 out of 2571
+
+    ✓ registered
+    ✓ joined guild
+    ✓ message sent
+    ✓ gateway upgraded
+    ✓ received READY
+
+    CUSTOM
+    gateway_delivery_latency_ms....: avg=29.21ms min=4ms    med=15ms    max=948ms   p(90)=24ms     p(95)=26ms    
+    gateway_events_received........: 524791 6478.932453/s
+    gateway_heartbeats_acked.......: 972    12.000058/s
+    gateway_ready_ms...............: avg=58.64ms min=2ms    med=8ms     max=414ms   p(90)=233.9ms  p(95)=318.09ms
+
+    HTTP
+    http_req_duration..............: avg=58.53ms min=2.99ms med=11.59ms max=887.9ms p(90)=157.72ms p(95)=340.02ms
+      { expected_response:true }...: avg=58.53ms min=2.99ms med=11.59ms max=887.9ms p(90)=157.72ms p(95)=340.02ms
+    http_req_failed................: 0.00%  0 out of 1573
+    http_reqs......................: 1573   19.419847/s
+
+    EXECUTION
+    iteration_duration.............: avg=33.69s  min=4.5ms  med=10.85ms max=1m20s   p(90)=1m16s    p(95)=1m18s   
+    iterations.....................: 1050   12.963025/s
+    vus............................: 500    min=18        max=505
+    vus_max........................: 510    min=510       max=510
+
+    NETWORK
+    data_received..................: 231 MB 2.9 MB/s
+    data_sent......................: 906 kB 11 kB/s
+
+    WEBSOCKET
+    ws_connecting..................: avg=3.99ms  min=0s     med=1ms     max=46.17ms p(90)=15.58ms  p(95)=18.63ms 
+    ws_msgs_received...............: 526263 6497.10538/s
+    ws_msgs_sent...................: 1472   18.172927/s
+    ws_session_duration............: avg=1m9s    min=58.7s  med=1m9s    max=1m19s   p(90)=1m17s    p(95)=1m18s   
+    ws_sessions....................: 500    6.172869/s
+
+
+
+VUS=500 msgs_per_s=10 api_process_cpu_seconds=36.0 wall_seconds=81 avg_cpu_cores=0.44

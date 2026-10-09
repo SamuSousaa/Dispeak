@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import { MEDIA_PREFIX } from '@frequencia/shared';
 import type { Config } from './config';
+import { createMetrics } from './metrics';
 import type { RoomManager } from './rooms/room-manager';
 import { INTERNAL_PATH, type InternalServer } from './signaling/internal-server';
 import { VOICE_PATH, type VoiceServer } from './signaling/voice-server';
@@ -30,6 +31,8 @@ function isAuthorized(request: http.IncomingMessage, config: Config): boolean {
 }
 
 export function createHttpServer({ config, pool, rooms, voice, internal }: HttpDeps): http.Server {
+  const metrics = createMetrics(rooms, () => voice.connections);
+
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     const route = `${request.method} ${url.pathname}`;
@@ -55,6 +58,21 @@ export function createHttpServer({ config, pool, rooms, voice, internal }: HttpD
         connections: voice.connections,
         apiLinks: internal.linkCount,
       });
+      return;
+    }
+
+    if (route === `GET ${MEDIA_PREFIX}/metrics`) {
+      if (!isAuthorized(request, config)) {
+        json(response, 401, { error: 'unauthorized' });
+        return;
+      }
+      void metrics.render().then(
+        (body) => {
+          response.writeHead(200, { 'content-type': metrics.contentType });
+          response.end(body);
+        },
+        () => json(response, 500, { error: 'internal_error' }),
+      );
       return;
     }
 

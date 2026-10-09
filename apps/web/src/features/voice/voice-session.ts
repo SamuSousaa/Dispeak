@@ -174,28 +174,50 @@ export class VoiceSession {
     const preset = SCREEN_PRESETS[presetId];
     set({ screen: { ...screenOff, status: 'starting', preset: presetId } });
 
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getDisplayMedia({
+    const capture = (withAudio: boolean) =>
+      navigator.mediaDevices.getDisplayMedia({
         video: {
           width: { ideal: preset.width, max: preset.width },
           height: { ideal: preset.height, max: preset.height },
           frameRate: { ideal: preset.frameRate, max: preset.frameRate },
         },
         // System/tab audio is only offered by some browsers and capture surfaces.
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        systemAudio: 'include',
+        ...(withAudio
+          ? {
+              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+              systemAudio: 'include',
+            }
+          : {}),
       } as DisplayMediaStreamOptions);
+    // Dismissing the browser picker is not an error worth showing.
+    const wasCancelled = (error: unknown) =>
+      error instanceof DOMException && error.name === 'NotAllowedError';
+
+    let stream: MediaStream;
+    try {
+      stream = await capture(true);
     } catch (error) {
-      // Dismissing the browser picker is not an error worth showing.
-      const cancelled = error instanceof DOMException && error.name === 'NotAllowedError';
-      set({
-        screen: {
-          ...screenOff,
-          error: cancelled ? null : 'Não foi possível capturar a tela neste navegador.',
-        },
-      });
-      return;
+      if (wasCancelled(error)) {
+        set({ screen: screenOff });
+        return;
+      }
+      // The audio source can fail on its own (busy device, unsupported surface): a stream
+      // without sound is better than no stream, and the UI says that it has no audio.
+      console.warn('[voice] screen capture with audio failed, retrying without it', error);
+      try {
+        stream = await capture(false);
+      } catch (retryError) {
+        if (!wasCancelled(retryError)) console.warn('[voice] screen capture failed', retryError);
+        set({
+          screen: {
+            ...screenOff,
+            error: wasCancelled(retryError)
+              ? null
+              : 'Não foi possível capturar a tela neste navegador.',
+          },
+        });
+        return;
+      }
     }
 
     const [videoTrack] = stream.getVideoTracks();

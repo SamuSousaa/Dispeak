@@ -199,7 +199,8 @@ describe('internal API link', () => {
     const api = await connectApi(h);
     await h.joinAs();
     await h.joinAs();
-    expect(await api.rpc.request('stats', {})).toEqual({
+    const stats = await api.rpc.request('stats', {});
+    expect(stats).toMatchObject({
       rooms: 1,
       peers: 2,
       transports: 0,
@@ -207,5 +208,14 @@ describe('internal API link', () => {
       consumers: 0,
       connections: 2,
     });
+    expect(stats.workers).toEqual([
+      {
+        index: 0,
+        pid: h.server.pool.all[0]?.worker.pid,
+        routers: 1,
+        cpuUserSeconds: expect.any(Number),
+        cpuSystemSeconds: expect.any(Number),
+      },
+    ]);
   });
 });

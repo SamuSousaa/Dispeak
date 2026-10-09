@@ -1,0 +1,46 @@
+# Reverse proxy and static file server for production.
+# DOMAIN and ACME_EMAIL come from the environment (.env.prod). Caddy obtains and renews the
+# TLS certificate for DOMAIN on its own; ports 80 and 443 must be reachable from the internet.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		# The app needs the microphone and screen capture; nothing else may ask for them.
+		Permissions-Policy "camera=(self), microphone=(self), display-capture=(self)"
+		-Server
+	}
+
+	# REST API, gateway WebSocket and the OpenAPI UI.
+	@api path /api/* /docs /docs/*
+	handle @api {
+		reverse_proxy api:4000
+	}
+
+	# Only the browser-facing media endpoints are public. The internal RPC, the room
+	# statistics and the metrics of the media service are never proxied.
+	@media path /media/voice /media/health
+	handle @media {
+		reverse_proxy media:4100
+	}
+	handle /media/* {
+		respond 404
+	}
+
+	# Everything else is the single-page app. Note that /metrics is not proxied either:
+	# Prometheus scrapes the API container directly on the internal network.
+	handle {
+		root * /srv
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

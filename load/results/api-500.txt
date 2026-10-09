@@ -1,0 +1,56 @@
+
+
+  █ THRESHOLDS 
+
+    http_req_duration{name:GET /channels/:id/messages}
+    ✗ 'p(95)<300' p(95)=3.52s
+
+    http_req_duration{name:GET /guilds/:id}
+    ✗ 'p(95)<300' p(95)=1.81s
+
+    http_req_duration{name:POST /auth/register}
+    ✓ 'p(95)<5000' p(95)=1.42s
+
+    http_req_duration{name:POST /channels/:id/messages}
+    ✗ 'p(95)<300' p(95)=3.54s
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 14667   161.332457/s
+    checks_succeeded...: 100.00% 14667 out of 14667
+    checks_failed......: 0.00%   0 out of 14667
+
+    ✓ registered
+    ✓ joined guild
+    ✓ guild loaded
+    ✓ history loaded
+    ✓ message sent
+
+    HTTP
+    http_req_duration........................: avg=1.65s    min=2.03ms   med=1.52s    max=5.16s  p(90)=3.13s p(95)=3.37s
+      { expected_response:true }.............: avg=1.65s    min=2.03ms   med=1.52s    max=5.16s  p(90)=3.13s p(95)=3.37s
+      { name:GET /channels/:id/messages }....: avg=2.24s    min=3.5ms    med=2.51s    max=4.11s  p(90)=3.34s p(95)=3.52s
+      { name:GET /guilds/:id }...............: avg=1.14s    min=2.03ms   med=1.31s    max=2.27s  p(90)=1.72s p(95)=1.81s
+      { name:POST /auth/register }...........: avg=469.17ms min=13.88ms  med=240.51ms max=1.49s  p(90)=1.38s p(95)=1.42s
+      { name:POST /channels/:id/messages }...: avg=2.26s    min=3.57ms   med=2.51s    max=4.11s  p(90)=3.36s p(95)=3.54s
+    http_req_failed..........................: 0.00%  0 out of 14669
+    http_reqs................................: 14669  161.354456/s
+
+    EXECUTION
+    iteration_duration.......................: avg=2.77s    min=510.46ms med=2.65s    max=11.25s p(90)=4.23s p(95)=4.55s
+    iterations...............................: 13666  150.321767/s
+    vus......................................: 29     min=22         max=500
+    vus_max..................................: 500    min=500        max=500
+
+    NETWORK
+    data_received............................: 692 MB 7.6 MB/s
+    data_sent................................: 6.9 MB 76 kB/s
+
+
+
+time="2026-10-09T05:42:43-03:00" level=error msg="thresholds on metrics 'http_req_duration{name:GET /channels/:id/messages}, http_req_duration{name:GET /guilds/:id}, http_req_duration{name:POST /channels/:id/messages}' have been crossed"
+VUS=500 api_process_cpu_seconds=122.7 wall_seconds=92 avg_cpu_cores=1.33

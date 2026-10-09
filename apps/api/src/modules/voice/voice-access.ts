@@ -1,7 +1,6 @@
 import {
   hasPermission,
   Permissions,
-  type IceServer,
   type InternalVoicePeer,
   type VoiceTokenResponse,
 } from '@frequencia/shared';
@@ -11,6 +10,7 @@ import type { Config } from '../../config';
 import { schema, type Database } from '../../db/client';
 import { forbidden, notFound } from '../../errors';
 import type { GatewayBus } from '../../gateway/bus';
+import { buildIceServers } from '../../lib/ice';
 import type { Redis } from '../../redis';
 import { channelPermissionsOf, loadGuildSnapshot } from '../guilds/snapshot';
 import type { MediaLink, VoiceStateEvent } from './media-link';
@@ -36,7 +36,6 @@ export interface VoiceAccessDeps {
   voiceStates: VoiceStateStore;
   config: Config;
   log: FastifyBaseLogger;
-  iceServers: IceServer[];
 }
 
 /**
@@ -87,7 +86,7 @@ export class VoiceAccess {
         ttlSeconds: this.deps.config.VOICE_TOKEN_TTL_SECONDS,
       },
     );
-    return { token, iceServers: this.deps.iceServers };
+    return { token, iceServers: buildIceServers(this.deps.config, userId) };
   }
 
   /**

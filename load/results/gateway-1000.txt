@@ -1,0 +1,61 @@
+time="2026-10-09T05:46:10-03:00" level=warning msg="Insufficient VUs, reached 50 active VUs and cannot initialize more" executor=constant-arrival-rate scenario=chatters
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate>0.99' rate=100.00%
+
+    gateway_delivery_latency_ms
+    ✗ 'p(95)<250' p(95)=19.1s
+
+    gateway_ready_ms
+    ✗ 'p(95)<2000' p(95)=5.57s
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 4502    55.580826/s
+    checks_succeeded...: 100.00% 4502 out of 4502
+    checks_failed......: 0.00%   0 out of 4502
+
+    ✓ registered
+    ✓ joined guild
+    ✓ message sent
+    ✓ gateway upgraded
+    ✓ received READY
+
+    CUSTOM
+    gateway_delivery_latency_ms....: avg=4.41s  min=6ms    med=29ms     max=20.81s   p(90)=16.39s  p(95)=19.1s  
+    gateway_events_received........: 1485406 18338.536626/s
+    gateway_heartbeats_acked.......: 1627    20.086629/s
+    gateway_ready_ms...............: avg=2.33s  min=3ms    med=2.23s    max=5.77s    p(90)=5.16s   p(95)=5.57s  
+
+    HTTP
+    http_req_duration..............: avg=2.49s  min=3.28ms med=804.27ms max=12.47s   p(90)=9.08s   p(95)=11.08s 
+      { expected_response:true }...: avg=2.49s  min=3.28ms med=804.27ms max=12.47s   p(90)=9.08s   p(95)=11.08s 
+    http_req_failed................: 0.00%   0 out of 2504
+    http_reqs......................: 2504    30.913902/s
+
+    EXECUTION
+    dropped_iterations.............: 69      0.851861/s
+    iteration_duration.............: avg=48.29s min=6.02ms med=1m5s     max=1m20s    p(90)=1m17s   p(95)=1m19s  
+    iterations.....................: 1481    18.284141/s
+    vus............................: 1000    min=34         max=1050
+    vus_max........................: 1050    min=1010       max=1050
+
+    NETWORK
+    data_received..................: 701 MB  8.7 MB/s
+    data_sent......................: 1.5 MB  18 kB/s
+
+    WEBSOCKET
+    ws_connecting..................: avg=8.88ms min=0s     med=3.22ms   max=691.36ms p(90)=20.18ms p(95)=26.58ms
+    ws_msgs_received...............: 1488033 18370.969063/s
+    ws_msgs_sent...................: 2627    32.432436/s
+    ws_session_duration............: avg=1m4s   min=44.35s med=1m6s     max=1m19s    p(90)=1m17s   p(95)=1m18s  
+    ws_sessions....................: 1000    12.345808/s
+
+
+
+time="2026-10-09T05:47:00-03:00" level=error msg="thresholds on metrics 'gateway_delivery_latency_ms, gateway_ready_ms' have been crossed"
+VUS=1000 msgs_per_s=10 api_process_cpu_seconds=75.7 wall_seconds=81 avg_cpu_cores=0.93

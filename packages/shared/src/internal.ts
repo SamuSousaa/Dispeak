@@ -33,6 +33,16 @@ export const mediaStatsSchema = z.object({
   producers: z.number().int(),
   consumers: z.number().int(),
   connections: z.number().int(),
+  workers: z.array(
+    z.object({
+      index: z.number().int(),
+      pid: z.number().int(),
+      routers: z.number().int(),
+      /** CPU time consumed since the worker started, in seconds. */
+      cpuUserSeconds: z.number(),
+      cpuSystemSeconds: z.number(),
+    }),
+  ),
 });
 export type MediaStatsTotals = z.infer<typeof mediaStatsSchema>;
 

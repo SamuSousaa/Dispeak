@@ -72,3 +72,17 @@ jobs:
             apps/web/playwright-report
             apps/web/test-results
           retention-days: 7
+
+  docker:
+    name: Production images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fill in a throwaway production environment
+        run: |
+          sed -e 's/^DOMAIN=.*/DOMAIN=example.com/'               -e 's/^ACME_EMAIL=.*/ACME_EMAIL=ci@example.com/'               -e 's/^PUBLIC_IP=.*/PUBLIC_IP=203.0.113.10/'               -e 's/^PRIVATE_IP=.*/PRIVATE_IP=10.0.0.10/'               -e 's/^\(POSTGRES_PASSWORD\|JWT_SECRET\|MEDIA_SHARED_SECRET\|TURN_SECRET\)=.*/=0123456789abcdef0123456789abcdef/'               .env.prod.example > .env.prod
+      - name: Validate the compose file
+        run: docker compose -f docker-compose.prod.yml --env-file .env.prod config --quiet
+      - name: Build the images
+        run: docker compose -f docker-compose.prod.yml --env-file .env.prod build

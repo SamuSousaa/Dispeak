@@ -19,7 +19,8 @@ interface Session {
 }
 
 export interface P2pSignalingOptions {
-  iceServers: IceServer[];
+  /** ICE servers for a peer; TURN credentials are minted per peer. */
+  iceServersFor: (peerId: string) => IceServer[];
   log: FastifyBaseLogger;
 }
 
@@ -37,7 +38,7 @@ export class P2pSignaling {
   }
 
   accept(socket: WebSocket): void {
-    const { log, iceServers } = this.options;
+    const { log, iceServersFor } = this.options;
     const rpc = createSocketPeer(socket, { local: p2pServerSide, remote: p2pClientSide, log });
     const id = randomUUID();
     let roomId: string | undefined;
@@ -71,7 +72,7 @@ export class P2pSignaling {
       room.set(id, { peer: self, rpc });
       roomId = requestedRoom;
 
-      return { self, peers, iceServers };
+      return { self, peers, iceServers: iceServersFor(id) };
     });
 
     rpc.handle('leave', () => {
