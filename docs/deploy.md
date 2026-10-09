@@ -137,7 +137,7 @@ exit   # entre de novo por SSH para o grupo valer
 ## 5. Configurar e subir
 
 ```bash
-git clone <url-do-repositório> frequencia
+git clone https://github.com/SamuSousaa/Dispeak.git frequencia
 cd frequencia
 cp .env.prod.example .env.prod
 nano .env.prod

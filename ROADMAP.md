@@ -14,7 +14,7 @@ passar e de um commit ser feito.
 **Aceite**
 
 - [x] `pnpm install && pnpm dev` sobe web, api e media
-- [ ] O CI passa (workflow pronto; aguardando primeiro push — ver Pendências)
+- [x] O CI passa (os três jobs, desde 09/10/2026)
 
 ## Etapa 1 — Chamada 1:1 P2P com sinalização própria
 
@@ -103,37 +103,32 @@ desenvolvido (Windows, sem Docker, sem WSL2, sem segundo dispositivo).
 
 ### Depende de você
 
-- **Repositório no GitHub.** Não há remoto configurado e o `gh` não está instalado. O workflow
-  `.github/workflows/ci.yml` tem três jobs — `check` (lint, format, typecheck, testes, build), `e2e`
-  (Playwright) e `docker` (constrói as imagens de produção) — e **nenhum deles rodou ainda**. Os
-  mesmos comandos de `check` e `e2e` passam localmente. A primeira execução no Actions é também o
-  primeiro teste real dos Dockerfiles.
 - **Deploy e demo pública.** Exige uma conta na Oracle Cloud (ou outra VPS), um IP público e um
   nome DNS (pode ser `sslip.io`). O passo a passo está em `docs/deploy.md`. O README diz
   explicitamente que ainda não há instância pública; quando houver, falta colocar o link na seção
   "Demo".
-- **Nome e licença.** "Frequência" continua provisório (pacotes e repositório usam `frequencia`).
-  Nenhuma licença foi adicionada: sem um arquivo `LICENSE`, o código é "todos os direitos
-  reservados" por padrão — decida se quer MIT ou outra antes de publicar.
+- **Nome.** "Frequência" continua provisório: os pacotes usam `frequencia` e o repositório no
+  GitHub se chama `Dispeak`.
 - **Instalar o Docker Desktop** (precisa de administrador e reinicialização), se quiser usar
   `pnpm dev:docker` ou testar o stack de produção localmente.
 
 ### Escrito, mas não executado
 
-- **Tudo o que é Docker.** `docker-compose.yml` (dev), `docker-compose.prod.yml`, os três
-  Dockerfiles e `deploy/Caddyfile` foram escritos com cuidado e os YAML foram validados
-  sintaticamente, mas nenhum container foi construído ou iniciado. Pontos com mais chance de
+- **Os stacks Docker.** O job `docker` do CI constrói as três imagens de produção, mas nenhum
+  container delas foi iniciado: `docker-compose.yml` (dev), `docker-compose.prod.yml` e
+  `deploy/Caddyfile` só tiveram os YAML validados sintaticamente. Pontos com mais chance de
   precisar de ajuste na primeira subida:
   - o estágio `prod-deps` dos Dockerfiles copia `node_modules` da raiz e do app preservando os
-    links simbólicos do pnpm;
+    links simbólicos do pnpm (a imagem constrói; falta ver o processo iniciar com eles);
   - a interpolação `${PRIVATE_IP:+...}` no compose;
   - os argumentos do coturn (`--external-ip`, `--allowed-peer-ip`).
 - **O caminho TURN em produção.** As credenciais temporárias são geradas e testadas (o HMAC confere
   com o esquema do coturn), mas nenhuma chamada passou por um coturn de verdade. Em especial, o
   relay alcançar o SFU no mesmo host através do IP privado (NAT 1:1 da Oracle) é um desenho ainda
   não validado.
-- **Postgres 17 e Redis 7.** Desenvolvimento e testes rodaram contra Postgres 18 e Memurai 8
-  embutidos; CI e produção usam Postgres 17 e Redis 7.
+- **Postgres 17 e Redis 7 em produção.** O desenvolvimento local usa Postgres 18 e Memurai 8
+  embutidos. Os testes passam no CI contra Postgres 17 e Redis 7, as versões de produção, mas o
+  stack de produção em si ainda não rodou com elas.
 
 ### Verificado só com mídia sintética
 
