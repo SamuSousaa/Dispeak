@@ -1,0 +1,46 @@
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+
+interface LabLayoutProps {
+  code: string;
+  title: string;
+  status?: ReactNode;
+  footer?: ReactNode;
+  children: ReactNode;
+}
+
+/** Frame shared by the lab routes: header strip, main area, system footer. */
+export function LabLayout({ code, title, status, footer, children }: LabLayoutProps) {
+  return (
+    <div className="flex h-dvh flex-col bg-bg">
+      <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link to="/" className="label text-muted transition-colors hover:text-accent">
+            ← INÍCIO
+          </Link>
+          <span className="label text-muted" aria-hidden="true">
+            /
+          </span>
+          <h1 className="label-lg truncate text-fg">
+            <span className="text-muted">{code}</span> {title}
+          </h1>
+        </div>
+        {status && <div className="label shrink-0 text-muted">{status}</div>}
+      </header>
+      <main className="min-h-0 flex-1">{children}</main>
+      {footer && (
+        <footer className="label flex min-h-8 shrink-0 flex-wrap items-center gap-x-6 gap-y-1 border-t border-line bg-surface px-4 py-1.5 text-muted">
+          {footer}
+        </footer>
+      )}
+    </div>
+  );
+}
+
+export function Metric({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <span className="whitespace-nowrap">
+      {label} <span className="text-fg">{value}</span>
+    </span>
+  );
+}

@@ -18,16 +18,16 @@ passar e de um commit ser feito.
 
 ## Etapa 1 — Chamada 1:1 P2P com sinalização própria
 
-- [ ] Protocolo de sinalização tipado (request/response/evento) com schemas Zod em `packages/shared`
-- [ ] Servidor de sinalização no gateway WebSocket da API
-- [ ] Offer/answer/ICE com STUN público, áudio e vídeo entre dois navegadores
-- [ ] Rota `/lab/p2p` no front
-- [ ] Camada de protocolo reaproveitável na etapa 2
+- [x] Protocolo de sinalização tipado (request/response/evento) com schemas Zod em `packages/shared`
+- [x] Servidor de sinalização no gateway WebSocket da API
+- [x] Offer/answer/ICE com STUN público, áudio e vídeo entre dois navegadores
+- [x] Rota `/lab/p2p` no front
+- [x] Camada de protocolo reaproveitável na etapa 2
 
 **Aceite**
 
-- [ ] Duas abas/dispositivos se veem e se ouvem
-- [ ] Teste de integração do servidor de sinalização
+- [x] Duas abas/dispositivos se veem e se ouvem
+- [x] Teste de integração do servidor de sinalização
 
 ## Etapa 2 — SFU com mediasoup: canais de voz
 
@@ -107,3 +107,8 @@ desenvolvimento.
 - **Repositório remoto e CI:** o `gh` CLI não está instalado e não há remoto configurado. O workflow
   `.github/workflows/ci.yml` roda os mesmos comandos de `pnpm check` + `pnpm build`, que passam
   localmente, mas a primeira execução no GitHub Actions depende de criar o repositório e dar push.
+- **Teste entre dispositivos reais (etapa 1 em diante):** a chamada P2P é verificada por e2e com dois
+  contextos de navegador na mesma máquina (câmera/microfone sintéticos do Chromium). Falta um teste
+  manual entre dois dispositivos em redes diferentes. Em LAN, use `DEV_HTTPS=1 pnpm dev` e abra
+  `https://<ip-da-máquina>:5173` (o navegador só libera microfone/câmera em contexto seguro).
+  Sem TURN, pares atrás de NAT simétrico não conectam em P2P — o coturn entra na etapa 5.

@@ -14,6 +14,8 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().min(0).max(65535).default(DEFAULT_API_PORT),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   CORS_ORIGINS: csv.default(['http://localhost:5173']),
+  /** STUN servers handed to browsers for NAT traversal. */
+  STUN_URLS: csv.default(['stun:stun.l.google.com:19302']),
 });
 
 export type Config = z.infer<typeof envSchema>;

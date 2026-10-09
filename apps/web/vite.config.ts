@@ -1,4 +1,5 @@
 import tailwindcss from '@tailwindcss/vite';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv } from 'vite';
 
@@ -9,8 +10,12 @@ export default defineConfig(({ mode }) => {
   const apiTarget = env.DEV_API_TARGET ?? 'http://localhost:4000';
   const mediaTarget = env.DEV_MEDIA_TARGET ?? 'http://localhost:4100';
 
+  // getUserMedia needs a secure context: DEV_HTTPS=1 serves a self-signed certificate so other
+  // LAN devices can join (localhost is already considered secure).
+  const https = env.DEV_HTTPS === '1';
+
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), ...(https ? [basicSsl()] : [])],
     server: {
       host: true,
       port: 5173,
