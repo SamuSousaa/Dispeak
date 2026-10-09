@@ -1,7 +1,6 @@
-import { nicknameSchema, p2pRoomIdSchema } from '@frequencia/shared';
-import { useEffect, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Button } from '../components/Button';
+import { LabJoinForm } from '../components/LabJoinForm';
 import { LabLayout, Metric } from '../components/LabLayout';
 import { MediaVideo } from '../components/MediaVideo';
 import {
@@ -63,80 +62,6 @@ function Tile({
   );
 }
 
-function JoinForm() {
-  const [params, setParams] = useSearchParams();
-  const [room, setRoom] = useState(params.get('sala') ?? '');
-  const [nickname, setNickname] = useState(() => localStorage.getItem('lab.nickname') ?? '');
-  const status = useP2pStore((state) => state.status);
-  const error = useP2pStore((state) => state.error);
-  const [formError, setFormError] = useState<string | null>(null);
-  const busy = status === 'acquiring' || status === 'connecting';
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const parsedRoom = p2pRoomIdSchema.safeParse(room);
-    const parsedNickname = nicknameSchema.safeParse(nickname);
-    if (!parsedNickname.success) {
-      setFormError('Apelido: 2 a 24 caracteres (letras, números, espaço, _ . -).');
-      return;
-    }
-    if (!parsedRoom.success) {
-      setFormError('Sala: até 32 caracteres, apenas letras, números, _ e -.');
-      return;
-    }
-    setFormError(null);
-    localStorage.setItem('lab.nickname', parsedNickname.data);
-    setParams({ sala: parsedRoom.data }, { replace: true });
-    void joinP2pRoom(parsedRoom.data, parsedNickname.data);
-  };
-
-  return (
-    <div className="grid-bg flex h-full items-center justify-center p-4">
-      <form onSubmit={submit} className="w-full max-w-sm border border-line bg-surface" noValidate>
-        <div className="border-b border-line px-4 py-4">
-          <p className="label text-muted">CHAMADA 1:1</p>
-          <p className="mt-1 text-sm text-muted">
-            Conexão direta entre dois navegadores. Abra a mesma sala em outra aba ou dispositivo.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 p-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="label text-muted">APELIDO</span>
-            <input
-              className="field"
-              value={nickname}
-              onChange={(event) => setNickname(event.target.value)}
-              autoComplete="nickname"
-              maxLength={24}
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="label text-muted">SALA</span>
-            <input
-              className="field"
-              value={room}
-              onChange={(event) => setRoom(event.target.value)}
-              placeholder="ex.: teste-01"
-              maxLength={32}
-              autoCapitalize="none"
-              required
-            />
-          </label>
-          {(formError ?? error) && (
-            <p role="alert" className="label text-danger">
-              {formError ?? error}
-            </p>
-          )}
-          <Button type="submit" variant="primary" disabled={busy}>
-            {busy ? 'CONECTANDO' : 'ENTRAR'}
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
 export function LabP2pPage() {
   const status = useP2pStore((state) => state.status);
   const self = useP2pStore((state) => state.self);
@@ -148,6 +73,7 @@ export function LabP2pPage() {
   const hasCamera = useP2pStore((state) => state.hasCamera);
   const iceState = useP2pStore((state) => state.iceState);
   const stats = useP2pStore((state) => state.stats);
+  const error = useP2pStore((state) => state.error);
 
   useEffect(() => leaveP2pRoom, []);
 
@@ -180,7 +106,15 @@ export function LabP2pPage() {
       }
     >
       {!inRoom ? (
-        <JoinForm />
+        <LabJoinForm
+          title="CHAMADA 1:1"
+          description="Conexão direta entre dois navegadores. Abra a mesma sala em outra aba ou dispositivo."
+          roomLabel="SALA"
+          roomParam="sala"
+          busy={status === 'acquiring' || status === 'connecting'}
+          error={error}
+          onJoin={(room, nickname) => void joinP2pRoom(room, nickname)}
+        />
       ) : (
         <div className="flex h-full flex-col">
           <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 gap-px bg-bg p-3 md:grid-cols-2 md:grid-rows-1 md:gap-3">

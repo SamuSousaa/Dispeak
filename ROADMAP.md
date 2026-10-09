@@ -31,19 +31,19 @@ passar e de um commit ser feito.
 
 ## Etapa 2 — SFU com mediasoup: canais de voz
 
-- [ ] Um worker por núcleo, balanceamento de rooms entre workers
-- [ ] Um Router por canal; transports de envio e recebimento por participante
-- [ ] Entrar/sair, mutar, ensurdecer, com estado sincronizado
-- [ ] Indicador de fala via `AudioLevelObserver`
-- [ ] Opus com DTX e FEC
-- [ ] Reconexão e limpeza de transports/producers órfãos
-- [ ] Identificação por apelido (substituída na etapa 4)
+- [x] Um worker por núcleo, balanceamento de rooms entre workers
+- [x] Um Router por canal; transports de envio e recebimento por participante
+- [x] Entrar/sair, mutar, ensurdecer, com estado sincronizado
+- [x] Indicador de fala via `AudioLevelObserver`
+- [x] Opus com DTX e FEC
+- [x] Reconexão e limpeza de transports/producers órfãos
+- [x] Identificação por apelido (substituída na etapa 4)
 
 **Aceite**
 
-- [ ] 4+ abas no mesmo canal conversando
-- [ ] Indicador de fala funcionando
-- [ ] Sair do canal libera todos os recursos no servidor (coberto por teste)
+- [x] 4+ abas no mesmo canal conversando
+- [x] Indicador de fala funcionando
+- [x] Sair do canal libera todos os recursos no servidor (coberto por teste)
 
 ## Etapa 3 — Transmissão de tela
 
@@ -112,3 +112,7 @@ desenvolvimento.
   manual entre dois dispositivos em redes diferentes. Em LAN, use `DEV_HTTPS=1 pnpm dev` e abra
   `https://<ip-da-máquina>:5173` (o navegador só libera microfone/câmera em contexto seguro).
   Sem TURN, pares atrás de NAT simétrico não conectam em P2P — o coturn entra na etapa 5.
+- **Voz com microfones reais (etapa 2):** o e2e coloca 4 participantes no mesmo canal com o
+  microfone sintético do Chromium e verifica áudio fluindo, indicador de fala, mute/deafen e
+  liberação de recursos. Qualidade subjetiva do áudio (eco, ruído, volume) e o comportamento em
+  redes reais só podem ser avaliados com pessoas e dispositivos de verdade.

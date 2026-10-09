@@ -24,7 +24,10 @@ function ServiceRow({
   );
 }
 
-const labs = [{ to: '/lab/p2p', code: 'LAB.01', title: 'P2P 1:1' }];
+const labs = [
+  { to: '/lab/p2p', code: 'LAB.01', title: 'P2P 1:1' },
+  { to: '/lab/voice', code: 'LAB.02', title: 'VOZ (SFU)' },
+];
 
 export function HomePage() {
   const api = useQuery({

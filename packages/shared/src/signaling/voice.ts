@@ -1,0 +1,214 @@
+import { z } from 'zod';
+import { defineSide } from '../rpc/peer';
+import { empty, iceServerSchema, nicknameSchema } from './common';
+
+/**
+ * Voice channel signaling between a browser and the media service (SFU).
+ * The browser connects to `${MEDIA_PREFIX}${VOICE_SIGNALING_PATH}?token=<voice token>`.
+ */
+export const VOICE_SIGNALING_PATH = '/voice';
+export const VOICE_TOKEN_AUDIENCE = 'frequencia:voice';
+export const VOICE_TOKEN_ISSUER = 'frequencia:api';
+
+export const VoiceErrorCode = {
+  NotJoined: 'not_joined',
+  AlreadyJoined: 'already_joined',
+  RoomFull: 'room_full',
+  Forbidden: 'forbidden',
+  NotFound: 'not_found',
+  InvalidState: 'invalid_state',
+  CannotConsume: 'cannot_consume',
+  LimitReached: 'limit_reached',
+} as const;
+
+/** WebSocket close codes used by the media service. */
+export const VoiceCloseCode = {
+  Unauthorized: 4001,
+  Replaced: 4002,
+  Kicked: 4003,
+  JoinTimeout: 4004,
+  RoomClosed: 4005,
+} as const;
+
+/** Claims of the short-lived token the API issues to let a user into one voice channel. */
+export const voiceTokenClaimsSchema = z.object({
+  /** User id. */
+  sub: z.string().min(1).max(64),
+  /** Display name shown to the other participants. */
+  name: z.string().min(1).max(64),
+  /** Voice channel id; one mediasoup router per channel. */
+  room: z.string().min(1).max(64),
+  /** May publish microphone audio. */
+  speak: z.boolean(),
+  /** May publish a screen share. */
+  stream: z.boolean(),
+});
+export type VoiceTokenClaims = z.infer<typeof voiceTokenClaimsSchema>;
+
+// --- mediasoup parameters -------------------------------------------------------------------
+// Browser-provided parameters are bounded here and fully validated by mediasoup itself.
+
+const looseObject = z.record(z.string(), z.unknown());
+
+export const rtpCapabilitiesSchema = z.object({
+  codecs: z.array(looseObject).max(64).optional(),
+  headerExtensions: z.array(looseObject).max(64).optional(),
+});
+
+export const rtpParametersSchema = z.object({
+  mid: z.string().max(64).optional(),
+  codecs: z.array(looseObject).min(1).max(16),
+  headerExtensions: z.array(looseObject).max(32).optional(),
+  encodings: z.array(looseObject).max(8).optional(),
+  rtcp: looseObject.optional(),
+});
+
+export const dtlsParametersSchema = z.object({
+  role: z.enum(['auto', 'client', 'server']).optional(),
+  fingerprints: z
+    .array(z.object({ algorithm: z.string().max(32), value: z.string().max(256) }))
+    .min(1)
+    .max(8),
+});
+
+export const iceParametersSchema = z.object({
+  usernameFragment: z.string(),
+  password: z.string(),
+  iceLite: z.boolean().optional(),
+});
+
+export const transportDirectionSchema = z.enum(['send', 'recv']);
+export type TransportDirection = z.infer<typeof transportDirectionSchema>;
+
+export const transportOptionsSchema = z.object({
+  id: z.string(),
+  iceParameters: iceParametersSchema,
+  iceCandidates: z.array(looseObject),
+  dtlsParameters: dtlsParametersSchema,
+});
+
+// --- domain ---------------------------------------------------------------------------------
+
+export const mediaKindSchema = z.enum(['audio', 'video']);
+export type MediaKind = z.infer<typeof mediaKindSchema>;
+
+/** What a producer carries. */
+export const producerSourceSchema = z.enum(['mic', 'screen', 'screen-audio']);
+export type ProducerSource = z.infer<typeof producerSourceSchema>;
+
+export const voiceProducerSchema = z.object({
+  id: z.string(),
+  kind: mediaKindSchema,
+  source: producerSourceSchema,
+});
+export type VoiceProducer = z.infer<typeof voiceProducerSchema>;
+
+export const voicePeerSchema = z.object({
+  /** Session id, unique per connection. */
+  id: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  muted: z.boolean(),
+  deafened: z.boolean(),
+  producers: z.array(voiceProducerSchema),
+});
+export type VoicePeer = z.infer<typeof voicePeerSchema>;
+
+const consumerRef = z.object({ consumerId: z.string() });
+const producerRef = z.object({ producerId: z.string() });
+
+/** What the media service accepts from a browser. */
+export const voiceServerSide = defineSide({
+  requests: {
+    getRouterCapabilities: {
+      request: empty,
+      response: z.object({ rtpCapabilities: rtpCapabilitiesSchema }),
+    },
+    join: {
+      request: z.object({
+        rtpCapabilities: rtpCapabilitiesSchema,
+        muted: z.boolean().default(false),
+        deafened: z.boolean().default(false),
+      }),
+      response: z.object({ self: voicePeerSchema, peers: z.array(voicePeerSchema) }),
+    },
+    createTransport: {
+      request: z.object({ direction: transportDirectionSchema }),
+      response: transportOptionsSchema,
+    },
+    connectTransport: {
+      request: z.object({ transportId: z.string(), dtlsParameters: dtlsParametersSchema }),
+      response: empty,
+    },
+    restartIce: {
+      request: z.object({ transportId: z.string() }),
+      response: z.object({ iceParameters: iceParametersSchema }),
+    },
+    produce: {
+      request: z.object({
+        transportId: z.string(),
+        kind: mediaKindSchema,
+        rtpParameters: rtpParametersSchema,
+        source: producerSourceSchema,
+      }),
+      response: producerRef,
+    },
+    closeProducer: { request: producerRef, response: empty },
+    consume: {
+      request: producerRef,
+      response: z.object({
+        consumerId: z.string(),
+        producerId: z.string(),
+        kind: mediaKindSchema,
+        rtpParameters: rtpParametersSchema,
+      }),
+    },
+    resumeConsumer: { request: consumerRef, response: empty },
+    pauseConsumer: { request: consumerRef, response: empty },
+    closeConsumer: { request: consumerRef, response: empty },
+    setState: {
+      request: z.object({ muted: z.boolean(), deafened: z.boolean() }),
+      response: empty,
+    },
+    leave: { request: empty, response: empty },
+  },
+  events: {},
+});
+
+/** What a browser accepts from the media service. */
+export const voiceClientSide = defineSide({
+  requests: {},
+  events: {
+    'peer-joined': z.object({ peer: voicePeerSchema }),
+    'peer-left': z.object({ peerId: z.string() }),
+    'peer-state': z.object({ peerId: z.string(), muted: z.boolean(), deafened: z.boolean() }),
+    'producer-added': z.object({ peerId: z.string(), producer: voiceProducerSchema }),
+    'producer-removed': z.object({ peerId: z.string(), producerId: z.string() }),
+    /** Session ids of the peers currently speaking, loudest first. */
+    speaking: z.object({ peerIds: z.array(z.string()) }),
+    'consumer-closed': consumerRef,
+    /** The server dropped a transport (ICE/DTLS failure); the client must reconnect. */
+    'transport-closed': z.object({ transportId: z.string() }),
+  },
+});
+
+export const voiceTokenResponseSchema = z.object({
+  token: z.string(),
+  iceServers: z.array(iceServerSchema),
+});
+export type VoiceTokenResponse = z.infer<typeof voiceTokenResponseSchema>;
+
+/** Lab-only token request: identity is a nickname until accounts exist. */
+export const LAB_VOICE_TOKEN_PATH = '/lab/voice-token';
+export const labVoiceTokenRequestSchema = z.object({
+  nickname: nicknameSchema,
+  channel: z
+    .string()
+    .trim()
+    .min(1)
+    .max(32)
+    .regex(/^[a-zA-Z0-9_-]+$/),
+  /** Stable per-browser id so a reconnect replaces the previous session. */
+  clientId: z.uuid(),
+});
+export type LabVoiceTokenRequest = z.infer<typeof labVoiceTokenRequestSchema>;

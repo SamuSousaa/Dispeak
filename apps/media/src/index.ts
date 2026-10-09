@@ -1,23 +1,18 @@
 import { loadConfig } from './config';
-import { createHttpServer } from './http';
 import { createLogger } from './logger';
-import { WorkerPool } from './worker-pool';
+import { startMediaServer } from './server';
 
 const config = loadConfig();
 const log = createLogger(config);
+const server = await startMediaServer(config, log);
 
-const pool = await WorkerPool.create(config, log);
-const server = createHttpServer(pool);
-
-const shutdown = (signal: string) => {
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   log.info({ signal }, 'shutting down');
-  server.close();
-  pool.close();
+  await server.close();
   process.exit(0);
 };
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-
-server.listen(config.port, config.host, () => {
-  log.info({ host: config.host, port: config.port }, 'media service listening');
-});
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));

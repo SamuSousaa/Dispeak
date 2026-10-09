@@ -15,7 +15,10 @@ export function LabLayout({ code, title, status, footer, children }: LabLayoutPr
     <div className="flex h-dvh flex-col bg-bg">
       <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Link to="/" className="label text-muted transition-colors hover:text-accent">
+          <Link
+            to="/"
+            className="label whitespace-nowrap text-muted transition-colors hover:text-accent"
+          >
             ← INÍCIO
           </Link>
           <span className="label text-muted" aria-hidden="true">

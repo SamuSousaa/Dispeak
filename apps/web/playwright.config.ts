@@ -34,6 +34,6 @@ export default defineConfig({
         url: `${baseURL}/api/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
-        stdout: 'pipe',
+        stdout: 'ignore',
       },
 });

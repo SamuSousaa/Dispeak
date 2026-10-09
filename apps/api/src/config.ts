@@ -16,14 +16,25 @@ const envSchema = z.object({
   CORS_ORIGINS: csv.default(['http://localhost:5173']),
   /** STUN servers handed to browsers for NAT traversal. */
   STUN_URLS: csv.default(['stun:stun.l.google.com:19302']),
+  /** Secret shared with the media service: signs voice tokens and authenticates internal RPC. */
+  MEDIA_SHARED_SECRET: z.string().min(32).optional(),
+  VOICE_TOKEN_TTL_SECONDS: z.coerce.number().int().min(5).max(600).default(60),
 });
 
-export type Config = z.infer<typeof envSchema>;
+const DEV_SHARED_SECRET = 'dev-media-shared-secret-change-me';
+
+export type Config = Omit<z.infer<typeof envSchema>, 'MEDIA_SHARED_SECRET'> & {
+  MEDIA_SHARED_SECRET: string;
+};
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) {
     throw new Error(`Invalid environment: ${z.prettifyError(parsed.error)}`);
   }
-  return parsed.data;
+  const data = parsed.data;
+  if (data.NODE_ENV === 'production' && !data.MEDIA_SHARED_SECRET) {
+    throw new Error('MEDIA_SHARED_SECRET is required in production');
+  }
+  return { ...data, MEDIA_SHARED_SECRET: data.MEDIA_SHARED_SECRET ?? DEV_SHARED_SECRET };
 }
