@@ -1,4 +1,3 @@
-import type { AddressInfo } from 'node:net';
 import {
   API_PREFIX,
   P2P_SIGNALING_PATH,
@@ -7,16 +6,14 @@ import {
   p2pServerSide,
   RpcErrorCode,
 } from '@frequencia/shared';
-import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../src/app';
-import { loadConfig } from '../src/config';
+import { createTestApp, type TestApp } from './helpers/app';
 import { connectTestClient, type TestClient } from './helpers/rpc-client';
 
 type Client = TestClient<typeof p2pClientSide, typeof p2pServerSide>;
 
 describe('P2P signaling server', () => {
-  let app: FastifyInstance;
+  let t: TestApp;
   let url: string;
   const clients: Client[] = [];
 
@@ -27,10 +24,8 @@ describe('P2P signaling server', () => {
   };
 
   beforeAll(async () => {
-    app = await buildApp(loadConfig({ NODE_ENV: 'test', STUN_URLS: 'stun:stun.example.org:3478' }));
-    await app.listen({ host: '127.0.0.1', port: 0 });
-    const { port } = app.server.address() as AddressInfo;
-    url = `ws://127.0.0.1:${port}${API_PREFIX}${P2P_SIGNALING_PATH}`;
+    t = await createTestApp({ STUN_URLS: 'stun:stun.example.org:3478' });
+    url = `${t.wsUrl}${API_PREFIX}${P2P_SIGNALING_PATH}`;
   });
 
   afterEach(async () => {
@@ -38,7 +33,7 @@ describe('P2P signaling server', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await t.close();
   });
 
   it('joins an empty room and receives the ICE configuration', async () => {

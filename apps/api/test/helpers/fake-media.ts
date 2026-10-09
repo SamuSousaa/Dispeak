@@ -1,0 +1,107 @@
+import type { IncomingMessage } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import {
+  apiInternalSide,
+  mediaInternalSide,
+  RpcPeer,
+  type InternalVoicePeer,
+  type InternalVoiceState,
+} from '@frequencia/shared';
+import { WebSocketServer } from 'ws';
+
+type Link = RpcPeer<typeof mediaInternalSide, typeof apiInternalSide>;
+
+export interface FakeMedia {
+  url: string;
+  secret: string;
+  /** Peers reported by the next `snapshot` request. */
+  peers: InternalVoicePeer[];
+  /** Requests the API made, in order. */
+  calls: Array<{ method: string; data: unknown }>;
+  links: () => number;
+  /** Pushes a voice-state event to every connected API instance. */
+  emit: (
+    roomId: string,
+    userId: string,
+    state: Partial<InternalVoiceState> | null,
+    options?: { peerId?: string; eventId?: string },
+  ) => void;
+  /** Drops every API connection, as a media restart would. */
+  dropLinks: () => void;
+  close: () => Promise<void>;
+}
+
+/** Stands in for the media service's internal endpoint. */
+export async function startFakeMedia(): Promise<FakeMedia> {
+  const secret = 'test-secret-test-secret-test-secret-1234';
+  const wss = new WebSocketServer({
+    host: '127.0.0.1',
+    port: 0,
+    verifyClient: ({ req }: { req: IncomingMessage }) =>
+      req.headers.authorization === `Bearer ${secret}`,
+  });
+  await new Promise<void>((resolve) => wss.once('listening', () => resolve()));
+  const { port } = wss.address() as AddressInfo;
+
+  const links = new Set<Link>();
+  let counter = 0;
+  const media: FakeMedia = {
+    url: `ws://127.0.0.1:${port}/media/internal`,
+    secret,
+    peers: [],
+    calls: [],
+    links: () => links.size,
+    emit: (roomId, userId, state, options = {}) => {
+      const event = {
+        eventId: options.eventId ?? `fake:${++counter}`,
+        roomId,
+        userId,
+        peerId: options.peerId ?? `peer-${userId}`,
+        state: state && { muted: false, deafened: false, streaming: false, ...state },
+      };
+      for (const link of links) link.notify('voice-state', event);
+    },
+    dropLinks: () => {
+      for (const client of wss.clients) client.terminate();
+    },
+    close: () =>
+      new Promise((resolve) => {
+        for (const client of wss.clients) client.terminate();
+        wss.close(() => resolve());
+      }),
+  };
+
+  wss.on('connection', (socket) => {
+    const link: Link = new RpcPeer({
+      local: mediaInternalSide,
+      remote: apiInternalSide,
+      send: (frame) => socket.send(frame),
+    });
+    links.add(link);
+    socket.on('message', (data) => link.receive(data.toString()));
+    socket.on('close', () => {
+      links.delete(link);
+      link.close();
+    });
+
+    link.handle('snapshot', () => ({ nodeId: 'fake', peers: media.peers }));
+    link.handle('disconnectUser', (data) => {
+      media.calls.push({ method: 'disconnectUser', data });
+      return { disconnected: 1 };
+    });
+    link.handle('closeRoom', (data) => {
+      media.calls.push({ method: 'closeRoom', data });
+      return {};
+    });
+    link.handle('stats', () => ({
+      rooms: 0,
+      peers: 0,
+      transports: 0,
+      producers: 0,
+      consumers: 0,
+      connections: 0,
+    }));
+  });
+
+  return media;
+}

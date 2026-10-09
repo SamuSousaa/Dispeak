@@ -1,5 +1,6 @@
 import {
   RpcError,
+  VoiceCloseCode,
   VoiceErrorCode,
   type EventInput,
   type MediaKind,
@@ -123,7 +124,8 @@ export class Room {
 
     // A user holds one session per channel: a newer connection replaces the older one.
     for (const other of [...this.peers.values()]) {
-      if (other.userId === peer.userId) this.removePeer(other, 4002, 'replaced', true);
+      if (other.userId === peer.userId)
+        this.removePeer(other, VoiceCloseCode.Replaced, 'replaced', true);
     }
     if (this.peers.size >= this.config.maxPeersPerRoom) {
       throw new RpcError(VoiceErrorCode.RoomFull, 'the channel is full');
@@ -161,7 +163,7 @@ export class Room {
     if (this.peers.size === 0 && !keepRoomOpen) this.close();
   }
 
-  close(code = 4005, reason = 'room closed'): void {
+  close(code: number = VoiceCloseCode.RoomClosed, reason = 'room closed'): void {
     if (this.closed) return;
     this.closed = true;
     for (const peer of [...this.peers.values()]) {

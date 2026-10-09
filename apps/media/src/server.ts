@@ -4,6 +4,7 @@ import type { Config } from './config';
 import { createHttpServer } from './http';
 import type { Logger } from './logger';
 import { RoomManager } from './rooms/room-manager';
+import { InternalServer } from './signaling/internal-server';
 import { VoiceServer } from './signaling/voice-server';
 import { WorkerPool } from './worker-pool';
 
@@ -12,6 +13,7 @@ export interface MediaServer {
   pool: WorkerPool;
   rooms: RoomManager;
   voice: VoiceServer;
+  internal: InternalServer;
   /** Port the HTTP server is bound to (useful when configured with port 0). */
   port: number;
   close: () => Promise<void>;
@@ -22,7 +24,8 @@ export async function startMediaServer(config: Config, log: Logger): Promise<Med
   const pool = await WorkerPool.create(config, log);
   const rooms = new RoomManager(pool, config, log);
   const voice = new VoiceServer(rooms, config, log);
-  const server = createHttpServer({ config, pool, rooms, voice });
+  const internal = new InternalServer(rooms, config, log, () => voice.connections);
+  const server = createHttpServer({ config, pool, rooms, voice, internal });
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -39,10 +42,12 @@ export async function startMediaServer(config: Config, log: Logger): Promise<Med
     pool,
     rooms,
     voice,
+    internal,
     port,
     close: async () => {
       voice.close();
       rooms.closeAll();
+      internal.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       pool.close();
     },

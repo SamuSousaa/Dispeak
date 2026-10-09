@@ -31,6 +31,8 @@ export const VoiceCloseCode = {
   Kicked: 4003,
   JoinTimeout: 4004,
   RoomClosed: 4005,
+  /** The user's permissions changed: reconnect with a fresh token to pick them up. */
+  PermissionsChanged: 4006,
 } as const;
 
 /** Claims of the short-lived token the API issues to let a user into one voice channel. */

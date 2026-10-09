@@ -3,6 +3,7 @@ import http from 'node:http';
 import { MEDIA_PREFIX } from '@frequencia/shared';
 import type { Config } from './config';
 import type { RoomManager } from './rooms/room-manager';
+import { INTERNAL_PATH, type InternalServer } from './signaling/internal-server';
 import { VOICE_PATH, type VoiceServer } from './signaling/voice-server';
 import type { WorkerPool } from './worker-pool';
 
@@ -11,6 +12,7 @@ export interface HttpDeps {
   pool: WorkerPool;
   rooms: RoomManager;
   voice: VoiceServer;
+  internal: InternalServer;
 }
 
 function json(response: http.ServerResponse, status: number, body: unknown): void {
@@ -27,7 +29,7 @@ function isAuthorized(request: http.IncomingMessage, config: Config): boolean {
   return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
-export function createHttpServer({ config, pool, rooms, voice }: HttpDeps): http.Server {
+export function createHttpServer({ config, pool, rooms, voice, internal }: HttpDeps): http.Server {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     const route = `${request.method} ${url.pathname}`;
@@ -48,7 +50,11 @@ export function createHttpServer({ config, pool, rooms, voice }: HttpDeps): http
         json(response, 401, { error: 'unauthorized' });
         return;
       }
-      json(response, 200, { ...rooms.stats(), connections: voice.connections });
+      json(response, 200, {
+        ...rooms.stats(),
+        connections: voice.connections,
+        apiLinks: internal.linkCount,
+      });
       return;
     }
 
@@ -59,6 +65,10 @@ export function createHttpServer({ config, pool, rooms, voice }: HttpDeps): http
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (url.pathname === VOICE_PATH) {
       void voice.handleUpgrade(request, socket, head);
+      return;
+    }
+    if (url.pathname === INTERNAL_PATH) {
+      internal.handleUpgrade(request, socket, head);
       return;
     }
     socket.destroy();

@@ -2,7 +2,16 @@ packages:
   - apps/*
   - packages/*
 
+# pnpm blocks dependency install scripts unless listed here.
 allowBuilds:
   mediasoup: true
   esbuild: true
   '@node-rs/argon2': true
+  # Embedded Postgres (Docker-less dev and tests) restores its symlinks after install.
+  '@embedded-postgres/windows-x64': true
+  '@embedded-postgres/linux-x64': true
+  '@embedded-postgres/linux-arm64': true
+  '@embedded-postgres/darwin-x64': true
+  '@embedded-postgres/darwin-arm64': true
+  # Downloads its Redis binary lazily on first use instead.
+  redis-memory-server: false

@@ -3,3 +3,7 @@ export * from './rpc';
 export * from './signaling/common';
 export * from './signaling/p2p';
 export * from './signaling/voice';
+export * from './permissions';
+export * from './api';
+export * from './gateway';
+export * from './internal';
