@@ -81,7 +81,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     url: config.MEDIA_INTERNAL_URL,
     sharedSecret: config.MEDIA_SHARED_SECRET,
     log: app.log,
-    onSnapshot: (peers) => voice.reconcile(peers),
+    onConnected: (snapshot) => voice.resync(snapshot),
     onVoiceState: (event) => voice.applyVoiceState(event),
   });
   voice.attach(media);

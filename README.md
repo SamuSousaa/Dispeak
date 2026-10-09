@@ -176,7 +176,7 @@ Produção é um comando depois de preencher `.env.prod` — passo a passo, port
 ## Testes
 
 ```
-pnpm test    264 testes   permissões, protocolo RPC, API (Postgres e Redis reais),
+pnpm test    265 testes   permissões, protocolo RPC, API (Postgres e Redis reais),
                           SFU (workers mediasoup reais), reducers do cliente
 pnpm e2e       8 testes   Chromium com câmera, microfone e tela sintéticos
 ```

@@ -147,6 +147,7 @@ export class VoiceAccess {
     if (!guildId) return; // Lab rooms and deleted channels are not mirrored.
 
     if (event.state === null) {
+      await this.deps.voiceStates.markLeft(event.peerId);
       const removed = await this.deps.voiceStates.remove(event.roomId, event.userId, event.peerId);
       if (removed) await this.publishLeft(removed);
       return;
@@ -162,11 +163,22 @@ export class VoiceAccess {
     await this.publish(entry);
   }
 
-  /** Reconciles the mirror with a full snapshot, after the link to the media service (re)opens. */
-  async reconcile(peers: InternalVoicePeer[]): Promise<void> {
+  /** Rebuilds the mirror from a snapshot, after the link to the media service (re)opens. */
+  async resync(snapshot: () => Promise<InternalVoicePeer[]>): Promise<void> {
+    const since = await this.deps.voiceStates.clock();
+    await this.reconcile(await snapshot(), since);
+  }
+
+  /**
+   * Reconciles the mirror with a full snapshot. Events keep being applied while the snapshot
+   * travels (by this instance or another one), so anything written after `since`, the clock
+   * value read before the snapshot was requested, is newer than the snapshot and wins.
+   */
+  async reconcile(peers: InternalVoicePeer[], since: number): Promise<void> {
     const actual = new Map(peers.map((peer) => [`${peer.roomId}:${peer.userId}`, peer]));
     for (const stale of await this.deps.voiceStates.listAll()) {
       if (actual.get(`${stale.channelId}:${stale.userId}`)?.peerId === stale.peerId) continue;
+      if (stale.version > since) continue;
       if (await this.deps.voiceStates.remove(stale.channelId, stale.userId, stale.peerId)) {
         await this.publishLeft(stale);
       }
@@ -174,6 +186,9 @@ export class VoiceAccess {
     for (const peer of peers) {
       const guildId = await this.guildOf(peer.roomId);
       if (!guildId) continue;
+      const current = await this.deps.voiceStates.get(peer.roomId, peer.userId);
+      if (current && current.version > since) continue;
+      if (await this.deps.voiceStates.hasLeft(peer.peerId)) continue;
       const entry: VoiceEntry = {
         guildId,
         channelId: peer.roomId,

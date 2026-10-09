@@ -180,7 +180,7 @@ Production is one command after filling in `.env.prod` — step by step, ports a
 ## Tests
 
 ```
-pnpm test    264 tests   permissions, RPC protocol, API (real Postgres and Redis),
+pnpm test    265 tests   permissions, RPC protocol, API (real Postgres and Redis),
                          SFU (real mediasoup workers), client reducers
 pnpm e2e       8 tests   Chromium with synthetic camera, microphone and screen
 ```

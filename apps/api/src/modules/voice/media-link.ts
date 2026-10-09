@@ -20,8 +20,8 @@ export interface MediaLinkOptions {
   url: string;
   sharedSecret: string;
   log: FastifyBaseLogger;
-  /** Called after every (re)connection with everyone currently in voice. */
-  onSnapshot: (peers: InternalVoicePeer[]) => void | Promise<void>;
+  /** Called after every (re)connection; `snapshot` fetches everyone currently in voice. */
+  onConnected: (snapshot: () => Promise<InternalVoicePeer[]>) => void | Promise<void>;
   onVoiceState: (event: VoiceStateEvent) => void | Promise<void>;
 }
 
@@ -100,9 +100,9 @@ export class MediaLink {
       log.info({ url }, 'media link connected');
       this.pingTimer = setInterval(() => socket.ping(), PING_INTERVAL_MS);
       // The media service is the source of truth: rebuild our mirror from its snapshot.
-      rpc
-        .request('snapshot', {})
-        .then(({ peers }) => this.options.onSnapshot(peers))
+      const snapshot = async () => (await rpc.request('snapshot', {})).peers;
+      Promise.resolve()
+        .then(() => this.options.onConnected(snapshot))
         .catch((error: unknown) => log.error({ err: error }, 'media snapshot failed'));
     });
     socket.on('message', (data) => rpc.receive(data.toString()));

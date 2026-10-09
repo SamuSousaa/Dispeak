@@ -55,6 +55,7 @@ describe('voice state and media link', () => {
     await Promise.all(clients.splice(0).map((client) => client.close()));
     media.calls.length = 0;
     media.peers = [];
+    media.snapshotDelayMs = 0;
   });
 
   afterAll(async () => {
@@ -171,6 +172,42 @@ describe('voice state and media link', () => {
     ).toMatchObject({ channelId: voice.id, muted: true });
     expect((await getGuild(owner, guild.id)).voiceStates.map((state) => state.userId)).toEqual([
       owner.user.id,
+    ]);
+  });
+
+  it('keeps what changed after the snapshot was taken', async () => {
+    const { owner, member, guild, voice } = await scenario();
+    const socket = await online(owner);
+    media.emit(voice.id, owner.user.id, {});
+    await socket.next('VOICE_STATE_UPDATE');
+
+    // The link reopens and the snapshot, which only knows the owner, takes a while to arrive.
+    media.peers = [
+      {
+        roomId: voice.id,
+        userId: owner.user.id,
+        peerId: `peer-${owner.user.id}`,
+        state: { muted: false, deafened: false, streaming: false },
+      },
+    ];
+    media.snapshotDelayMs = 300;
+    const snapshots = media.snapshots;
+    media.dropLinks();
+    await eventually(() => expect(media.snapshots).toBe(snapshots + 1));
+
+    // Meanwhile the member joins and the owner leaves.
+    media.emit(voice.id, member.user.id, {});
+    media.emit(voice.id, owner.user.id, null);
+    expect(
+      await socket.next('VOICE_STATE_UPDATE', (state) => state.userId === member.user.id),
+    ).toMatchObject({ channelId: voice.id });
+    expect(
+      await socket.next('VOICE_STATE_UPDATE', (state) => state.userId === owner.user.id),
+    ).toMatchObject({ channelId: null });
+
+    await socket.expectNone('VOICE_STATE_UPDATE', 500);
+    expect((await getGuild(owner, guild.id)).voiceStates.map((state) => state.userId)).toEqual([
+      member.user.id,
     ]);
   });
 

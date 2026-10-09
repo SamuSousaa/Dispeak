@@ -16,6 +16,10 @@ export interface FakeMedia {
   secret: string;
   /** Peers reported by the next `snapshot` request. */
   peers: InternalVoicePeer[];
+  /** How long a `snapshot` response takes; its content is fixed when the request arrives. */
+  snapshotDelayMs: number;
+  /** Number of `snapshot` requests received. */
+  snapshots: number;
   /** Requests the API made, in order. */
   calls: Array<{ method: string; data: unknown }>;
   links: () => number;
@@ -49,6 +53,8 @@ export async function startFakeMedia(): Promise<FakeMedia> {
     url: `ws://127.0.0.1:${port}/media/internal`,
     secret,
     peers: [],
+    snapshotDelayMs: 0,
+    snapshots: 0,
     calls: [],
     links: () => links.size,
     emit: (roomId, userId, state, options = {}) => {
@@ -84,7 +90,14 @@ export async function startFakeMedia(): Promise<FakeMedia> {
       link.close();
     });
 
-    link.handle('snapshot', () => ({ nodeId: 'fake', peers: media.peers }));
+    link.handle('snapshot', async () => {
+      const { peers } = media;
+      media.snapshots += 1;
+      if (media.snapshotDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, media.snapshotDelayMs));
+      }
+      return { nodeId: 'fake', peers };
+    });
     link.handle('disconnectUser', (data) => {
       media.calls.push({ method: 'disconnectUser', data });
       return { disconnected: 1 };
