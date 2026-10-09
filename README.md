@@ -238,3 +238,7 @@ scripts/    orquestração de dev e de produção local
 
 O que ainda depende de validação manual ou de infraestrutura externa está em
 [ROADMAP.md](ROADMAP.md), na seção "Pendências".
+
+## Licença
+
+[MIT](LICENSE).
