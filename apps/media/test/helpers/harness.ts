@@ -42,15 +42,21 @@ export interface Harness {
   close: () => Promise<void>;
 }
 
-let nextPortBase = 42000;
+const PORTS_PER_HARNESS = 10;
+/** Slots are reused once exhausted; by then the harnesses that held them are long closed. */
+const HARNESSES_PER_POOL = 50;
+let nextSlot = 0;
 let nextUser = 1;
 
 export async function createHarness(
   overrides: { workers?: number; maxPeers?: number; timeouts?: Partial<Config['timeouts']> } = {},
 ): Promise<Harness> {
-  // Every harness gets its own RTC port block so test files can run in parallel workers.
-  const portBase = nextPortBase + Number(process.env.VITEST_POOL_ID ?? 0) * 100;
-  nextPortBase += 10;
+  // Every harness gets its own RTC port block so test files can run in parallel workers. Each
+  // Vitest worker owns a range wide enough that a file with many harnesses cannot spill into the
+  // range of another worker.
+  const poolId = Number(process.env.VITEST_POOL_ID ?? 0);
+  const slot = nextSlot++ % HARNESSES_PER_POOL;
+  const portBase = 42000 + (poolId * HARNESSES_PER_POOL + slot) * PORTS_PER_HARNESS;
 
   const config = loadConfig({
     NODE_ENV: 'test',
@@ -61,7 +67,7 @@ export async function createHarness(
     MEDIA_SHARED_SECRET: 'test-secret-test-secret-test-secret-1234',
     RTC_ANNOUNCED_ADDRESSES: '127.0.0.1',
     RTC_MIN_PORT: String(portBase),
-    RTC_MAX_PORT: String(portBase + 9),
+    RTC_MAX_PORT: String(portBase + PORTS_PER_HARNESS - 1),
   });
   Object.assign(config.timeouts, overrides.timeouts);
 
