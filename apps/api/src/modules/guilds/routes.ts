@@ -1,10 +1,13 @@
 import {
+  GUILD_SOUND_MAX_BYTES,
   channelSchema,
   createChannelRequestSchema,
   createGuildRequestSchema,
   createInviteRequestSchema,
   createRoleRequestSchema,
   guildSchema,
+  guildSoundEventSchema,
+  guildSoundSchema,
   guildSummarySchema,
   idSchema,
   invitePreviewSchema,
@@ -18,12 +21,15 @@ import {
   updateGuildRequestSchema,
   updateMemberRequestSchema,
   updateRoleRequestSchema,
+  uploadGuildSoundQuerySchema,
 } from '@frequencia/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { badRequest } from '../../errors';
 
 const guildParams = z.object({ guildId: idSchema });
 const memberParams = guildParams.extend({ userId: idSchema });
+const soundParams = guildParams.extend({ event: guildSoundEventSchema });
 const channelParams = z.object({ channelId: idSchema });
 const overwriteParams = channelParams.extend({ targetId: idSchema });
 const roleParams = z.object({ roleId: idSchema });
@@ -108,6 +114,90 @@ export const guildRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request, reply) => {
       await guilds.delete(request.auth.userId, request.params.guildId);
       return reply.code(204).send(null);
+    },
+  );
+
+  // --- notification sounds ------------------------------------------------------------------
+
+  // Sound uploads arrive as raw bytes; this parser exists only inside this plugin.
+  app.addContentTypeParser(
+    'application/octet-stream',
+    { parseAs: 'buffer', bodyLimit: GUILD_SOUND_MAX_BYTES },
+    (_request, body, done) => done(null, body),
+  );
+
+  app.put(
+    '/guilds/:guildId/sounds/:event',
+    {
+      bodyLimit: GUILD_SOUND_MAX_BYTES,
+      schema: {
+        tags: ['guilds'],
+        summary: 'Set the sound every member hears for an event (owner only)',
+        description:
+          'The body is the raw audio file (MP3, WAV, Ogg, FLAC, M4A or WebM, up to 2 MiB) sent ' +
+          'as `application/octet-stream`. The type is verified from the bytes.',
+        security,
+        consumes: ['application/octet-stream'],
+        params: soundParams,
+        querystring: uploadGuildSoundQuerySchema,
+        response: { 200: guildSoundSchema },
+      },
+    },
+    (request) => {
+      if (!Buffer.isBuffer(request.body)) throw badRequest('the body must be an audio file');
+      return guilds.setSound(
+        request.auth.userId,
+        request.params.guildId,
+        request.params.event,
+        request.query.filename,
+        request.body,
+      );
+    },
+  );
+
+  app.delete(
+    '/guilds/:guildId/sounds/:event',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'Go back to the built-in sound for an event (owner only)',
+        security,
+        params: soundParams,
+        response: noContent,
+      },
+    },
+    async (request, reply) => {
+      await guilds.clearSound(request.auth.userId, request.params.guildId, request.params.event);
+      return reply.code(204).send(null);
+    },
+  );
+
+  app.get(
+    '/guilds/:guildId/sounds/:event',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'Download the custom sound of an event (members only)',
+        security,
+        params: soundParams,
+      },
+    },
+    async (request, reply) => {
+      const sound = await guilds.sound(
+        request.auth.userId,
+        request.params.guildId,
+        request.params.event,
+      );
+      return (
+        reply
+          .header('content-type', sound.contentType)
+          .header('content-length', sound.size)
+          // The file behind this address changes when the owner picks another one.
+          .header('cache-control', 'private, no-cache')
+          .header('x-content-type-options', 'nosniff')
+          .header('content-security-policy', "default-src 'none'; sandbox")
+          .send(sound.stream)
+      );
     },
   );
 

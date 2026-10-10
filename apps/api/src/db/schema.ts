@@ -223,3 +223,22 @@ export const attachments = pgTable(
   },
   (table) => [index('attachments_message_idx').on(table.messageId)],
 );
+
+/** Notification sounds the owner chose for a guild, one per event. */
+export const guildSounds = pgTable(
+  'guild_sounds',
+  {
+    guildId: uuid('guild_id')
+      .notNull()
+      .references(() => guilds.id, { onDelete: 'cascade' }),
+    /** One of `GUILD_SOUND_EVENTS`. */
+    event: text('event').notNull(),
+    /** Random UUID naming the file on disk; a new one for every upload. */
+    fileId: uuid('file_id').notNull(),
+    filename: text('filename').notNull(),
+    contentType: text('content_type').notNull(),
+    size: integer('size').notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.event] })],
+);

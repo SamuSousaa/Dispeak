@@ -4,22 +4,27 @@ import {
   outranks,
   parsePermissions,
   Permissions,
+  GUILD_SOUND_EVENTS,
+  GUILD_SOUND_MAX_BYTES,
   type Guild,
+  type GuildSoundEvent,
   type HierarchyActor,
   type Role,
 } from '@frequencia/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/Button';
 import { Dialog, Field, FormError } from '../../../components/Dialog';
 import { cx } from '../../../lib/cx';
 import { describeError } from '../../../lib/http';
 import { guildApi, inviteLink } from '../guild-api';
+import { SOUND_LABELS } from '../../sounds/sound-events';
+import { playSound } from '../../sounds/sound-player';
 import { PERMISSION_INFO } from '../permission-labels';
 import { actorIn } from '../permissions';
 
-type Tab = 'overview' | 'roles' | 'members' | 'invites';
+type Tab = 'overview' | 'roles' | 'members' | 'invites' | 'sounds';
 
 interface TabProps {
   guild: Guild;
@@ -366,6 +371,92 @@ function MembersTab({ guild, userId, actor, run, busy }: TabProps) {
   );
 }
 
+function SoundRow({ guild, event, run, busy }: TabProps & { event: GuildSoundEvent }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const sound = guild.sounds[event];
+
+  const choose = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > GUILD_SOUND_MAX_BYTES) {
+      setProblem('O ARQUIVO PODE TER ATÉ 2 MB.');
+      return;
+    }
+    setProblem(null);
+    if (!(await run(() => guildApi.setSound(guild.id, event, file)))) {
+      setProblem('USE UM ÁUDIO MP3, WAV, OGG, FLAC, M4A OU WEBM.');
+    }
+  };
+
+  return (
+    <li className="flex flex-col gap-1.5 border-b border-line pb-3 last:border-b-0 last:pb-0">
+      <p className="text-sm text-fg">{SOUND_LABELS[event]}</p>
+      <p className="label truncate text-muted" data-testid={`guild-sound-${event}`}>
+        {sound ? `ARQUIVO: ${sound.filename}` : 'SOM PADRÃO'}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <input
+          ref={input}
+          type="file"
+          accept="audio/*"
+          hidden
+          data-testid={`guild-sound-input-${event}`}
+          onChange={(change) => {
+            void choose(change.target.files?.[0]);
+            change.target.value = '';
+          }}
+        />
+        <Button
+          aria-label={`Testar som: ${SOUND_LABELS[event]}`}
+          onClick={() => void playSound(event, guild.id)}
+        >
+          TESTAR
+        </Button>
+        <Button
+          disabled={busy}
+          aria-label={`Escolher arquivo para: ${SOUND_LABELS[event]}`}
+          onClick={() => input.current?.click()}
+        >
+          ESCOLHER ARQUIVO
+        </Button>
+        {sound && (
+          <Button
+            variant="danger"
+            disabled={busy}
+            aria-label={`Voltar ao som padrão: ${SOUND_LABELS[event]}`}
+            onClick={() => void run(() => guildApi.clearSound(guild.id, event))}
+          >
+            PADRÃO
+          </Button>
+        )}
+      </div>
+      {problem && (
+        <p role="alert" className="label text-danger">
+          {problem}
+        </p>
+      )}
+    </li>
+  );
+}
+
+/** Owner only: the notification sounds everyone in the guild hears. */
+function SoundsTab(props: TabProps) {
+  return (
+    <Section title="SONS DO SERVIDOR">
+      <p className="text-sm text-muted">
+        O som que você escolher aqui toca para todos os membros deste servidor, no lugar do som
+        padrão e dos sons pessoais de cada um. Só o dono pode alterar. Arquivos de áudio de até 2
+        MB.
+      </p>
+      <ul className="flex flex-col gap-3">
+        {GUILD_SOUND_EVENTS.map((event) => (
+          <SoundRow key={event} {...props} event={event} />
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
 function InvitesTab({ guild, run, busy }: TabProps) {
   const queryClient = useQueryClient();
   const queryKey = ['invites', guild.id];
@@ -451,6 +542,7 @@ export function GuildSettingsDialog({
       label: 'CONVITES',
       visible: hasPermission(actor.permissions, Permissions.ManageGuild),
     },
+    { id: 'sounds', label: 'SONS', visible: actor.isOwner },
   ];
   const props: TabProps = { guild, userId, actor, run, busy, onClose };
 
@@ -489,6 +581,7 @@ export function GuildSettingsDialog({
       {tab === 'roles' && <RolesTab {...props} />}
       {tab === 'members' && <MembersTab {...props} />}
       {tab === 'invites' && <InvitesTab {...props} />}
+      {tab === 'sounds' && <SoundsTab {...props} />}
     </Dialog>
   );
 }

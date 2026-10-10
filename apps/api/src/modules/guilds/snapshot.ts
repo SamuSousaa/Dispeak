@@ -1,4 +1,5 @@
 import {
+  GUILD_SOUND_EVENTS,
   computeBasePermissions,
   computeChannelPermissions,
   hasPermission,
@@ -7,6 +8,8 @@ import {
   serializePermissions,
   type Channel,
   type Guild,
+  type GuildSound,
+  type GuildSoundEvent,
   type HierarchyActor,
   type Member,
   type PermissionOverwrite,
@@ -17,7 +20,16 @@ import { eq } from 'drizzle-orm';
 import { schema, type Queryable } from '../../db/client';
 import { forbidden, notFound } from '../../errors';
 
-const { guilds, roles, channels, channelOverwrites, guildMembers, memberRoles, users } = schema;
+const {
+  guilds,
+  roles,
+  channels,
+  channelOverwrites,
+  guildMembers,
+  memberRoles,
+  users,
+  guildSounds,
+} = schema;
 
 export type RoleRow = typeof roles.$inferSelect;
 export type ChannelRow = typeof channels.$inferSelect;
@@ -39,6 +51,8 @@ export interface GuildSnapshot {
   channels: Map<string, ChannelRow>;
   overwrites: Map<string, PermissionOverwrite[]>;
   members: Map<string, MemberEntry>;
+  /** Custom notification sounds, by event. */
+  sounds: Map<string, GuildSound>;
 }
 
 export async function loadGuildSnapshot(
@@ -48,21 +62,23 @@ export async function loadGuildSnapshot(
   const [guild] = await db.select().from(guilds).where(eq(guilds.id, guildId));
   if (!guild) return null;
 
-  const [roleRows, channelRows, overwriteRows, memberRows, memberRoleRows] = await Promise.all([
-    db.select().from(roles).where(eq(roles.guildId, guildId)),
-    db.select().from(channels).where(eq(channels.guildId, guildId)),
-    db
-      .select({ overwrite: channelOverwrites })
-      .from(channelOverwrites)
-      .innerJoin(channels, eq(channels.id, channelOverwrites.channelId))
-      .where(eq(channels.guildId, guildId)),
-    db
-      .select({ member: guildMembers, user: users })
-      .from(guildMembers)
-      .innerJoin(users, eq(users.id, guildMembers.userId))
-      .where(eq(guildMembers.guildId, guildId)),
-    db.select().from(memberRoles).where(eq(memberRoles.guildId, guildId)),
-  ]);
+  const [roleRows, channelRows, overwriteRows, memberRows, memberRoleRows, soundRows] =
+    await Promise.all([
+      db.select().from(roles).where(eq(roles.guildId, guildId)),
+      db.select().from(channels).where(eq(channels.guildId, guildId)),
+      db
+        .select({ overwrite: channelOverwrites })
+        .from(channelOverwrites)
+        .innerJoin(channels, eq(channels.id, channelOverwrites.channelId))
+        .where(eq(channels.guildId, guildId)),
+      db
+        .select({ member: guildMembers, user: users })
+        .from(guildMembers)
+        .innerJoin(users, eq(users.id, guildMembers.userId))
+        .where(eq(guildMembers.guildId, guildId)),
+      db.select().from(memberRoles).where(eq(memberRoles.guildId, guildId)),
+      db.select().from(guildSounds).where(eq(guildSounds.guildId, guildId)),
+    ]);
 
   const overwrites = new Map<string, PermissionOverwrite[]>();
   for (const { overwrite } of overwriteRows) {
@@ -95,6 +111,9 @@ export async function loadGuildSnapshot(
     channels: new Map(channelRows.map((channel) => [channel.id, channel])),
     overwrites,
     members,
+    sounds: new Map(
+      soundRows.map((row) => [row.event, { id: row.fileId, filename: row.filename }]),
+    ),
   };
 }
 
@@ -227,5 +246,8 @@ export function guildPayloadFor(
     members: [...snapshot.members.values()].map(toMember),
     onlineUserIds: live.onlineUserIds.filter((id) => snapshot.members.has(id)),
     voiceStates: live.voiceStates.filter((state) => visibleIds.has(state.channelId)),
+    sounds: Object.fromEntries(
+      GUILD_SOUND_EVENTS.map((event) => [event, snapshot.sounds.get(event) ?? null]),
+    ) as Record<GuildSoundEvent, GuildSound | null>,
   };
 }

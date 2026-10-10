@@ -158,9 +158,29 @@ test('account → server → invite → voice channel → stream, with permissio
   // A camera is not a stream: nobody is marked as live because of it.
   await expect(voiceMembers(bruno.page).filter({ hasText: 'Alice' })).not.toContainText('AO VIVO');
 
+  // --- The owner picks a sound for the whole server; members download and play it -----------
+  await alice.page.getByTestId('server-menu').click();
+  await alice.page.getByRole('menuitem', { name: /CONFIGURAÇÕES DO SERVIDOR/ }).click();
+  await dialog(alice.page).getByRole('tab', { name: 'SONS' }).click();
+  await dialog(alice.page)
+    .getByTestId('guild-sound-input-streamStart')
+    .setInputFiles({
+      name: 'ao-vivo.wav',
+      mimeType: 'audio/wav',
+      buffer: Buffer.from('UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=', 'base64'),
+    });
+  await expect(dialog(alice.page).getByTestId('guild-sound-streamStart')).toHaveText(
+    'ARQUIVO: ao-vivo.wav',
+  );
+  await dialog(alice.page).getByRole('button', { name: 'Fechar' }).click();
+
   // --- Alice streams her screen; Bruno chooses to watch -------------------------------------
+  const serverSound = bruno.page.waitForResponse(
+    (response) => response.url().endsWith('/sounds/streamStart') && response.status() === 200,
+  );
   await alice.page.getByRole('button', { name: 'TRANSMITIR', exact: true }).click();
   await alice.page.getByRole('menuitem', { name: /720P30/ }).click();
+  await serverSound;
   await expect(voiceMembers(bruno.page).filter({ hasText: 'Alice' })).toContainText('AO VIVO');
   // The fullscreen shortcut starts watching whoever is live and takes the stream fullscreen.
   const isFullscreen = () =>
@@ -200,6 +220,7 @@ test('account → server → invite → voice channel → stream, with permissio
   );
   await bruno.page.getByRole('menuitem', { name: /OPÇÕES DO SERVIDOR/ }).click();
   await expect(dialog(bruno.page).getByRole('tab', { name: 'CARGOS' })).toHaveCount(0);
+  await expect(dialog(bruno.page).getByRole('tab', { name: 'SONS' })).toHaveCount(0);
   await expect(dialog(bruno.page).getByRole('tab', { name: 'CONVITES' })).toHaveCount(0);
   await dialog(bruno.page).getByRole('button', { name: 'Fechar' }).click();
   await expect(bruno.page.getByRole('button', { name: 'TRANSMITIR', exact: true })).toBeEnabled();

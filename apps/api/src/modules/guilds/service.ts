@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import type { ReadStream } from 'node:fs';
 import {
+  GUILD_SOUND_MAX_BYTES,
   canGrantPermissions,
   canManageRole,
   DEFAULT_EVERYONE_PERMISSIONS,
@@ -9,6 +12,8 @@ import {
   type Channel,
   type ChannelType,
   type Guild,
+  type GuildSound,
+  type GuildSoundEvent,
   type GuildSummary,
   type Invite,
   type InvitePreview,
@@ -20,7 +25,10 @@ import { and, count, eq, gt, gte, inArray, isNull, lt, or, sql } from 'drizzle-o
 import { schema, type Database, type Queryable } from '../../db/client';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../../errors';
 import type { GatewayBus } from '../../gateway/bus';
+import { sniffAudio } from '../../lib/audio';
+import { cleanFilename } from '../../lib/filename';
 import { inviteCode, uuidv7 } from '../../lib/ids';
+import type { AttachmentFiles } from '../messages/attachment-files';
 import type { VoiceAccess } from '../voice/voice-access';
 import { buildGuildPayload, type LiveState } from './live';
 import {
@@ -37,13 +45,24 @@ import {
   type GuildSnapshot,
 } from './snapshot';
 
-const { guilds, roles, channels, channelOverwrites, guildMembers, memberRoles, invites } = schema;
+const {
+  guilds,
+  roles,
+  channels,
+  channelOverwrites,
+  guildMembers,
+  memberRoles,
+  invites,
+  guildSounds,
+} = schema;
 
 export interface GuildServiceDeps {
   db: Database;
   bus: GatewayBus;
   live: LiveState;
   voice: VoiceAccess;
+  /** Where the custom notification sounds of guilds are stored. */
+  soundFiles: AttachmentFiles;
 }
 
 /**
@@ -123,12 +142,88 @@ export class GuildService {
     const snapshot = await this.load(guildId);
     if (!requireActor(snapshot, userId).isOwner) throw forbidden('only the owner can delete');
     await this.db.delete(guilds).where(eq(guilds.id, guildId));
+    await this.deps.soundFiles.remove([...snapshot.sounds.values()].map((sound) => sound.id));
     await this.bus.publish({ kind: 'guild-delete', guildId });
     await Promise.all(
       [...snapshot.channels.values()]
         .filter((channel) => channel.type === 'voice')
         .map((channel) => this.deps.voice.closeChannel(channel.id)),
     );
+  }
+
+  // --- notification sounds ------------------------------------------------------------------
+
+  /**
+   * Replaces the sound every member hears for an event. Only the owner decides; the type comes
+   * from the bytes of the file.
+   */
+  async setSound(
+    userId: string,
+    guildId: string,
+    event: GuildSoundEvent,
+    filename: string,
+    data: Buffer,
+  ): Promise<GuildSound> {
+    const snapshot = await this.load(guildId);
+    if (!requireActor(snapshot, userId).isOwner) {
+      throw forbidden('only the owner can change the sounds');
+    }
+    if (data.length === 0 || data.length > GUILD_SOUND_MAX_BYTES) {
+      throw badRequest('sound is empty or too large');
+    }
+    const contentType = sniffAudio(data);
+    if (!contentType) throw badRequest('only MP3, WAV, Ogg, FLAC, M4A and WebM audio is accepted');
+
+    const sound = { id: randomUUID(), filename: cleanFilename(filename, 'som') };
+    await this.deps.soundFiles.write(sound.id, data);
+    try {
+      const values = { fileId: sound.id, filename: sound.filename, contentType, size: data.length };
+      await this.db
+        .insert(guildSounds)
+        .values({ guildId, event, ...values })
+        .onConflictDoUpdate({ target: [guildSounds.guildId, guildSounds.event], set: values });
+    } catch (error) {
+      await this.deps.soundFiles.remove([sound.id]);
+      throw error;
+    }
+    const previous = snapshot.sounds.get(event);
+    if (previous) await this.deps.soundFiles.remove([previous.id]);
+    await this.bus.sync(guildId);
+    return sound;
+  }
+
+  /** Back to the built-in sound. Owner only. */
+  async clearSound(userId: string, guildId: string, event: GuildSoundEvent): Promise<void> {
+    const snapshot = await this.load(guildId);
+    if (!requireActor(snapshot, userId).isOwner) {
+      throw forbidden('only the owner can change the sounds');
+    }
+    const previous = snapshot.sounds.get(event);
+    if (!previous) return;
+    await this.db
+      .delete(guildSounds)
+      .where(and(eq(guildSounds.guildId, guildId), eq(guildSounds.event, event)));
+    await this.deps.soundFiles.remove([previous.id]);
+    await this.bus.sync(guildId);
+  }
+
+  /** The file of a guild sound, for any member of the guild. */
+  async sound(
+    userId: string,
+    guildId: string,
+    event: GuildSoundEvent,
+  ): Promise<{ contentType: string; size: number; stream: ReadStream }> {
+    requireActor(await this.load(guildId), userId);
+    const [row] = await this.db
+      .select()
+      .from(guildSounds)
+      .where(and(eq(guildSounds.guildId, guildId), eq(guildSounds.event, event)));
+    if (!row) throw notFound('sound');
+    return {
+      contentType: row.contentType,
+      size: row.size,
+      stream: this.deps.soundFiles.open(row.fileId),
+    };
   }
 
   // --- members ------------------------------------------------------------------------------

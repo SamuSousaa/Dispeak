@@ -1,3 +1,5 @@
+import { useGatewayStore } from '../gateway/gateway-store';
+import { guildApi } from '../guilds/guild-api';
 import { updateSettings, useSettingsStore } from '../settings/settings-store';
 import { useVoiceStore } from '../voice/voice-store';
 import { soundEventsFor, type SoundEvent } from './sound-events';
@@ -67,10 +69,47 @@ function forget(event: SoundEvent): void {
   custom.delete(event);
 }
 
-/** Plays the sound of an event: the user's own file when there is one, else the built-in. */
-export async function playSound(event: SoundEvent): Promise<void> {
+/** Sounds chosen by guild owners, downloaded once per version. */
+const guildSounds = new Map<string, { id: string; url: Promise<string | null> }>();
+
+function guildUrl(guildId: string | null, event: SoundEvent): Promise<string | null> {
+  const sound = guildId ? useGatewayStore.getState().guilds[guildId]?.sounds[event] : null;
+  if (!guildId || !sound) return Promise.resolve(null);
+  const key = `${guildId}:${event}`;
+  const cached = guildSounds.get(key);
+  if (cached?.id === sound.id) return cached.url;
+
+  // The owner picked another file: drop the old download.
+  void cached?.url.then((url) => url && URL.revokeObjectURL(url));
+  const url = guildApi
+    .soundBlob(guildId, event)
+    .then((blob) => URL.createObjectURL(blob))
+    .catch(() => {
+      // Try again next time instead of remembering the failure.
+      guildSounds.delete(key);
+      return null;
+    });
+  guildSounds.set(key, { id: sound.id, url });
+  return url;
+}
+
+/** Guild that owns a voice channel, among the guilds this client knows. */
+function guildOfChannel(channelId: string | null | undefined): string | null {
+  if (!channelId) return null;
+  const guilds = Object.values(useGatewayStore.getState().guilds);
+  return (
+    guilds.find((guild) => guild.channels.some((channel) => channel.id === channelId))?.id ?? null
+  );
+}
+
+/**
+ * Plays the sound of an event. A sound set by the owner of `guildId` comes first, so everyone
+ * in the guild hears the same thing; then the user's own file; then the built-in tone.
+ */
+export async function playSound(event: SoundEvent, guildId: string | null = null): Promise<void> {
   const { soundVolume, outputDeviceId } = useSettingsStore.getState();
-  const audio = new Audio((await customUrl(event)) ?? defaultUrl(event));
+  const url = (await guildUrl(guildId, event)) ?? (await customUrl(event)) ?? defaultUrl(event);
+  const audio = new Audio(url);
   audio.volume = soundVolume;
   if (outputDeviceId && typeof audio.setSinkId === 'function') {
     await audio.setSinkId(outputDeviceId).catch(() => undefined);
@@ -101,8 +140,10 @@ export function startVoiceSounds(): () => void {
     const settings = useSettingsStore.getState();
     // Deafened means no sound at all; leaving resets that flag, so the leave sound still plays.
     if (!settings.soundsEnabled || next.deafened) return;
+    // Leaving clears the channel from the state, so the previous one is consulted as well.
+    const guildId = guildOfChannel(next.channelId ?? previous.channelId);
     for (const event of soundEventsFor(previous, next)) {
-      if (settings.soundEvents[event]) void playSound(event);
+      if (settings.soundEvents[event]) void playSound(event, guildId);
     }
   });
 }

@@ -1,6 +1,7 @@
 import {
   channelSchema,
   guildSchema,
+  guildSoundSchema,
   guildSummarySchema,
   invitePreviewSchema,
   inviteSchema,
@@ -9,13 +10,14 @@ import {
   voiceTokenResponseSchema,
   type CreateChannelRequest,
   type CreateInviteRequest,
+  type GuildSoundEvent,
   type PutOverwriteRequest,
   type UpdateChannelRequest,
   type UpdateMemberRequest,
   type UpdateRoleRequest,
 } from '@frequencia/shared';
 import { z } from 'zod';
-import { api } from '../../lib/http';
+import { api, apiBlob } from '../../lib/http';
 
 /** Thin, typed wrappers over the REST API. State changes come back through the gateway. */
 export const guildApi = {
@@ -24,6 +26,18 @@ export const guildApi = {
     api('PATCH', `/guilds/${guildId}`, { body: { name }, schema: guildSummarySchema }),
   delete: (guildId: string) => api('DELETE', `/guilds/${guildId}`),
   leave: (guildId: string) => api('DELETE', `/guilds/${guildId}/members/@me`),
+
+  /** Owner only: the sound every member hears for an event. */
+  setSound: (guildId: string, event: GuildSoundEvent, file: File) =>
+    api('PUT', `/guilds/${guildId}/sounds/${event}?filename=${encodeURIComponent(file.name)}`, {
+      // The server identifies the format from the bytes, whatever the browser calls it.
+      body: new Blob([file], { type: 'application/octet-stream' }),
+      schema: guildSoundSchema,
+    }),
+  clearSound: (guildId: string, event: GuildSoundEvent) =>
+    api('DELETE', `/guilds/${guildId}/sounds/${event}`),
+  soundBlob: (guildId: string, event: GuildSoundEvent) =>
+    apiBlob(`/guilds/${guildId}/sounds/${event}`),
 
   kick: (guildId: string, userId: string) => api('DELETE', `/guilds/${guildId}/members/${userId}`),
   updateMember: (guildId: string, userId: string, body: UpdateMemberRequest) =>

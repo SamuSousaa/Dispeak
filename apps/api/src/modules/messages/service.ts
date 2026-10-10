@@ -15,6 +15,7 @@ import { and, asc, desc, eq, inArray, isNull, lt } from 'drizzle-orm';
 import { schema, type Database } from '../../db/client';
 import { badRequest, forbidden, notFound } from '../../errors';
 import type { GatewayBus } from '../../gateway/bus';
+import { cleanFilename } from '../../lib/filename';
 import { uuidv7 } from '../../lib/ids';
 import { sniffImage } from '../../lib/image';
 import {
@@ -35,16 +36,6 @@ const authorColumns = { id: users.id, username: users.username, displayName: use
 
 /** An upload must be used in a message within this time, or it is discarded. */
 const UNATTACHED_TTL_MS = 60 * 60 * 1000;
-
-/** Display name of an upload: no path, no control characters. */
-function cleanFilename(filename: string): string {
-  const base = filename.split(/[\\/]/).pop() ?? '';
-  const clean = [...base]
-    .filter((char) => char >= ' ' && char !== '\u007f')
-    .join('')
-    .trim();
-  return clean.slice(0, 255) || 'imagem';
-}
 
 /** Text chat: history with cursor pagination, plus the events that keep clients live. */
 export class MessageService {
@@ -228,7 +219,7 @@ export class MessageService {
           id,
           channelId,
           uploaderId: userId,
-          filename: cleanFilename(filename),
+          filename: cleanFilename(filename, 'imagem'),
           contentType: image.contentType,
           size: data.length,
           width: image.width,

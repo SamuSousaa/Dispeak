@@ -456,8 +456,9 @@ export function SettingsPanel({
           ))}
         </ul>
         <p className="text-xs text-muted">
-          Os arquivos escolhidos ficam guardados só neste navegador. Sons não tocam enquanto você
-          está ensurdecido.
+          Os arquivos escolhidos aqui ficam guardados só neste navegador. Quando o dono de um
+          servidor define um som, é o dele que toca para todos naquele servidor. Sons não tocam
+          enquanto você está ensurdecido.
         </p>
       </Section>
 

@@ -109,6 +109,7 @@ passar e de um commit ser feito.
 - [x] Banco embutido de desenvolvimento criado em UTF-8 (no Windows nascia em WIN1252 e recusava
       emoji)
 - [x] Sons de notificação (entrar, sair, transmissão começa e termina), com arquivos do usuário
+- [x] Sons do servidor: o dono escolhe um arquivo por evento e todos os membros ouvem o mesmo
 - [x] Animações de entrada em menus, painéis, mensagens e quadros de participantes
 - [ ] Aplicativo instalável (atalhos globais, fora do navegador) — adiado
 

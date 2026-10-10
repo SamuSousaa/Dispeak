@@ -88,7 +88,14 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     onVoiceState: (event) => voice.applyVoiceState(event),
   });
   voice.attach(media);
-  const guilds = new GuildService({ db: database.db, bus, live, voice });
+  const guilds = new GuildService({
+    db: database.db,
+    bus,
+    live,
+    voice,
+    // A subdirectory, out of reach of the attachment sweep.
+    soundFiles: new AttachmentFiles(path.resolve(config.UPLOADS_DIR, 'sounds')),
+  });
   const messages = new MessageService(
     database.db,
     bus,

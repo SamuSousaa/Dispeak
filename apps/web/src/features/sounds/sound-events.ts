@@ -1,7 +1,8 @@
-import type { VoicePeer } from '@frequencia/shared';
+import { GUILD_SOUND_EVENTS, type GuildSoundEvent, type VoicePeer } from '@frequencia/shared';
 
-export const SOUND_EVENTS = ['join', 'leave', 'streamStart', 'streamStop'] as const;
-export type SoundEvent = (typeof SOUND_EVENTS)[number];
+/** The same events a guild owner can set a sound for. */
+export const SOUND_EVENTS = GUILD_SOUND_EVENTS;
+export type SoundEvent = GuildSoundEvent;
 
 export const SOUND_LABELS: Record<SoundEvent, string> = {
   join: 'Alguém entra na chamada',
@@ -12,6 +13,8 @@ export const SOUND_LABELS: Record<SoundEvent, string> = {
 
 /** The part of the voice state the notification sounds depend on. */
 export interface SoundSnapshot {
+  /** The voice channel the state belongs to; tells which guild the sounds come from. */
+  channelId?: string | null;
   status: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
   peers: Record<string, VoicePeer>;
   screen: { status: 'off' | 'starting' | 'live' };

@@ -109,6 +109,34 @@ export const voiceStateSchema = z.object({
 });
 export type VoiceState = z.infer<typeof voiceStateSchema>;
 
+/** Moments of a voice channel announced with a sound. */
+export const GUILD_SOUND_EVENTS = ['join', 'leave', 'streamStart', 'streamStop'] as const;
+export const guildSoundEventSchema = z.enum(GUILD_SOUND_EVENTS);
+export type GuildSoundEvent = z.infer<typeof guildSoundEventSchema>;
+
+export const GUILD_SOUND_MAX_BYTES = 2 * 1024 * 1024;
+/** What the server recognises, from the bytes of the file. */
+export const GUILD_SOUND_CONTENT_TYPES = [
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/flac',
+  'audio/mp4',
+  'audio/webm',
+] as const;
+export type GuildSoundContentType = (typeof GUILD_SOUND_CONTENT_TYPES)[number];
+
+export const guildSoundSchema = z.object({
+  /** Changes whenever the file is replaced, so clients know when to download it again. */
+  id: idSchema,
+  filename: z.string(),
+});
+export type GuildSound = z.infer<typeof guildSoundSchema>;
+
+export const uploadGuildSoundQuerySchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+});
+
 /** A guild as one member sees it: only the channels they can view. */
 export const guildSchema = z.object({
   id: idSchema,
@@ -120,6 +148,13 @@ export const guildSchema = z.object({
   /** Ids of the members currently online. */
   onlineUserIds: z.array(idSchema),
   voiceStates: z.array(voiceStateSchema),
+  /** Sounds chosen by the owner for everyone in the guild; `null` means the built-in one. */
+  sounds: z.object({
+    join: guildSoundSchema.nullable(),
+    leave: guildSoundSchema.nullable(),
+    streamStart: guildSoundSchema.nullable(),
+    streamStop: guildSoundSchema.nullable(),
+  }),
 });
 export type Guild = z.infer<typeof guildSchema>;
 
