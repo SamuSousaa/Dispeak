@@ -422,15 +422,28 @@ describe('voice signaling', () => {
       expect(h.server.rooms.stats().totals.peers).toBe(1);
     });
 
-    it('closes transports that never complete DTLS and tells the client', async () => {
+    it('closes transports whose DTLS handshake never completes and tells the client', async () => {
       await h.close();
       h = await createHarness({ timeouts: { transportConnectMs: 80 } });
       const alice = await h.joinAs();
-      const orphan = await alice.rpc.request('createTransport', { direction: 'send' });
+      // The helper starts a handshake with made-up parameters, which can never finish.
+      const orphan = await openTransport(alice, 'send');
 
-      await expect(alice.next('transport-closed')).resolves.toEqual({ transportId: orphan.id });
+      await expect(alice.next('transport-closed')).resolves.toEqual({ transportId: orphan });
       expect(h.server.rooms.stats().totals.transports).toBe(0);
       expect((await workerResources()).transports).toBe(0);
+    });
+
+    it('keeps a transport that was created but not used yet', async () => {
+      // Alone in a channel there is nothing to receive, so the receiving transport stays idle.
+      await h.close();
+      h = await createHarness({ timeouts: { transportConnectMs: 80 } });
+      const alice = await h.joinAs();
+      await alice.rpc.request('createTransport', { direction: 'recv' });
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(h.server.rooms.stats().totals.transports).toBe(1);
+      expect(h.server.rooms.stats().totals.peers).toBe(1);
     });
 
     it('replaces a transport when the same direction is requested again', async () => {

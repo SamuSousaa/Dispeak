@@ -73,6 +73,8 @@ const SOURCE_KIND: Record<ProducerSource, MediaKind> = {
  * All protocol rules live here; the signaling layer only maps RPC calls to these methods.
  */
 export class Room {
+  /** Starts the handshake deadline of a transport; called when the client connects it. */
+  private readonly handshakes = new WeakMap<types.WebRtcTransport, () => void>();
   readonly peers = new Map<string, Peer>();
   private speaking: string[] = [];
   private closed = false;
@@ -206,8 +208,8 @@ export class Room {
       await transport.setMaxIncomingBitrate(TRANSPORT_BITRATE.maxIncoming).catch(() => undefined);
     }
 
-    // Orphan protection: a transport that never finishes DTLS, or whose ICE stays
-    // disconnected, is closed and the client is told to reconnect.
+    // Orphan protection: a transport whose DTLS handshake starts and never finishes, or whose
+    // ICE stays disconnected, is closed and the client is told to reconnect.
     const drop = (why: string) => {
       if (transport.closed) return;
       this.log.debug(
@@ -226,10 +228,14 @@ export class Room {
       return timer;
     };
 
-    let connectTimer: NodeJS.Timeout | undefined = schedule(
-      this.config.timeouts.transportConnectMs,
-      'dtls never connected',
-    );
+    // The clock starts with the handshake, not with the transport: a browser only connects a
+    // transport when it first sends or receives through it, and someone alone in a channel has
+    // nothing to receive. Timing from creation kicked lone participants out every 30 seconds.
+    let connectTimer: NodeJS.Timeout | undefined;
+    this.handshakes.set(transport, () => {
+      if (connectTimer || transport.dtlsState === 'connected') return;
+      connectTimer = schedule(this.config.timeouts.transportConnectMs, 'dtls never connected');
+    });
     let iceTimer: NodeJS.Timeout | undefined;
     const clear = (timer: NodeJS.Timeout | undefined) => {
       if (!timer) return;
@@ -272,6 +278,7 @@ export class Room {
   ): Promise<void> {
     const transport = this.getTransport(peer, transportId);
     await this.guard(() => transport.connect({ dtlsParameters }));
+    this.handshakes.get(transport)?.();
   }
 
   async restartIce(peer: Peer, transportId: string): Promise<types.IceParameters> {
