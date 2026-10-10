@@ -6,7 +6,10 @@ import { VoiceStage } from '../voice/components/VoiceStage';
 import { useVoiceStore } from '../voice/voice-store';
 import { connectToVoiceChannel } from './voice-channel';
 
-/** Main area for a voice channel: a lobby until the user joins, then the live stage. */
+/**
+ * Main area for a voice channel: the live stage while connected. Clicking the channel joins
+ * it, so the lobby only shows after hanging up, on a direct link or when joining is not allowed.
+ */
 export function VoiceChannelView({
   guild,
   channel,

@@ -26,7 +26,7 @@ async function joinVoice(page: Page): Promise<void> {
     .getByRole('navigation', { name: 'Canais' })
     .getByRole('link', { name: /Geral/ })
     .click();
-  await page.getByRole('button', { name: 'ENTRAR NO CANAL' }).click();
+  // Clicking a voice channel joins it.
   await expect(page.getByTestId('voice-status')).toHaveText('CONECTADO');
 }
 

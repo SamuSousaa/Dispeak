@@ -5,7 +5,7 @@ import { Icon, type IconName } from '../../components/Icon';
 import { cx } from '../../lib/cx';
 import { actorIn, channelPermissions, groupChannels, memberName } from '../guilds/permissions';
 import { useVoiceStore } from '../voice/voice-store';
-import { useSpeakingUserIds } from './voice-channel';
+import { connectToVoiceChannel, useSpeakingUserIds } from './voice-channel';
 
 interface ChannelPanelProps {
   guild: Guild;
@@ -236,7 +236,20 @@ export function ChannelPanel({
                     <div className="group flex items-center">
                       <NavLink
                         to={`/app/${guild.id}/${channel.id}`}
-                        onClick={onNavigate}
+                        onClick={() => {
+                          onNavigate();
+                          // Like a phone call: picking a voice channel joins it right away.
+                          if (
+                            channel.type === 'voice' &&
+                            connectedChannelId !== channel.id &&
+                            hasPermission(
+                              channelPermissions(guild, channel, userId),
+                              Permissions.Connect,
+                            )
+                          ) {
+                            connectToVoiceChannel(channel);
+                          }
+                        }}
                         className={({ isActive }) =>
                           cx(
                             'label-lg flex min-w-0 flex-1 items-center gap-2 border-l-2 py-1.5 pr-2 pl-[10px] transition-colors',
