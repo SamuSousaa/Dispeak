@@ -2,7 +2,7 @@ import { ApiErrorCode, type AuthResponse, type User } from '@frequencia/shared';
 import { hash, verify } from '@node-rs/argon2';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Config } from '../../config';
-import { schema, type Database } from '../../db/client';
+import { schema, type Database, type Queryable } from '../../db/client';
 import { AppError, unauthorized } from '../../errors';
 import type { GatewayBus } from '../../gateway/bus';
 import { uuidv7 } from '../../lib/ids';
@@ -85,46 +85,45 @@ export class AuthService {
     const tokenHash = hashRefreshToken(refreshToken);
     const now = new Date();
 
-    const [rotated] = await this.db
-      .update(refreshTokens)
-      .set({ revokedAt: now })
-      .where(
-        and(
-          eq(refreshTokens.tokenHash, tokenHash),
-          isNull(refreshTokens.revokedAt),
-          gt(refreshTokens.expiresAt, now),
-        ),
-      )
-      .returning();
+    // The old token is revoked and its successor stored in one transaction. A second tab
+    // refreshing at the same moment waits on the row, and then finds the session still alive
+    // instead of a family with no live token (which reads as theft and ends the session).
+    const rotated = await this.db.transaction(async (tx) => {
+      const [token] = await tx
+        .update(refreshTokens)
+        .set({ revokedAt: now })
+        .where(
+          and(
+            eq(refreshTokens.tokenHash, tokenHash),
+            isNull(refreshTokens.revokedAt),
+            gt(refreshTokens.expiresAt, now),
+          ),
+        )
+        .returning();
+      if (!token) return null;
+      const [user] = await tx.select().from(users).where(eq(users.id, token.userId));
+      return user ? this.issue(toUser(user), token.familyId, meta, tx) : 'no-user';
+    });
+    if (rotated === 'no-user') throw unauthorized();
+    if (rotated) return rotated;
 
-    let familyId = rotated?.familyId;
-    let userId = rotated?.userId;
-
-    if (!rotated) {
-      const [existing] = await this.db
-        .select()
-        .from(refreshTokens)
-        .where(eq(refreshTokens.tokenHash, tokenHash));
-      if (!existing || existing.expiresAt <= now || !existing.revokedAt) throw unauthorized();
-
-      const sinceRevoked = now.getTime() - existing.revokedAt.getTime();
-      const familyAlive = await this.isFamilyAlive(existing.familyId);
-      if (sinceRevoked > ROTATION_GRACE_MS || !familyAlive) {
-        // A revoked token came back: assume it leaked and end the whole session.
-        await this.revokeFamily(existing.userId, existing.familyId);
-        throw unauthorized('session revoked');
-      }
-      // Two tabs refreshed at the same time; let the slower one continue the session.
-      familyId = existing.familyId;
-      userId = existing.userId;
-    }
-
-    const [user] = await this.db
+    const [existing] = await this.db
       .select()
-      .from(users)
-      .where(eq(users.id, userId as string));
+      .from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, tokenHash));
+    if (!existing || existing.expiresAt <= now || !existing.revokedAt) throw unauthorized();
+
+    const sinceRevoked = now.getTime() - existing.revokedAt.getTime();
+    const familyAlive = await this.isFamilyAlive(existing.familyId);
+    if (sinceRevoked > ROTATION_GRACE_MS || !familyAlive) {
+      // A revoked token came back: assume it leaked and end the whole session.
+      await this.revokeFamily(existing.userId, existing.familyId);
+      throw unauthorized('session revoked');
+    }
+    // Two tabs refreshed at the same time; let the slower one continue the session.
+    const [user] = await this.db.select().from(users).where(eq(users.id, existing.userId));
     if (!user) throw unauthorized();
-    return this.issue(toUser(user), familyId as string, meta);
+    return this.issue(toUser(user), existing.familyId, meta);
   }
 
   /** Ends the session a refresh token belongs to. Unknown tokens are ignored. */
@@ -164,12 +163,17 @@ export class AuthService {
     return user ? toUser(user) : null;
   }
 
-  private async issue(user: User, familyId: string, meta: RequestMeta): Promise<IssuedSession> {
+  private async issue(
+    user: User,
+    familyId: string,
+    meta: RequestMeta,
+    db: Queryable = this.db,
+  ): Promise<IssuedSession> {
     const refreshToken = generateRefreshToken();
     const refreshExpiresAt = new Date(
       Date.now() + this.config.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
     );
-    await this.db.insert(refreshTokens).values({
+    await db.insert(refreshTokens).values({
       id: uuidv7(),
       userId: user.id,
       familyId,
