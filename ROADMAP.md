@@ -89,9 +89,10 @@ passar e de um commit ser feito.
 
 **Aceite**
 
-- [ ] O projeto sobe em produção com um comando — o comando e todos os arquivos existem
-      (`docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build`), mas **nunca
-      foram executados**: não há Docker nesta máquina. Ver Pendências.
+- [x] O projeto sobe em produção com um comando — executado pela primeira vez em 10/10/2026 numa
+      VPS x86 de 2 núcleos (Ubuntu 24.04), com HTTPS do Let's Encrypt. O fluxo e2e principal passou
+      contra o servidor real a partir de uma rede com CGNAT. Achado da subida: o worklet do RNNoise
+      não carregava no build de produção (corrigido).
 - [x] README e docs completos
 - [x] Teste de carga com números reais (medidos nos builds de produção rodando localmente, não na
       VM de deploy)
