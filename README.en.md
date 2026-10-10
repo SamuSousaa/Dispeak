@@ -17,7 +17,7 @@ The interface is in Brazilian Portuguese, and so are the documents linked from t
 
 - **Voice channels** routed by our own SFU: mute, deafen, speaking indicator, automatic
   reconnection, keyboard shortcuts.
-- **Screen sharing** with 3-layer VP8 simulcast, presets (720p30, 1080p30, 1080p60), system audio
+- **Screen sharing** with 3-layer VP8 simulcast, presets (720p30, 1080p30, 1080p60, 1440p60 and source resolution up to 4K), system audio
   when the browser provides it, several streams at once, focus mode and fullscreen.
 - **Watch on demand**: video is only forwarded to those who clicked to watch, and the simulcast
   layer is chosen from the size at which the stream is displayed on each viewer's screen.

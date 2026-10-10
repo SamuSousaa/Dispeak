@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { cx } from '../../lib/cx';
-import { useAuthStore } from '../auth/auth-store';
+import { logout, useAuthStore } from '../auth/auth-store';
 import { applyChatEvent } from '../chat/chat-store';
 import { gateway } from '../gateway/gateway-client';
 import { useGatewayStore } from '../gateway/gateway-store';
@@ -13,6 +13,7 @@ import { CreateChannelDialog } from '../guilds/dialogs/CreateChannelDialog';
 import { GuildSettingsDialog } from '../guilds/dialogs/GuildSettingsDialog';
 import { InviteDialog } from '../guilds/dialogs/InviteDialog';
 import { groupChannels } from '../guilds/permissions';
+import { SettingsPanel } from '../settings/SettingsPanel';
 import { useVoiceShortcuts } from '../voice/use-voice-shortcuts';
 import { leaveVoice } from '../voice/voice-actions';
 import { ChannelPanel } from './ChannelPanel';
@@ -29,6 +30,7 @@ type DialogState =
   | { kind: 'guild-settings' }
   | { kind: 'create-channel'; parentId: string | null }
   | { kind: 'channel-settings'; channelId: string }
+  | { kind: 'settings' }
   | null;
 
 type Drawer = 'channels' | 'members' | null;
@@ -86,6 +88,11 @@ export function AppPage() {
   if (!user) return null;
 
   const closeDialog = () => setDialog(null);
+  const signOut = async () => {
+    leaveVoice();
+    gateway.stop();
+    await logout();
+  };
   const settingsChannel =
     dialog?.kind === 'channel-settings'
       ? guild?.channels.find((channel) => channel.id === dialog.channelId)
@@ -126,7 +133,7 @@ export function AppPage() {
             ) : (
               <div className="flex-1" />
             )}
-            <UserPanel user={user} />
+            <UserPanel user={user} onOpenSettings={() => setDialog({ kind: 'settings' })} />
           </div>
         </aside>
 
@@ -224,6 +231,9 @@ export function AppPage() {
       <SystemBar />
 
       {dialog?.kind === 'add-guild' && <AddGuildDialog onClose={closeDialog} />}
+      {dialog?.kind === 'settings' && (
+        <SettingsPanel user={user} onSignOut={() => void signOut()} onClose={closeDialog} />
+      )}
       {guild && dialog?.kind === 'invite' && <InviteDialog guild={guild} onClose={closeDialog} />}
       {guild && dialog?.kind === 'guild-settings' && (
         <GuildSettingsDialog guild={guild} userId={user.id} onClose={closeDialog} />

@@ -9,13 +9,22 @@ interface DialogProps {
   children: ReactNode;
   /** Wider layout for settings screens. */
   wide?: boolean;
+  /** Full-height panel docked to the right edge instead of a centered box. */
+  side?: boolean;
 }
 
 /**
  * Modal built on the native <dialog>: the browser traps focus, closes on Escape and keeps
  * the rest of the page inert.
  */
-export function Dialog({ title, eyebrow, onClose, children, wide = false }: DialogProps) {
+export function Dialog({
+  title,
+  eyebrow,
+  onClose,
+  children,
+  wide = false,
+  side = false,
+}: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -35,12 +44,14 @@ export function Dialog({ title, eyebrow, onClose, children, wide = false }: Dial
         if (event.target === ref.current) onClose();
       }}
       className={cx(
-        'm-auto max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] border border-line-strong bg-surface p-0 text-fg',
-        'backdrop:bg-black/70',
-        wide ? 'max-w-3xl' : 'max-w-md',
+        'border-line-strong bg-surface p-0 text-fg backdrop:bg-black/70',
+        side
+          ? 'my-0 mr-0 ml-auto h-dvh max-h-dvh w-96 max-w-full border-l'
+          : 'm-auto max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] border',
+        !side && (wide ? 'max-w-3xl' : 'max-w-md'),
       )}
     >
-      <div className="flex max-h-[min(90dvh,720px)] flex-col">
+      <div className={cx('flex flex-col', side ? 'h-full' : 'max-h-[min(90dvh,720px)]')}>
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-4 py-3">
           <div className="min-w-0">
             {eyebrow && <p className="label text-muted">{eyebrow}</p>}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { layerForViewport, SCREEN_PRESETS, simulcastEncodings } from './screen-presets';
+import {
+  layerForViewport,
+  SCREEN_PRESET_LIST,
+  SCREEN_PRESETS,
+  simulcastEncodings,
+} from './screen-presets';
 
 describe('simulcastEncodings', () => {
   it('produces quarter, half and full resolution layers, lowest first', () => {
@@ -9,6 +14,18 @@ describe('simulcastEncodings', () => {
     expect(encodings.every((encoding) => encoding.maxFramerate === 60)).toBe(true);
     const bitrates = encodings.map((encoding) => encoding.maxBitrate ?? 0);
     expect(bitrates).toEqual([...bitrates].sort((a, b) => a - b));
+  });
+});
+
+describe('SCREEN_PRESETS', () => {
+  it('keeps every preset within what the media server accepts from one sender', () => {
+    // TRANSPORT_BITRATE.maxIncoming in apps/media, minus headroom for the audio tracks.
+    const budget = 20_000_000 - 500_000;
+    for (const preset of SCREEN_PRESET_LIST) {
+      expect(preset.bitrates.reduce((sum, bitrate) => sum + bitrate, 0)).toBeLessThanOrEqual(
+        budget,
+      );
+    }
   });
 });
 

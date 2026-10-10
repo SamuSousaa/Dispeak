@@ -1,9 +1,12 @@
 import { Button } from '../../../components/Button';
+import { useKeybind } from '../../settings/settings-store';
 import { leaveVoice, toggleDeafen, toggleMute } from '../voice-actions';
 import { useVoiceStore } from '../voice-store';
 import { ScreenShareButton } from './ScreenShareButton';
 
-/** Mute, deafen and leave. Shortcuts: M and D (or Ctrl+Shift+M / Ctrl+Shift+D). */
+const withKey = (text: string, binding: string | null) => (binding ? `${text} (${binding})` : text);
+
+/** Mute, deafen, share and leave, as a row of buttons. */
 export function VoiceControls({
   onLeave,
   canStream = true,
@@ -15,14 +18,16 @@ export function VoiceControls({
   const muted = useVoiceStore((state) => state.muted);
   const deafened = useVoiceStore((state) => state.deafened);
   const micAvailable = useVoiceStore((state) => state.micAvailable);
+  const muteKey = useKeybind('mute');
+  const deafenKey = useKeybind('deafen');
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button
         variant={muted ? 'danger' : 'default'}
         aria-pressed={muted}
-        aria-keyshortcuts="M Control+Shift+M"
-        title="Mutar microfone (M)"
+        aria-keyshortcuts={muteKey ?? undefined}
+        title={withKey('Mutar microfone', muteKey)}
         onClick={toggleMute}
       >
         {muted ? 'MUTADO' : 'MUTAR'}
@@ -30,8 +35,8 @@ export function VoiceControls({
       <Button
         variant={deafened ? 'danger' : 'default'}
         aria-pressed={deafened}
-        aria-keyshortcuts="D Control+Shift+D"
-        title="Ensurdecer (D)"
+        aria-keyshortcuts={deafenKey ?? undefined}
+        title={withKey('Ensurdecer', deafenKey)}
         onClick={toggleDeafen}
       >
         {deafened ? 'ENSURDECIDO' : 'ENSURDECER'}

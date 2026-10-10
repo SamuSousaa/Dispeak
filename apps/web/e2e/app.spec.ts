@@ -97,11 +97,34 @@ test('account → server → invite → voice channel → stream, with permissio
   await bruno.page.keyboard.press('m');
   await expect(voiceMembers(alice.page).filter({ hasText: 'Bruno' })).not.toContainText('MUDO');
 
+  // --- Quick settings: RNNoise is really running, and shortcuts can be rebound ---------------
+  await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await expect(dialog(bruno.page).getByTestId('noise-active')).toHaveText('EM USO AGORA: RNNOISE');
+  await dialog(bruno.page)
+    .getByRole('button', { name: /^Atalho de Mutar/ })
+    .click();
+  await bruno.page.keyboard.press('k');
+  await expect(dialog(bruno.page).getByRole('button', { name: /^Atalho de Mutar/ })).toHaveText(
+    'K',
+  );
+  await dialog(bruno.page).getByRole('button', { name: 'Fechar' }).click();
+  await bruno.page.keyboard.press('m');
+  await bruno.page.keyboard.press('k');
+  await expect(voiceMembers(alice.page).filter({ hasText: 'Bruno' })).toContainText('MUDO');
+  await bruno.page.getByRole('button', { name: 'Ativar microfone' }).click();
+  await expect(voiceMembers(alice.page).filter({ hasText: 'Bruno' })).not.toContainText('MUDO');
+
   // --- Alice streams her screen; Bruno chooses to watch -------------------------------------
   await alice.page.getByRole('button', { name: 'TRANSMITIR', exact: true }).click();
   await alice.page.getByRole('menuitem', { name: /720P30/ }).click();
   await expect(voiceMembers(bruno.page).filter({ hasText: 'Alice' })).toContainText('AO VIVO');
-  await bruno.page.getByRole('button', { name: 'Assistir Alice' }).click();
+  // The fullscreen shortcut starts watching whoever is live and takes the stream fullscreen.
+  const isFullscreen = () =>
+    bruno.page.evaluate(
+      () => document.fullscreenElement?.getAttribute('data-testid') === 'stream-tile',
+    );
+  await bruno.page.keyboard.press('f');
+  await expect.poll(isFullscreen).toBe(true);
   await expect
     .poll(() =>
       stream(bruno.page, 'Alice')
@@ -110,10 +133,28 @@ test('account → server → invite → voice channel → stream, with permissio
     )
     .toBeGreaterThan(0);
 
+  // The same shortcut leaves fullscreen, and still works after being rebound to a chord.
+  await bruno.page.keyboard.press('f');
+  await expect.poll(isFullscreen).toBe(false);
+  await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await dialog(bruno.page)
+    .getByRole('button', { name: /^Atalho de Assistir transmissão em tela cheia/ })
+    .click();
+  await bruno.page.keyboard.press('Control+Shift+F');
+  await dialog(bruno.page).getByRole('button', { name: 'Fechar' }).click();
+  await bruno.page.keyboard.press('Control+Shift+F');
+  await expect.poll(isFullscreen).toBe(true);
+  await bruno.page.keyboard.press('Control+Shift+F');
+  await expect.poll(isFullscreen).toBe(false);
+
   // --- permissions --------------------------------------------------------------------------
   // Bruno is a regular member: no server management for him.
-  await expect(bruno.page.getByRole('button', { name: '+ CANAL' })).toHaveCount(0);
-  await bruno.page.getByRole('button', { name: 'Configurações do servidor' }).click();
+  await bruno.page.getByTestId('server-menu').click();
+  await expect(bruno.page.getByRole('menuitem', { name: /CRIAR CANAL/ })).toHaveCount(0);
+  await expect(bruno.page.getByRole('menuitem', { name: /CONFIGURAÇÕES DO SERVIDOR/ })).toHaveCount(
+    0,
+  );
+  await bruno.page.getByRole('menuitem', { name: /OPÇÕES DO SERVIDOR/ }).click();
   await expect(dialog(bruno.page).getByRole('tab', { name: 'CARGOS' })).toHaveCount(0);
   await expect(dialog(bruno.page).getByRole('tab', { name: 'CONVITES' })).toHaveCount(0);
   await dialog(bruno.page).getByRole('button', { name: 'Fechar' }).click();
@@ -157,7 +198,8 @@ test('account → server → invite → voice channel → stream, with permissio
   // --- session survives a reload (refresh cookie) and ends on logout -------------------------
   await bruno.page.reload();
   await expect(bruno.page.getByRole('heading', { name: 'Amigos do e2e' })).toBeVisible();
-  await bruno.page.getByRole('button', { name: '[ SAIR ]' }).click();
+  await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await dialog(bruno.page).getByRole('button', { name: 'SAIR DA CONTA' }).click();
   await expect(bruno.page).toHaveURL(/\/login/);
   await expect(
     alice.page.locator('[data-testid="member"][data-online="false"]').filter({ hasText: 'Bruno' }),
@@ -198,7 +240,8 @@ test('a kicked member loses the server immediately', async ({ browser }) => {
   await expect(guest.page.getByRole('heading', { name: 'Clube fechado' })).toBeVisible();
 
   // The owner creates a moderator role, assigns it, then kicks the guest.
-  await owner.page.getByRole('button', { name: 'Configurações do servidor' }).click();
+  await owner.page.getByTestId('server-menu').click();
+  await owner.page.getByRole('menuitem', { name: /CONFIGURAÇÕES DO SERVIDOR/ }).click();
   await dialog(owner.page).getByRole('tab', { name: 'CARGOS' }).click();
   await dialog(owner.page).getByLabel('Nome do novo cargo').fill('Moderador');
   await dialog(owner.page).getByRole('button', { name: '+', exact: true }).click();
@@ -211,7 +254,9 @@ test('a kicked member loses the server immediately', async ({ browser }) => {
   const guestRow = dialog(owner.page).getByTestId('settings-member').filter({ hasText: 'Visita' });
   await guestRow.getByRole('button', { name: 'Moderador' }).click();
   // The new permission reaches the guest live: the "+ CANAL" action appears.
-  await expect(guest.page.getByRole('button', { name: '+ CANAL' })).toBeVisible();
+  await guest.page.getByTestId('server-menu').click();
+  await expect(guest.page.getByRole('menuitem', { name: /CRIAR CANAL/ })).toBeVisible();
+  await guest.page.keyboard.press('Escape');
   await expect(guest.page.getByTestId('member').filter({ hasText: 'Visita' })).toContainText(
     'Moderador',
   );

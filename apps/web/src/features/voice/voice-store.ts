@@ -1,5 +1,6 @@
 import type { VoicePeer } from '@frequencia/shared';
 import { create } from 'zustand';
+import type { NoiseSuppressionMode } from '../settings/settings-store';
 import type { ScreenPresetId } from './screen-presets';
 
 export type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
@@ -67,6 +68,8 @@ export interface VoiceState {
   deafened: boolean;
   /** False when no microphone could be opened; the user is then listen-only. */
   micAvailable: boolean;
+  /** What is cleaning the microphone right now; `null` while there is no microphone. */
+  noiseSuppression: NoiseSuppressionMode | null;
   /** Remote participants keyed by session id. */
   peers: Record<string, VoicePeer>;
   /** Session ids currently speaking (may include `selfId`). */
@@ -104,6 +107,7 @@ export const initialVoiceState: VoiceState = {
   muted: false,
   deafened: false,
   micAvailable: true,
+  noiseSuppression: null,
   peers: {},
   speaking: [],
   stats: emptyVoiceStats,

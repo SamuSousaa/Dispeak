@@ -13,6 +13,8 @@ import {
 } from '@frequencia/shared';
 import { Device, type types } from 'mediasoup-client';
 import { connectRpc, type RpcConnection } from '../../lib/rpc-client';
+import { useSettingsStore, type Settings } from '../settings/settings-store';
+import { openMicrophone, type Microphone } from './microphone';
 import {
   layerForViewport,
   SCREEN_PRESETS,
@@ -93,7 +95,11 @@ export class VoiceSession {
   private recvTransport: types.Transport | null = null;
   private iceServers: RTCIceServer[] = [];
 
+  private microphone: Microphone | null = null;
   private micTrack: MediaStreamTrack | null = null;
+  /** Serializes microphone swaps triggered by settings changes. */
+  private micReload: Promise<void> = Promise.resolve();
+  private unsubscribeSettings: (() => void) | null = null;
   private micProducer: types.Producer | null = null;
   private screenStream: MediaStream | null = null;
   private screenProducer: types.Producer | null = null;
@@ -127,7 +133,11 @@ export class VoiceSession {
       channelId: this.options.channelId,
       channelName: this.options.channelName,
     });
+    this.unsubscribeSettings = useSettingsStore.subscribe((settings, previous) =>
+      this.handleSettingsChange(settings, previous),
+    );
     await this.acquireMicrophone();
+    if (this.disposed) return;
     await this.connect();
   }
 
@@ -461,7 +471,10 @@ export class VoiceSession {
   }
 
   private releaseLocalMedia(): void {
-    this.micTrack?.stop();
+    this.unsubscribeSettings?.();
+    this.unsubscribeSettings = null;
+    this.microphone?.close();
+    this.microphone = null;
     this.micTrack = null;
     for (const track of this.screenStream?.getTracks() ?? []) track.stop();
     this.screenStream = null;
@@ -618,17 +631,78 @@ export class VoiceSession {
   private async acquireMicrophone(): Promise<void> {
     if (this.micTrack?.readyState === 'live') return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      const [track] = stream.getAudioTracks();
-      this.micTrack = track ?? null;
-      set({ micAvailable: Boolean(track) });
+      const microphone = await openMicrophone(useSettingsStore.getState());
+      if (this.disposed) {
+        microphone.close();
+        return;
+      }
+      this.microphone?.close();
+      this.microphone = microphone;
+      this.micTrack = microphone.track;
+      set({ micAvailable: true, noiseSuppression: microphone.noiseSuppression });
     } catch (error) {
       console.warn('[voice] microphone unavailable, joining listen-only', error);
+      this.microphone = null;
       this.micTrack = null;
-      set({ micAvailable: false, muted: true });
+      set({ micAvailable: false, muted: true, noiseSuppression: null });
     }
+  }
+
+  private handleSettingsChange(settings: Settings, previous: Settings): void {
+    if (settings.outputDeviceId !== previous.outputDeviceId) {
+      for (const { audio } of this.consumers.values()) {
+        if (audio) this.routeOutput(audio);
+      }
+    }
+    if (
+      settings.inputDeviceId !== previous.inputDeviceId ||
+      settings.noiseSuppression !== previous.noiseSuppression ||
+      settings.echoCancellation !== previous.echoCancellation ||
+      settings.autoGainControl !== previous.autoGainControl
+    ) {
+      this.micReload = this.micReload.then(() => this.reloadMicrophone());
+    }
+  }
+
+  /** Reopens the microphone with the current settings and swaps it into the live producer. */
+  private async reloadMicrophone(): Promise<void> {
+    if (this.disposed) return;
+    let next: Microphone;
+    try {
+      next = await openMicrophone(useSettingsStore.getState());
+    } catch (error) {
+      // Keep whatever was working before.
+      console.warn('[voice] could not reopen the microphone', error);
+      return;
+    }
+    if (this.disposed) {
+      next.close();
+      return;
+    }
+    const previous = this.microphone;
+    this.microphone = next;
+    this.micTrack = next.track;
+    set({ micAvailable: true, noiseSuppression: next.noiseSuppression });
+    try {
+      if (this.micProducer && !this.micProducer.closed) {
+        await this.micProducer.replaceTrack({ track: next.track });
+      } else {
+        await this.publishMicrophone();
+      }
+    } catch (error) {
+      console.warn('[voice] failed to switch the microphone', error);
+    }
+    previous?.close();
+  }
+
+  /** Sends remote audio to the output device chosen in the settings, where supported. */
+  private routeOutput(audio: HTMLAudioElement): void {
+    if (typeof audio.setSinkId !== 'function') return;
+    const deviceId = useSettingsStore.getState().outputDeviceId ?? '';
+    if (audio.sinkId === deviceId) return;
+    audio.setSinkId(deviceId).catch((error: unknown) => {
+      console.warn('[voice] could not switch the output device', error);
+    });
   }
 
   private async publishMicrophone(): Promise<void> {
@@ -745,6 +819,7 @@ export class VoiceSession {
         const audio = new Audio();
         audio.srcObject = new MediaStream([consumer.track]);
         audio.muted = get().deafened;
+        this.routeOutput(audio);
         audio.play().catch((error: unknown) => console.warn('[voice] playback blocked', error));
         entry.audio = audio;
       } else {

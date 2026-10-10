@@ -1,5 +1,18 @@
 import { useEffect } from 'react';
-import { toggleDeafen, toggleMute } from './voice-actions';
+import {
+  actionForBinding,
+  bindingFromEvent,
+  firesWhileTyping,
+  type KeybindAction,
+} from '../settings/keybinds';
+import { useSettingsStore } from '../settings/settings-store';
+import {
+  leaveVoice,
+  toggleDeafen,
+  toggleMute,
+  toggleScreenShare,
+  toggleWatchFullscreen,
+} from './voice-actions';
 import { useVoiceStore } from './voice-store';
 
 function isTyping(target: EventTarget | null): boolean {
@@ -12,11 +25,18 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+const run: Record<KeybindAction, () => void> = {
+  mute: toggleMute,
+  deafen: toggleDeafen,
+  fullscreen: toggleWatchFullscreen,
+  share: toggleScreenShare,
+  leave: leaveVoice,
+};
+
 /**
- * Keyboard shortcuts while in a voice channel:
- *   M / Ctrl+Shift+M  toggle mute
- *   D / Ctrl+Shift+D  toggle deafen
- * The single-key variants are ignored while typing in a field.
+ * Keyboard shortcuts while in a voice channel. The bindings come from the user's settings
+ * (defaults: M mutes, D deafens, F toggles fullscreen on a stream). Bindings that would
+ * also type a character are ignored while a field has focus.
  */
 export function useVoiceShortcuts(): void {
   const active = useVoiceStore(
@@ -26,17 +46,15 @@ export function useVoiceShortcuts(): void {
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat || event.altKey || event.metaKey) return;
-      const key = event.key.toLowerCase();
-      if (key !== 'm' && key !== 'd') return;
-
-      const chord = event.ctrlKey && event.shiftKey;
-      const plain = !event.ctrlKey && !event.shiftKey && !isTyping(event.target);
-      if (!chord && !plain) return;
+      if (event.repeat) return;
+      const binding = bindingFromEvent(event);
+      if (!binding) return;
+      const action = actionForBinding(useSettingsStore.getState().keybinds, binding);
+      if (!action) return;
+      if (isTyping(event.target) && !firesWhileTyping(binding)) return;
 
       event.preventDefault();
-      if (key === 'm') toggleMute();
-      else toggleDeafen();
+      run[action]();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

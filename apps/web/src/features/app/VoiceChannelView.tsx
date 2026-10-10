@@ -30,7 +30,8 @@ export function VoiceChannelView({
         <div className="min-h-0 flex-1">
           <VoiceStage selfName={memberName(guild, userId)} />
         </div>
-        <div className="shrink-0 border-t border-line bg-surface p-3">
+        {/* From md up the controls live in the channel column, next to the user. */}
+        <div className="shrink-0 border-t border-line bg-surface p-3 md:hidden">
           <VoiceControls canStream={hasPermission(permissions, Permissions.Stream)} />
         </div>
       </div>

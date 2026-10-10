@@ -31,5 +31,6 @@ export const AUDIO_LEVEL_OBSERVER = {
 
 export const TRANSPORT_BITRATE = {
   initialAvailableOutgoing: 1_500_000,
-  maxIncoming: 8_000_000,
+  // Room for the three simulcast layers of the heaviest screen share preset, plus audio.
+  maxIncoming: 20_000_000,
 } as const;

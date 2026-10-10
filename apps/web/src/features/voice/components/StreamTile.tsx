@@ -3,9 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../components/Button';
 import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
+import { registerStreamFullscreen } from '../stream-fullscreen';
 import { setStreamViewport } from '../voice-actions';
 import { SELF_STREAM, useVoiceStore, type StreamStats } from '../voice-store';
 import { LiveBadge } from './LiveBadge';
+
+interface IosVideoElement extends HTMLVideoElement {
+  webkitEnterFullscreen?: () => void;
+}
 
 interface StreamTileProps {
   /** Streamer session id, or `SELF_STREAM` for the local preview. */
@@ -107,10 +112,31 @@ export function StreamTile({
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
+  const enterFullscreen = () => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (typeof container.requestFullscreen === 'function') {
+      void container.requestFullscreen().catch(() => undefined);
+      return;
+    }
+    // iPhone browsers only offer fullscreen on the <video> itself, with the native player.
+    const video = container.querySelector('video') as IosVideoElement | null;
+    video?.webkitEnterFullscreen?.();
+  };
+
   const toggleFullscreen = () => {
     if (document.fullscreenElement) void document.exitFullscreen();
-    else void containerRef.current?.requestFullscreen().catch(() => undefined);
+    else enterFullscreen();
   };
+
+  // Thumbnails are left out: the fullscreen shortcut targets the streams being watched.
+  useEffect(() => {
+    if (compact) return;
+    return registerStreamFullscreen(id, {
+      focused,
+      toggle: enterFullscreen,
+    });
+  }, [id, compact, focused]);
 
   return (
     <div

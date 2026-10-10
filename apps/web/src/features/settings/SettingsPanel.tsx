@@ -1,0 +1,378 @@
+import type { User } from '@frequencia/shared';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Button } from '../../components/Button';
+import { Dialog, Field } from '../../components/Dialog';
+import { cx } from '../../lib/cx';
+import { useVoiceStore } from '../voice/voice-store';
+import { bindingFromEvent, KEYBIND_ACTIONS, KEYBIND_LABELS, type KeybindAction } from './keybinds';
+import {
+  resetKeybinds,
+  setKeybind,
+  updateSettings,
+  useSettingsStore,
+  type NoiseSuppressionMode,
+} from './settings-store';
+
+const NOISE_OPTIONS: Array<{ value: NoiseSuppressionMode; label: string; hint: string }> = [
+  {
+    value: 'rnnoise',
+    label: 'AVANÇADA',
+    hint: 'Rede neural (RNNoise) que isola a voz e corta teclado, ventilador e ruído de fundo.',
+  },
+  { value: 'browser', label: 'PADRÃO', hint: 'O filtro simples que já vem no navegador.' },
+  { value: 'off', label: 'DESLIGADA', hint: 'Envia o microfone sem filtro.' },
+];
+
+const NOISE_NAMES: Record<NoiseSuppressionMode, string> = {
+  rnnoise: 'RNNOISE',
+  browser: 'NAVEGADOR',
+  off: 'DESLIGADA',
+};
+
+/** Phones and tablets: there is no keyboard to bind shortcuts to. */
+const touchOnly =
+  typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+const supportsOutputSelection =
+  typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
+
+interface AudioDevices {
+  inputs: MediaDeviceInfo[];
+  outputs: MediaDeviceInfo[];
+}
+
+/** Audio devices the browser exposes. Names stay empty until microphone access is granted. */
+function useAudioDevices(refreshKey: unknown): AudioDevices {
+  const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [] });
+
+  useEffect(() => {
+    const media = navigator.mediaDevices;
+    if (typeof media?.enumerateDevices !== 'function') return;
+    let cancelled = false;
+    const refresh = () => {
+      media
+        .enumerateDevices()
+        .then((all) => {
+          if (cancelled) return;
+          // Chrome lists aliases of the system default; "Padrão do sistema" already covers them.
+          const real = all.filter(
+            (device) => device.deviceId !== 'default' && device.deviceId !== 'communications',
+          );
+          setDevices({
+            inputs: real.filter((device) => device.kind === 'audioinput'),
+            outputs: real.filter((device) => device.kind === 'audiooutput'),
+          });
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    media.addEventListener('devicechange', refresh);
+    return () => {
+      cancelled = true;
+      media.removeEventListener('devicechange', refresh);
+    };
+  }, [refreshKey]);
+
+  return devices;
+}
+
+function Section({
+  number,
+  title,
+  children,
+}: {
+  number: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-b border-line">
+      <h3 className="label border-b border-line bg-surface-2 px-4 py-2 text-fg">
+        <span className="text-muted">{number}.</span> {title}
+      </h3>
+      <div className="flex flex-col gap-4 p-4">{children}</div>
+    </section>
+  );
+}
+
+function DeviceSelect({
+  label,
+  hint,
+  value,
+  devices,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string | null;
+  devices: MediaDeviceInfo[];
+  onChange: (deviceId: string | null) => void;
+}) {
+  const named = devices.filter((device) => device.deviceId && device.label);
+  // A saved device that is unplugged right now still shows up, so the choice is not lost.
+  const missing = value !== null && !named.some((device) => device.deviceId === value);
+  return (
+    <Field label={label} hint={hint}>
+      <select
+        className="field"
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value || null)}
+      >
+        <option value="">Padrão do sistema</option>
+        {named.map((device) => (
+          <option key={device.deviceId} value={device.deviceId}>
+            {device.label}
+          </option>
+        ))}
+        {missing && <option value={value}>Dispositivo salvo (desconectado)</option>}
+      </select>
+    </Field>
+  );
+}
+
+function Toggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        className="mt-0.5 h-4 w-4 shrink-0 accent-(--accent)"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="flex min-w-0 flex-col">
+        <span className="label text-fg">{label}</span>
+        <span className="text-xs text-muted">{hint}</span>
+      </span>
+    </label>
+  );
+}
+
+function KeybindRow({
+  action,
+  capturing,
+  onCapture,
+}: {
+  action: KeybindAction;
+  capturing: boolean;
+  onCapture: (action: KeybindAction | null) => void;
+}) {
+  const binding = useSettingsStore((state) => state.keybinds[action]);
+  return (
+    <li className="flex items-center justify-between gap-3">
+      <span className="min-w-0 truncate text-sm text-fg">{KEYBIND_LABELS[action]}</span>
+      <span className="flex shrink-0 items-center gap-1.5">
+        <Button
+          bare
+          variant={capturing ? 'active' : 'default'}
+          className="min-w-24"
+          aria-label={`Atalho de ${KEYBIND_LABELS[action]}: ${binding ?? 'nenhum'}. Alterar`}
+          onClick={() => onCapture(capturing ? null : action)}
+        >
+          {capturing ? 'PRESSIONE…' : (binding ?? '—')}
+        </Button>
+        <Button
+          bare
+          disabled={binding === null}
+          aria-label={`Remover atalho de ${KEYBIND_LABELS[action]}`}
+          onClick={() => {
+            onCapture(null);
+            setKeybind(action, null);
+          }}
+        >
+          X
+        </Button>
+      </span>
+    </li>
+  );
+}
+
+/** Quick settings docked to the right: audio devices, noise suppression, shortcuts, account. */
+export function SettingsPanel({
+  user,
+  onSignOut,
+  onClose,
+}: {
+  user: User;
+  onSignOut: () => void;
+  onClose: () => void;
+}) {
+  const settings = useSettingsStore();
+  const voiceStatus = useVoiceStore((state) => state.status);
+  const micAvailable = useVoiceStore((state) => state.micAvailable);
+  const activeNoise = useVoiceStore((state) => state.noiseSuppression);
+  const devices = useAudioDevices(`${voiceStatus}:${micAvailable}`);
+  const [capturing, setCapturing] = useState<KeybindAction | null>(null);
+
+  const namesHidden = devices.inputs.length > 0 && devices.inputs.every((device) => !device.label);
+  const fellBack = settings.noiseSuppression === 'rnnoise' && activeNoise === 'browser';
+
+  useEffect(() => {
+    if (!capturing) return;
+    // Capture phase, so the key neither closes the dialog nor triggers the shortcut it replaces.
+    const onKeyDown = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === 'Escape') {
+        setCapturing(null);
+        return;
+      }
+      const binding = bindingFromEvent(event);
+      if (!binding) return;
+      setKeybind(capturing, binding);
+      setCapturing(null);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [capturing]);
+
+  return (
+    <Dialog side title="Configurações" eyebrow="ÁUDIO E ATALHOS" onClose={onClose}>
+      <Section number="01" title="ENTRADA">
+        <DeviceSelect
+          label="MICROFONE"
+          hint={
+            namesHidden
+              ? 'Entre em um canal de voz e permita o microfone para ver os nomes dos dispositivos.'
+              : undefined
+          }
+          value={settings.inputDeviceId}
+          devices={devices.inputs}
+          onChange={(inputDeviceId) => updateSettings({ inputDeviceId })}
+        />
+
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="label mb-1.5 text-muted">SUPRESSÃO DE RUÍDO</legend>
+          <div
+            role="radiogroup"
+            aria-label="Supressão de ruído"
+            className="flex flex-col gap-px border border-line bg-line"
+          >
+            {NOISE_OPTIONS.map((option) => {
+              const selected = settings.noiseSuppression === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={cx(
+                    'flex cursor-pointer flex-col gap-0.5 border-l-2 bg-surface px-3 py-2 transition-colors',
+                    'has-focus-visible:outline-2 has-focus-visible:outline-accent',
+                    selected
+                      ? 'border-accent bg-surface-2'
+                      : 'border-transparent hover:bg-surface-2',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="noise-suppression"
+                    className="sr-only"
+                    checked={selected}
+                    onChange={() => updateSettings({ noiseSuppression: option.value })}
+                  />
+                  <span className={cx('label', selected ? 'text-accent' : 'text-fg')}>
+                    {option.label}
+                  </span>
+                  <span className="text-xs text-muted">{option.hint}</span>
+                </label>
+              );
+            })}
+          </div>
+          {activeNoise && (
+            <p
+              className={cx('label', fellBack ? 'text-danger' : 'text-muted')}
+              data-testid="noise-active"
+            >
+              {fellBack
+                ? 'RNNOISE INDISPONÍVEL NESTE NAVEGADOR — USANDO O FILTRO PADRÃO'
+                : `EM USO AGORA: ${NOISE_NAMES[activeNoise]}`}
+            </p>
+          )}
+        </fieldset>
+
+        <Toggle
+          label="CANCELAMENTO DE ECO"
+          hint="Impede que o som das suas caixas volte pelo microfone."
+          checked={settings.echoCancellation}
+          onChange={(echoCancellation) => updateSettings({ echoCancellation })}
+        />
+        <Toggle
+          label="GANHO AUTOMÁTICO"
+          hint="Nivela o volume da sua voz."
+          checked={settings.autoGainControl}
+          onChange={(autoGainControl) => updateSettings({ autoGainControl })}
+        />
+      </Section>
+
+      <Section number="02" title="SAÍDA">
+        {supportsOutputSelection ? (
+          <DeviceSelect
+            label="FONE / CAIXAS"
+            value={settings.outputDeviceId}
+            devices={devices.outputs}
+            onChange={(outputDeviceId) => updateSettings({ outputDeviceId })}
+          />
+        ) : (
+          <p className="text-sm text-muted">
+            Este navegador não permite escolher a saída: o som sai pelo dispositivo padrão do
+            sistema.
+          </p>
+        )}
+      </Section>
+
+      <Section number="03" title="ATALHOS DE TECLADO">
+        {touchOnly ? (
+          <p className="text-sm text-muted">
+            Atalhos precisam de um teclado. Neste aparelho, use os botões de microfone e fone.
+          </p>
+        ) : (
+          <>
+            <ul className="flex flex-col gap-2">
+              {KEYBIND_ACTIONS.map((action) => (
+                <KeybindRow
+                  key={action}
+                  action={action}
+                  capturing={capturing === action}
+                  onCapture={setCapturing}
+                />
+              ))}
+            </ul>
+            <p className="text-xs text-muted">
+              Clique em um atalho e pressione a nova tecla (Esc cancela). Atalhos de uma tecla só
+              não valem enquanto você digita; combine com Ctrl ou Alt para valerem sempre. Funcionam
+              com esta aba em foco.
+            </p>
+            <Button
+              className="self-start"
+              onClick={() => {
+                setCapturing(null);
+                resetKeybinds();
+              }}
+            >
+              RESTAURAR PADRÕES
+            </Button>
+          </>
+        )}
+      </Section>
+
+      <Section number="04" title="CONTA">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="label-lg truncate text-fg">{user.displayName}</p>
+            <p className="label truncate text-muted">@{user.username}</p>
+          </div>
+          <Button variant="danger" onClick={onSignOut}>
+            SAIR DA CONTA
+          </Button>
+        </div>
+      </Section>
+    </Dialog>
+  );
+}

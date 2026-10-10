@@ -1,81 +1,126 @@
-import type { User } from '@frequencia/shared';
-import { cx } from '../../lib/cx';
-import { logout } from '../auth/auth-store';
-import { gateway } from '../gateway/gateway-client';
+import { hasPermission, Permissions, type User } from '@frequencia/shared';
+import { NavLink } from 'react-router-dom';
+import { IconButton } from '../../components/IconButton';
+import { useGatewayStore } from '../gateway/gateway-store';
+import { channelPermissions } from '../guilds/permissions';
+import { useKeybind } from '../settings/settings-store';
+import { ScreenShareButton } from '../voice/components/ScreenShareButton';
 import { leaveVoice, toggleDeafen, toggleMute } from '../voice/voice-actions';
 import { useVoiceStore } from '../voice/voice-store';
 
-const smallButton =
-  'label border border-line-strong px-1.5 py-1 transition-colors hover:border-accent hover:text-accent';
+const withKey = (text: string, binding: string | null) => (binding ? `${text} (${binding})` : text);
 
-/** Bottom of the channel column: the active voice connection and the signed-in user. */
-export function UserPanel({ user }: { user: User }) {
+/**
+ * Bottom of the channel column, the control panel of the app: the active voice connection
+ * (status, channel, screen share, hang up) and, below it, the user with the microphone,
+ * headphones and settings buttons. It stays put while the user browses other channels.
+ */
+export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings: () => void }) {
   const status = useVoiceStore((state) => state.status);
+  const channelId = useVoiceStore((state) => state.channelId);
   const channelName = useVoiceStore((state) => state.channelName);
   const muted = useVoiceStore((state) => state.muted);
   const deafened = useVoiceStore((state) => state.deafened);
-  const inVoice = status === 'connected' || status === 'reconnecting' || status === 'connecting';
+  const micAvailable = useVoiceStore((state) => state.micAvailable);
+  const rttMs = useVoiceStore((state) => state.stats.rttMs);
+  const muteKey = useKeybind('mute');
+  const deafenKey = useKeybind('deafen');
+  const leaveKey = useKeybind('leave');
+  // The voice channel may belong to a server other than the one on screen.
+  const guild = useGatewayStore((state) =>
+    Object.values(state.guilds).find((entry) =>
+      entry.channels.some((channel) => channel.id === channelId),
+    ),
+  );
+  const channel = guild?.channels.find((entry) => entry.id === channelId);
 
-  const signOut = async () => {
-    leaveVoice();
-    gateway.stop();
-    await logout();
-  };
+  const inVoice = status === 'connected' || status === 'reconnecting' || status === 'connecting';
+  const live = status === 'connected' || status === 'reconnecting';
+  const canStream =
+    guild && channel
+      ? hasPermission(channelPermissions(guild, channel, user.id), Permissions.Stream)
+      : false;
 
   return (
-    <div className="shrink-0 border-t border-line">
+    <div className="shrink-0 border-t border-line bg-surface">
       {inVoice && (
-        <div className="border-b border-line px-3 py-2" data-testid="voice-panel">
-          <p className="label flex items-center justify-between gap-2">
-            <span className={status === 'connected' ? 'text-accent' : 'text-danger'}>
-              {status === 'connected' ? 'VOZ CONECTADA' : 'CONECTANDO VOZ'}
-            </span>
-            <span className="truncate text-muted">{channelName}</span>
-          </p>
-          <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-1.5">
-            <button
-              type="button"
-              className={cx(smallButton, muted ? 'text-danger' : 'text-fg')}
-              aria-pressed={muted}
-              aria-label={muted ? 'Ativar microfone' : 'Mutar microfone'}
-              title="Mutar microfone (M)"
-              onClick={toggleMute}
-            >
-              {muted ? 'MIC OFF' : 'MIC'}
-            </button>
-            <button
-              type="button"
-              className={cx(smallButton, deafened ? 'text-danger' : 'text-fg')}
-              aria-pressed={deafened}
-              aria-label={deafened ? 'Ativar áudio' : 'Ensurdecer'}
-              title="Ensurdecer (D)"
-              onClick={toggleDeafen}
-            >
-              {deafened ? 'SOM OFF' : 'SOM'}
-            </button>
-            <button
-              type="button"
-              className={cx(smallButton, 'text-danger')}
-              aria-label="Desligar voz"
+        <div className="border-b border-line" data-testid="voice-panel">
+          <div className="flex items-center gap-2 px-3 pt-2">
+            <div className="min-w-0 flex-1">
+              <p className="label flex items-baseline gap-2">
+                <span className={status === 'connected' ? 'text-accent' : 'text-danger'}>
+                  {status === 'connected'
+                    ? 'VOZ CONECTADA'
+                    : status === 'reconnecting'
+                      ? 'RECONECTANDO'
+                      : 'CONECTANDO VOZ'}
+                </span>
+                {status === 'connected' && rttMs !== null && (
+                  <span className="text-muted">{rttMs} MS</span>
+                )}
+              </p>
+              {guild && channel ? (
+                <NavLink
+                  to={`/app/${guild.id}/${channel.id}`}
+                  title="Voltar para o canal de voz"
+                  className="label block truncate text-muted transition-colors hover:text-accent"
+                >
+                  {channel.name} / {guild.name}
+                </NavLink>
+              ) : (
+                <p className="label truncate text-muted">{channelName}</p>
+              )}
+            </div>
+            <IconButton
+              icon="hang-up"
+              tone="danger"
+              label="Desligar voz"
+              title={withKey('Desligar voz', leaveKey)}
               onClick={leaveVoice}
-            >
-              DESLIGAR
-            </button>
+            />
+          </div>
+          <div className="px-3 py-2">
+            {live && <ScreenShareButton allowed={canStream} />}
+            {!micAvailable && (
+              <p role="status" className="label mt-1.5 text-danger">
+                SEM MICROFONE — SOMENTE ESCUTA
+              </p>
+            )}
           </div>
         </div>
       )}
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <div className="min-w-0">
+      <div className="flex items-center gap-1.5 px-3 py-2">
+        <div className="min-w-0 flex-1">
           <p className="label-lg truncate text-fg">{user.displayName}</p>
           <p className="label truncate text-muted">@{user.username}</p>
         </div>
-        <button
-          type="button"
-          className="label shrink-0 text-muted transition-colors hover:text-accent"
-          onClick={() => void signOut()}
-        >
-          [ SAIR ]
-        </button>
+        <IconButton
+          icon={muted ? 'mic-off' : 'mic'}
+          tone={muted ? 'danger' : 'default'}
+          label={muted ? 'Ativar microfone' : 'Mutar microfone'}
+          title={
+            inVoice
+              ? withKey(muted ? 'Ativar microfone' : 'Mutar microfone', muteKey)
+              : 'Entre em um canal de voz para usar o microfone'
+          }
+          aria-pressed={muted}
+          disabled={!inVoice}
+          onClick={toggleMute}
+        />
+        <IconButton
+          icon={deafened ? 'headphones-off' : 'headphones'}
+          tone={deafened ? 'danger' : 'default'}
+          label={deafened ? 'Ativar áudio' : 'Ensurdecer'}
+          title={
+            inVoice
+              ? withKey(deafened ? 'Ativar áudio' : 'Ensurdecer', deafenKey)
+              : 'Entre em um canal de voz para usar o áudio'
+          }
+          aria-pressed={deafened}
+          disabled={!inVoice}
+          onClick={toggleDeafen}
+        />
+        <IconButton icon="settings" label="Configurações" onClick={onOpenSettings} />
       </div>
     </div>
   );

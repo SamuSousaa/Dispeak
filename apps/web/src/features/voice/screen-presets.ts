@@ -1,11 +1,13 @@
 import { SIMULCAST_LAYERS } from '@frequencia/shared';
 
-export type ScreenPresetId = '720p30' | '1080p30' | '1080p60';
+export const SCREEN_PRESET_IDS = ['720p30', '1080p30', '1080p60', '1440p60', 'source'] as const;
+export type ScreenPresetId = (typeof SCREEN_PRESET_IDS)[number];
 
 export interface ScreenPreset {
   id: ScreenPresetId;
   label: string;
   hint: string;
+  /** Upper bound of the capture; a smaller screen is sent at its own size. */
   width: number;
   height: number;
   frameRate: number;
@@ -45,6 +47,26 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     frameRate: 60,
     contentHint: 'motion',
     bitrates: [400_000, 1_400_000, 5_000_000],
+  },
+  '1440p60': {
+    id: '1440p60',
+    label: '1440P60',
+    hint: 'Monitor 2K — pede PC e internet bons',
+    width: 2560,
+    height: 1440,
+    frameRate: 60,
+    contentHint: 'motion',
+    bitrates: [500_000, 2_000_000, 9_000_000],
+  },
+  source: {
+    id: 'source',
+    label: 'ORIGINAL',
+    hint: 'Resolução da sua tela (até 4K), 60 fps',
+    width: 3840,
+    height: 2160,
+    frameRate: 60,
+    contentHint: 'motion',
+    bitrates: [700_000, 3_000_000, 14_000_000],
   },
 };
 
