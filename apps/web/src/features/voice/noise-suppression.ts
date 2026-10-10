@@ -1,7 +1,10 @@
 import { loadRnnoise, RnnoiseWorkletNode } from '@sapphi-red/web-noise-suppressor';
 import rnnoiseWasmUrl from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import rnnoiseSimdWasmUrl from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
-import rnnoiseWorkletUrl from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?worker&url';
+// The worklet is a self-contained module, so it is shipped as it is. Bundling it as a worker
+// (`?worker&url`) rewrites `import.meta.url` to `self.location`, and an AudioWorklet has no `self`:
+// the production build then failed to register the processor.
+import rnnoiseWorkletUrl from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url';
 
 /** RNNoise only works at this rate. */
 const SAMPLE_RATE = 48_000;
