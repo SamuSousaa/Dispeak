@@ -139,12 +139,18 @@ que deve e libera o que deve. Não prova:
 - **Qualidade percebida:** eco, ruído, volume, sincronia, nitidez de texto numa transmissão.
 - **Redes reais:** NAT, perda de pacotes, Wi-Fi, 4G. A reconexão é testada cortando o socket, não
   degradando a rede.
-- **Dois dispositivos:** em LAN, use `DEV_HTTPS=1 pnpm dev` e abra `https://<ip-da-máquina>:5173`
-  (microfone e tela só funcionam em contexto seguro).
 - **Áudio do sistema na transmissão:** depende do navegador e do sistema (Chrome no Windows entrega
   para tela inteira e abas; Firefox e Safari não). A UI avisa quando a transmissão sai sem áudio.
 - **O preset 1080p60** com conteúdo de verdade (um jogo). A captura sintética produz 20 fps.
-- **Outros navegadores.** Só o Chromium foi exercitado.
+- **Outros navegadores.** Os testes automatizados só exercitam o Chromium.
+
+**Teste manual com dois dispositivos (10/10/2026).** PC com Chrome no Windows e um iPhone com
+Chrome (que no iOS usa o motor WebKit, o mesmo do Safari), na mesma rede local, com
+`DEV_HTTPS=1 pnpm dev` e `https://<ip-da-máquina>:5173` (microfone e tela só funcionam em contexto
+seguro). Aprovados pelo dono do projeto: voz nos dois sentidos, indicador de fala, mutar e
+ensurdecer, transmissão de tela do PC assistida no iPhone, áudio da transmissão e reconexão após
+desligar e religar o Wi-Fi do celular. Continua sem teste: redes fora da LAN (4G, NAT, perda de
+pacotes), o preset 1080p60 com um jogo, Firefox e Safari no desktop.
 
 ### Limitações conhecidas
 
