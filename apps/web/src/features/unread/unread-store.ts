@@ -1,4 +1,4 @@
-import type { GatewayEventData, Message } from '@frequencia/shared';
+import { APP_NAME, type GatewayEventData, type Message } from '@frequencia/shared';
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import { chatApi } from '../chat/chat-store';
@@ -171,7 +171,7 @@ export function useViewingChannel(channelId: string): void {
 export const useChannelUnread = (channelId: string): ChannelUnread | undefined =>
   useUnreadStore((state) => state.channels[channelId]);
 
-const APP_TITLE = 'Frequência';
+const APP_TITLE = APP_NAME;
 
 /** Shows what is waiting in the tab title: `(3)` for mentions, a dot for anything unread. */
 export function useUnreadTitle(): void {

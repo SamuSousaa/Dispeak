@@ -7,6 +7,7 @@ import { HomePage } from './pages/HomePage';
 import { InvitePage } from './pages/InvitePage';
 import { LabP2pPage } from './pages/LabP2pPage';
 import { LabVoicePage } from './pages/LabVoicePage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 
 /** Sends anonymous visitors to the login page, remembering where they were going. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -43,6 +44,7 @@ export function App() {
       <Route path="/" element={<Navigate to="/app" replace />} />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
+      <Route path="/reset/:token" element={<ResetPasswordPage />} />
       <Route
         path="/invite/:code"
         element={

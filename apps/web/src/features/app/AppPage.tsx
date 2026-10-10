@@ -1,8 +1,10 @@
+import { APP_NAME } from '@frequencia/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { ContextMenuHost } from '../../components/ContextMenu';
+import { LinkDialogHost } from '../../components/LinkDialog';
 import { ToastHost } from '../../components/Toast';
 import { cx } from '../../lib/cx';
 import { logout, useAuthStore } from '../auth/auth-store';
@@ -199,7 +201,7 @@ export function AppPage() {
                 )}
               </h1>
             ) : (
-              <span className="label-lg text-muted">FREQUÊNCIA</span>
+              <span className="label-lg text-muted">{APP_NAME.toUpperCase()}</span>
             )}
             {guild && (
               <button
@@ -276,6 +278,7 @@ export function AppPage() {
       <SystemBar />
       <ContextMenuHost />
       <ToastHost />
+      <LinkDialogHost />
 
       {dialog?.kind === 'add-guild' && <AddGuildDialog onClose={closeDialog} />}
       {dialog?.kind === 'settings' && (

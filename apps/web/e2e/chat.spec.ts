@@ -178,16 +178,16 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
   await expect(memesRow).toHaveAttribute('data-unread', 'false');
   await bruno.post(`/channels/${memes.id}/messages`, { content: 'olha esse' });
   await expect(memesRow.getByTestId('unread-dot')).toBeVisible();
-  await expect(alice.page).toHaveTitle('• Frequência');
+  await expect(alice.page).toHaveTitle('• Dispeaker');
   await bruno.post(`/channels/${memes.id}/messages`, { content: `<@${alice.userId}> vem ver` });
   await expect(memesRow.getByTestId('mention-badge')).toHaveText('1');
-  await expect(alice.page).toHaveTitle('(1) Frequência');
+  await expect(alice.page).toHaveTitle('(1) Dispeaker');
   // It survives a reload (the server keeps the read marks), and opening the channel clears it.
   await alice.page.reload();
   await expect(memesRow.getByTestId('mention-badge')).toHaveText('1');
   await memesRow.getByRole('link').click();
   await expect(memesRow).toHaveAttribute('data-unread', 'false');
-  await expect(alice.page).toHaveTitle('Frequência');
+  await expect(alice.page).toHaveTitle('Dispeaker');
   await alice.page.reload();
   await expect(alice.page.getByTestId('gateway-status')).toHaveText('CONECTADO');
   await expect(memesRow).toHaveAttribute('data-unread', 'false');

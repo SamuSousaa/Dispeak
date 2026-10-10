@@ -1,4 +1,10 @@
-import { ApiErrorCode, type AuthResponse, type Self } from '@frequencia/shared';
+import {
+  ApiErrorCode,
+  type AuthResponse,
+  type Self,
+  PASSWORD_RESET_TTL_SECONDS,
+  type PasswordResetLink,
+} from '@frequencia/shared';
 import { hash, verify } from '@node-rs/argon2';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Config } from '../../config';
@@ -16,7 +22,7 @@ import {
   type AccessClaims,
 } from './tokens';
 
-const { users, refreshTokens } = schema;
+const { users, refreshTokens, passwordResets } = schema;
 
 /** Argon2id with the OWASP-recommended minimum parameters. */
 const ARGON2 = { memoryCost: 19_456, timeCost: 2, parallelism: 1 } as const;
@@ -177,6 +183,45 @@ export class AuthService {
       .set({ passwordHash: await hash(newPassword, ARGON2) })
       .where(eq(users.id, userId));
     await this.logoutAll(userId);
+  }
+
+  /**
+   * Makes a one-time link for someone who forgot their password. Whoever calls this has
+   * already been checked; the link works for an hour and replaces any earlier one.
+   */
+  async createPasswordReset(userId: string, createdBy: string): Promise<PasswordResetLink> {
+    const token = generateRefreshToken();
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_SECONDS * 1000);
+    await this.db.transaction(async (tx) => {
+      await tx.delete(passwordResets).where(eq(passwordResets.userId, userId));
+      await tx
+        .insert(passwordResets)
+        .values({ tokenHash: hashRefreshToken(token), userId, createdBy, expiresAt });
+    });
+    return { token, expiresAt: expiresAt.toISOString() };
+  }
+
+  /** Sets a new password with a reset link, once, and signs every session of the user out. */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const [used] = await this.db
+      .update(passwordResets)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(passwordResets.tokenHash, hashRefreshToken(token)),
+          isNull(passwordResets.usedAt),
+          gt(passwordResets.expiresAt, new Date()),
+        ),
+      )
+      .returning();
+    if (!used) {
+      throw new AppError(404, ApiErrorCode.NotFound, 'this link is invalid or has expired');
+    }
+    await this.db
+      .update(users)
+      .set({ passwordHash: await hash(newPassword, ARGON2) })
+      .where(eq(users.id, used.userId));
+    await this.logoutAll(used.userId);
   }
 
   async getUser(userId: string): Promise<Self | null> {

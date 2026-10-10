@@ -60,6 +60,19 @@ export const refreshTokens = pgTable(
   ],
 );
 
+/** One-time links to set a new password, made by a server owner for a member. */
+export const passwordResets = pgTable('password_resets', {
+  /** SHA-256 of the token; the token itself is never stored. */
+  tokenHash: text('token_hash').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdBy: uuid('created_by').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
 export const guilds = pgTable('guilds', {
   id: uuid('id').primaryKey(),
   name: text('name').notNull(),

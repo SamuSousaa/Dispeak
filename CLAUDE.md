@@ -1,6 +1,7 @@
-# Frequência
+# Dispeaker
 
-Discord/TeamSpeak-style voice, screen sharing and text chat. Self-hosted infrastructure only: the
+Discord/TeamSpeak-style voice, screen sharing and text chat. The product is called Dispeaker;
+packages, storage keys and service names keep the working title `frequencia`. Self-hosted infrastructure only: the
 media server is our own mediasoup SFU. **Never** add LiveKit, Agora, Daily, Twilio, Firebase,
 Supabase or any managed media/realtime service.
 

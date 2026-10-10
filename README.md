@@ -1,4 +1,4 @@
-# Frequência
+# Dispeaker
 
 [English version](README.en.md)
 

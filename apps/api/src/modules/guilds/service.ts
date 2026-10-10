@@ -359,6 +359,19 @@ export class GuildService {
     if (!(await this.deps.voice.kick(guildId, targetId))) throw notFound('voice connection');
   }
 
+  /**
+   * Checks that the actor owns the guild and the target is another member of it. Used for
+   * what only an owner may do to someone's account, such as handing out a password reset link.
+   */
+  async requireOwnerOver(actorId: string, guildId: string, targetId: string): Promise<void> {
+    const snapshot = await this.load(guildId);
+    if (!requireActor(snapshot, actorId).isOwner) {
+      throw forbidden('only the owner of the server can do this');
+    }
+    if (targetId === actorId) throw badRequest('change your own password in the settings');
+    if (!snapshot.members.has(targetId)) throw notFound('member');
+  }
+
   // --- bans ---------------------------------------------------------------------------------
 
   /** Removes a member and keeps them from coming back with an invite (BAN_MEMBERS). */

@@ -230,7 +230,7 @@ export class LinkPreviews {
           timeout: TIMEOUT_MS,
           lookup: this.allowPrivate ? undefined : publicLookup,
           headers: {
-            'user-agent': 'Mozilla/5.0 (compatible; FrequenciaBot/1.0; link preview)',
+            'user-agent': 'Mozilla/5.0 (compatible; DispeakerBot/1.0; link preview)',
             accept: 'text/html,application/xhtml+xml,image/*;q=0.9,*/*;q=0.5',
             'accept-language': 'pt-BR,pt;q=0.9,en;q=0.7',
             'accept-encoding': 'identity',

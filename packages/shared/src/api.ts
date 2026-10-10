@@ -67,6 +67,22 @@ export const updateProfileRequestSchema = z
   .partial();
 export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
 
+/** How long a password reset link works. */
+export const PASSWORD_RESET_TTL_SECONDS = 60 * 60;
+
+/** A one-time link the owner of a server hands to a member who forgot their password. */
+export const passwordResetLinkSchema = z.object({
+  /** Goes in the address of the reset page; shown once and never stored as it is. */
+  token: z.string(),
+  expiresAt: z.iso.datetime(),
+});
+export type PasswordResetLink = z.infer<typeof passwordResetLinkSchema>;
+
+export const resetPasswordRequestSchema = z.object({
+  token: z.string().min(20).max(200),
+  newPassword: passwordSchema,
+});
+
 export const changePasswordRequestSchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: passwordSchema,

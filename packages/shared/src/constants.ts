@@ -1,4 +1,5 @@
-export const APP_NAME = 'Frequência';
+/** The name people see. Packages and storage keys keep the working title, `frequencia`. */
+export const APP_NAME = 'Dispeaker';
 
 /** HTTP path prefixes. Every service is reachable on a single origin behind the proxy. */
 export const API_PREFIX = '/api';

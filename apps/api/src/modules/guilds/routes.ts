@@ -16,6 +16,7 @@ import {
   invitePreviewSchema,
   inviteSchema,
   memberSchema,
+  passwordResetLinkSchema,
   putOverwriteRequestSchema,
   reorderChannelsRequestSchema,
   reorderRolesRequestSchema,
@@ -40,7 +41,7 @@ const inviteParams = z.object({ code: z.string().min(4).max(32) });
 const noContent = { 204: z.null() };
 
 export const guildRoutes: FastifyPluginAsyncZod = async (app) => {
-  const { guilds } = app.ctx;
+  const { guilds, auth } = app.ctx;
   const security = [{ bearerAuth: [] }];
   app.addHook('onRequest', app.authenticate);
 
@@ -147,6 +148,27 @@ export const guildRoutes: FastifyPluginAsyncZod = async (app) => {
         request.params.userId,
       );
       return reply.code(204).send(null);
+    },
+  );
+
+  app.post(
+    '/guilds/:guildId/members/:userId/password-reset',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'Make a password reset link for a member who forgot theirs (owner only)',
+        description:
+          'Returns a one-time token, valid for an hour, to be opened at `/reset/<token>`. ' +
+          'There is no e-mail in this app: the owner passes the link along.',
+        security,
+        params: memberParams,
+        response: { 201: passwordResetLinkSchema },
+      },
+    },
+    async (request, reply) => {
+      const { guildId, userId } = request.params;
+      await guilds.requireOwnerOver(request.auth.userId, guildId, userId);
+      return reply.code(201).send(await auth.createPasswordReset(userId, request.auth.userId));
     },
   );
 

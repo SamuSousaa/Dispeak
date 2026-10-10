@@ -181,4 +181,56 @@ describe('profiles', () => {
     expect(fresh.statusCode).toBe(200);
     expect(fresh.json<AuthResponse>().user.id).toBe(account.user.id);
   });
+
+  describe('forgotten passwords', () => {
+    const link = (actor: Account, guildId: string, target: Account) =>
+      t.request('POST', `/guilds/${guildId}/members/${target.user.id}/password-reset`, {
+        token: actor.token,
+      });
+    const reset = (token: string, newPassword: string) =>
+      t.request('POST', '/auth/password-reset', { body: { token, newPassword } });
+    const login = (account: Account, password: string) =>
+      t.request('POST', '/auth/login', { body: { username: account.user.username, password } });
+
+    it('are solved by a one-time link only the owner of the server can make', async () => {
+      const forgetful = await t.account('Esquecida');
+      const outsider = await t.account('De fora');
+      const guild = await t.createGuild(owner);
+      await t.join(guild, owner, forgetful);
+      await t.join(guild, owner, member);
+
+      // Not a fellow member, not someone outside, not the owner for themselves.
+      expect((await link(member, guild.id, forgetful)).statusCode).toBe(403);
+      expect((await link(outsider, guild.id, forgetful)).statusCode).toBe(404);
+      expect((await link(owner, guild.id, owner)).statusCode).toBe(400);
+      expect((await link(owner, guild.id, outsider)).statusCode).toBe(404);
+
+      const made = await link(owner, guild.id, forgetful);
+      expect(made.statusCode).toBe(201);
+      const { token, expiresAt } = made.json<{ token: string; expiresAt: string }>();
+      expect(Date.parse(expiresAt)).toBeGreaterThan(Date.now() + 50 * 60 * 1000);
+
+      expect((await reset(token, 'curta')).statusCode).toBe(400);
+      expect((await reset('x'.repeat(43), 'uma senha comprida')).statusCode).toBe(404);
+      expect((await reset(token, 'uma senha comprida')).statusCode).toBe(204);
+
+      // Once only; the old password and the old session are gone.
+      expect((await reset(token, 'outra senha comprida')).statusCode).toBe(404);
+      expect((await login(forgetful, forgetful.password)).statusCode).toBe(401);
+      expect((await login(forgetful, 'uma senha comprida')).statusCode).toBe(200);
+      expect(
+        (await t.request('POST', '/auth/refresh', { cookie: forgetful.cookie })).statusCode,
+      ).toBe(401);
+    });
+
+    it('keep only the latest link alive', async () => {
+      const forgetful = await t.account('Esquecida de novo');
+      const guild = await t.createGuild(owner);
+      await t.join(guild, owner, forgetful);
+      const first = (await link(owner, guild.id, forgetful)).json<{ token: string }>().token;
+      const second = (await link(owner, guild.id, forgetful)).json<{ token: string }>().token;
+      expect((await reset(first, 'uma senha comprida')).statusCode).toBe(404);
+      expect((await reset(second, 'uma senha comprida')).statusCode).toBe(204);
+    });
+  });
 });

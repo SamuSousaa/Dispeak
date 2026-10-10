@@ -102,6 +102,11 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             {busy ? 'AGUARDE' : isRegister ? 'CRIAR CONTA' : 'ENTRAR'}
           </Button>
         </form>
+        {!isRegister && (
+          <p className="border-t border-line px-4 py-3 text-xs text-muted">
+            Esqueceu a senha? Peça ao dono do seu servidor um link de nova senha.
+          </p>
+        )}
         <footer className="label border-t border-line px-4 py-3 text-muted">
           {isRegister ? 'JÁ TEM CONTA? ' : 'AINDA NÃO TEM CONTA? '}
           <Link

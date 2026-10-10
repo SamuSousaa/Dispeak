@@ -176,9 +176,9 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: 'Frequência API',
+        title: 'Dispeaker API',
         description:
-          'REST API of Frequência. Realtime events are delivered over the WebSocket gateway ' +
+          'REST API of Dispeaker. Realtime events are delivered over the WebSocket gateway ' +
           `at \`${API_PREFIX}${GATEWAY_PATH}\`; media signaling is served by the media service.`,
         version: '1.0.0',
       },

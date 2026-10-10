@@ -182,8 +182,9 @@ desenvolvido (Windows, sem Docker, sem WSL2, sem segundo dispositivo).
   nome DNS (pode ser `sslip.io`). O passo a passo está em `docs/deploy.md`. O README diz
   explicitamente que ainda não há instância pública; quando houver, falta colocar o link na seção
   "Demo".
-- **Nome.** "Frequência" continua provisório: os pacotes usam `frequencia` e o repositório no
-  GitHub se chama `Dispeak`.
+- **Nome.** O app se chama **Dispeaker** (decidido em 10/10/2026). Os pacotes, as chaves de
+  armazenamento e os nomes dos serviços continuam `frequencia`, o título de trabalho; trocá-los
+  não muda nada para quem usa.
 - **Instalar o Docker Desktop** (precisa de administrador e reinicialização), se quiser usar
   `pnpm dev:docker` ou testar o stack de produção localmente.
 

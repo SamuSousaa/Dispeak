@@ -4,6 +4,7 @@ import {
   loginRequestSchema,
   registerRequestSchema,
   changePasswordRequestSchema,
+  resetPasswordRequestSchema,
   selfSchema,
 } from '@frequencia/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -160,6 +161,26 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
         request.body.newPassword,
       );
       reply.clearCookie(REFRESH_COOKIE, cookieOptions);
+      return reply.code(204).send(null);
+    },
+  );
+
+  app.post(
+    '/auth/password-reset',
+    {
+      config: strict,
+      schema: {
+        tags: ['auth'],
+        summary: 'Set a new password with a reset link',
+        description:
+          'The link is made by the owner of a server the user belongs to, works once and ' +
+          'for one hour. Every session of the user is signed out.',
+        body: resetPasswordRequestSchema,
+        response: { 204: z.null(), 404: apiErrorSchema },
+      },
+    },
+    async (request, reply) => {
+      await auth.resetPassword(request.body.token, request.body.newPassword);
       return reply.code(204).send(null);
     },
   );

@@ -7,6 +7,7 @@ import {
   invitePreviewSchema,
   inviteSchema,
   memberSchema,
+  passwordResetLinkSchema,
   roleSchema,
   voiceTokenResponseSchema,
   type CreateChannelRequest,
@@ -49,6 +50,11 @@ export const guildApi = {
     apiBlob(`/guilds/${guildId}/sounds/${event}`),
 
   kick: (guildId: string, userId: string) => api('DELETE', `/guilds/${guildId}/members/${userId}`),
+  /** Owner only: a one-time link for a member who forgot their password. */
+  passwordReset: (guildId: string, userId: string) =>
+    api('POST', `/guilds/${guildId}/members/${userId}/password-reset`, {
+      schema: passwordResetLinkSchema,
+    }),
   disconnectFromVoice: (guildId: string, userId: string) =>
     api('DELETE', `/guilds/${guildId}/voice-states/${userId}`),
   bans: (guildId: string) => api('GET', `/guilds/${guildId}/bans`, { schema: z.array(banSchema) }),

@@ -282,6 +282,37 @@ test('account → server → invite → voice channel → stream, with permissio
   await expect(brunoMember).toHaveAttribute('data-online', 'true');
   await expect(brunoMember.locator('[data-presence="online"]')).toBeVisible();
 
+  // --- A forgotten password: the owner makes a link, and it works once -----------------------
+  await brunoMember.click();
+  await alice.page.getByRole('menuitem', { name: 'Link de nova senha' }).click();
+  const resetLink = await alice.page.getByTestId('link-dialog').getByLabel('Link').inputValue();
+  expect(resetLink).toMatch(/\/reset\/[\w-]{20,}$/);
+  await alice.page.getByRole('dialog').getByRole('button', { name: 'Fechar' }).click();
+  // Someone who is not signed in anywhere opens it.
+  const visitor = await (await browser.newContext()).newPage();
+  await visitor.goto(resetLink);
+  await visitor.getByLabel(/^NOVA SENHA/).fill('senha nova do bruno');
+  await visitor.getByLabel('CONFIRMAR A NOVA SENHA').fill('senha diferente');
+  await visitor.getByRole('button', { name: 'TROCAR SENHA' }).click();
+  await expect(visitor.getByRole('alert')).toHaveText('As duas senhas não são iguais.');
+  await visitor.getByLabel('CONFIRMAR A NOVA SENHA').fill('senha nova do bruno');
+  await visitor.getByRole('button', { name: 'TROCAR SENHA' }).click();
+  await expect(visitor.getByRole('status')).toContainText('Senha trocada');
+  // The link is spent, and Bruno's open session was closed: he signs in with the new password.
+  await visitor.goto(resetLink);
+  await visitor.getByLabel(/^NOVA SENHA/).fill('outra senha qualquer');
+  await visitor.getByLabel('CONFIRMAR A NOVA SENHA').fill('outra senha qualquer');
+  await visitor.getByRole('button', { name: 'TROCAR SENHA' }).click();
+  await expect(visitor.getByRole('alert')).toContainText('Este link não vale mais');
+  await visitor.context().close();
+  await expect(bruno.page).toHaveURL(/\/login/);
+  await bruno.page.getByLabel('USUÁRIO').fill(bruno.username);
+  await bruno.page.getByLabel('SENHA').fill('senha nova do bruno');
+  await bruno.page.getByRole('button', { name: 'ENTRAR', exact: true }).click();
+  await expect(bruno.page.getByTestId('gateway-status')).toHaveText('CONECTADO');
+  await joinVoice(bruno.page);
+  await expect(alice.page.getByTestId('participant')).toHaveCount(2);
+
   // --- Moderation from the same menu: server mute, then out of the call ---------------------
   await brunoTile.click();
   await alice.page.getByRole('menuitem', { name: 'Mutar no servidor' }).click();

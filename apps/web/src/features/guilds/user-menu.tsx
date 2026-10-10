@@ -1,6 +1,7 @@
 import { hasPermission, outranks, Permissions, type Guild } from '@frequencia/shared';
 import type { MouseEvent } from 'react';
 import { contextMenu, openContextMenu, type MenuEntry } from '../../components/ContextMenu';
+import { showLink } from '../../components/LinkDialog';
 import { attempt } from '../../components/Toast';
 import { ProfileCard } from '../profile/ProfileCard';
 import { volumeMenuEntries } from '../voice/components/VolumeControl';
@@ -103,6 +104,19 @@ export function userMenuEntries(
       (can(Permissions.ManageRoles) || can(Permissions.KickMembers)) && {
         label: 'Cargos e membros',
         onSelect: onManageMembers,
+      },
+    !isSelf &&
+      actor.isOwner && {
+        label: 'Link de nova senha',
+        onSelect: () =>
+          attempt(async () => {
+            const { token } = await guildApi.passwordReset(guild.id, targetId);
+            showLink(
+              `Nova senha para ${name}`,
+              `Mande este link para ${name}. Ele abre uma página para escolher uma senha nova, funciona uma vez só e vale por uma hora.`,
+              `${window.location.origin}/reset/${token}`,
+            );
+          }),
       },
     { type: 'separator' },
     !isSelf &&
