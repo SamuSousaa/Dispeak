@@ -46,14 +46,20 @@ export interface Config {
   };
 }
 
-/** First non-internal IPv4 address of the host, used to reach the SFU from other LAN devices. */
-export function detectLanAddress(): string | undefined {
-  for (const addresses of Object.values(os.networkInterfaces())) {
-    for (const address of addresses ?? []) {
-      if (address.family === 'IPv4' && !address.internal) return address.address;
-    }
-  }
-  return undefined;
+const PRIVATE_IPV4 = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
+
+/**
+ * IPv4 address used to reach the SFU from other LAN devices. Private (RFC 1918) addresses win over
+ * the rest, because VPN adapters (Radmin, Hamachi) are often listed before the real network card.
+ */
+export function detectLanAddress(
+  interfaces: ReturnType<typeof os.networkInterfaces> = os.networkInterfaces(),
+): string | undefined {
+  const candidates = Object.values(interfaces)
+    .flatMap((addresses) => addresses ?? [])
+    .filter((address) => address.family === 'IPv4' && !address.internal)
+    .map((address) => address.address);
+  return candidates.find((address) => PRIVATE_IPV4.test(address)) ?? candidates[0];
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {

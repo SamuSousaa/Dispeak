@@ -1,5 +1,6 @@
+import type os from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from '../src/config';
+import { detectLanAddress, loadConfig } from '../src/config';
 
 describe('media config', () => {
   it('splits the announced addresses', () => {
@@ -13,6 +14,26 @@ describe('media config', () => {
   it('always announces loopback when nothing is configured', () => {
     const config = loadConfig({ MEDIA_NUM_WORKERS: '1' });
     expect(config.rtc.announcedAddresses[0]).toBe('127.0.0.1');
+  });
+
+  it('prefers a private address over a VPN adapter listed first', () => {
+    const ipv4 = (address: string, internal = false): os.NetworkInterfaceInfo => ({
+      address,
+      netmask: '255.255.255.0',
+      family: 'IPv4',
+      mac: '00:00:00:00:00:00',
+      internal,
+      cidr: `${address}/24`,
+    });
+    expect(
+      detectLanAddress({
+        lo: [ipv4('127.0.0.1', true)],
+        vpn: [ipv4('26.225.141.48')],
+        ethernet: [ipv4('192.168.18.167')],
+      }),
+    ).toBe('192.168.18.167');
+    expect(detectLanAddress({ vpn: [ipv4('26.225.141.48')] })).toBe('26.225.141.48');
+    expect(detectLanAddress({ lo: [ipv4('127.0.0.1', true)] })).toBeUndefined();
   });
 
   it('rejects a port range that cannot hold every worker', () => {
