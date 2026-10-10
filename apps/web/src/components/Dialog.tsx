@@ -54,13 +54,20 @@ export function Dialog({
       }}
       className={cx(
         'border-line-strong bg-surface p-0 text-fg backdrop:bg-black/70',
+        // On a phone every dialog is a full screen: no margins to waste, nothing cut off.
+        'max-sm:m-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:w-screen max-sm:max-w-none max-sm:border-0',
         side
           ? 'my-0 mr-0 ml-auto h-dvh max-h-dvh w-[27rem] max-w-full border-l'
           : 'm-auto max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] border',
         !side && (wide ? 'max-w-3xl' : 'max-w-md'),
       )}
     >
-      <div className={cx('flex flex-col', side ? 'h-full' : 'max-h-[min(90dvh,720px)]')}>
+      <div
+        className={cx(
+          'safe-area flex flex-col max-sm:h-full max-sm:max-h-none',
+          side ? 'h-full' : 'max-h-[min(90dvh,720px)]',
+        )}
+      >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-4 py-3">
           <div className="min-w-0">
             {eyebrow && <p className="label text-muted">{eyebrow}</p>}
@@ -70,7 +77,7 @@ export function Dialog({
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="label shrink-0 text-muted transition-colors hover:text-accent"
+            className="label -m-2 shrink-0 p-2 text-muted transition-colors hover:text-accent"
           >
             [ X ]
           </button>

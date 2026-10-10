@@ -17,7 +17,7 @@ export function SystemBar() {
   const voice = useVoiceStore((state) => state.status);
 
   return (
-    <footer className="label flex min-h-8 shrink-0 flex-wrap items-center gap-x-6 gap-y-1 border-t border-line bg-surface px-3 py-1.5 text-muted">
+    <footer className="label flex min-h-8 shrink-0 flex-wrap items-center gap-x-6 gap-y-1 border-t border-line bg-surface px-3 py-1.5 text-muted max-md:flex-nowrap max-md:overflow-x-auto max-md:whitespace-nowrap">
       <Metric
         label="GATEWAY"
         value={

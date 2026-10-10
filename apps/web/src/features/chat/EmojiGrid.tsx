@@ -176,7 +176,14 @@ export function EmojiBrowser({
             <span className="label truncate text-fg">{hovered.label}</span>
           </>
         ) : (
-          <span className="label text-muted">PASSE O MOUSE PARA VER O NOME</span>
+          <>
+            <span className="label text-muted pointer-coarse:hidden">
+              PASSE O MOUSE PARA VER O NOME
+            </span>
+            <span className="label hidden text-muted pointer-coarse:inline">
+              TOQUE EM UM EMOJI PARA USAR
+            </span>
+          </>
         )}
       </div>
     </div>

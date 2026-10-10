@@ -173,6 +173,13 @@ export function MessageItem({
         </div>
       ),
     },
+    {
+      label: 'Mais reações',
+      onSelect: () =>
+        openReactionPicker({ x: window.innerWidth / 2, y: window.innerHeight / 3 }, (emoji) => {
+          void chatApi.react(message.id, emoji).catch(() => undefined);
+        }),
+    },
     { type: 'separator' },
     onReply && { label: 'Responder', onSelect: () => onReply(message) },
     onCreateThread && { label: 'Criar tópico', onSelect: () => onCreateThread(message) },
@@ -283,9 +290,10 @@ export function MessageItem({
         <div
           className={cx(
             'absolute -top-3 right-3 flex border border-line-strong bg-bg',
+            // A finger has no hover: there the same actions live in the long-press menu.
             confirming
               ? 'opacity-100'
-              : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+              : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:hidden',
           )}
         >
           {confirming ? (

@@ -89,6 +89,27 @@
     cursor: not-allowed;
   }
 
+  /* Phones: no grey flash on tap, no double-tap zoom, no page bouncing behind the app. */
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+
+  /* iOS zooms into any field whose text is smaller than 16px. */
+  @media (pointer: coarse) {
+    input.field,
+    select.field,
+    textarea.field,
+    textarea.field.text-sm {
+      font-size: 16px;
+    }
+  }
+
   /* A long press opens the app's own menu; the system's link preview would cover it. */
   nav a {
     -webkit-touch-callout: none;
@@ -190,6 +211,12 @@
 
   .pressable:active:not(:disabled) {
     transform: translateY(1px) scale(0.97);
+  }
+
+  /* Keeps content clear of the notch, the rounded corners and the home indicator. */
+  .safe-area {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
   }
 
   /* Labels, navigation, buttons and metadata: mono, uppercase, tracked. */

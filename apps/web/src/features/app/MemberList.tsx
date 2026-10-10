@@ -24,7 +24,7 @@ function Row({ guild, member, online, userId, onManageMembers }: RowProps) {
       <button
         type="button"
         title={`${name} (@${member.user.username})`}
-        className="flex w-full items-center justify-between gap-2 px-3 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:-outline-offset-2"
+        className="flex w-full items-center justify-between gap-2 px-3 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:-outline-offset-2 pointer-coarse:py-2"
         {...userMenu({ guild, targetId: member.user.id, selfId: userId, onManageMembers })}
       >
         <span className="flex min-w-0 items-center gap-2">

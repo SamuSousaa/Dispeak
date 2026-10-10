@@ -44,7 +44,7 @@ function RowAction({
       aria-label={label}
       title={label}
       className={cx(
-        'inline-flex h-6 w-6 shrink-0 items-center justify-center text-muted transition-colors',
+        'inline-flex h-6 w-6 shrink-0 items-center justify-center text-muted transition-colors pointer-coarse:h-10 pointer-coarse:w-9',
         'hover:bg-surface-2 hover:text-accent focus-visible:text-accent',
         className,
       )}
@@ -342,7 +342,7 @@ export function ChannelPanel({
                           }}
                           className={({ isActive }) =>
                             cx(
-                              'label-lg flex min-w-0 flex-1 items-center gap-2 border-l-2 py-1.5 pr-2 pl-[10px] transition-colors',
+                              'label-lg flex min-w-0 flex-1 items-center gap-2 border-l-2 py-1.5 pr-2 pl-[10px] transition-colors pointer-coarse:py-3',
                               isActive
                                 ? 'border-accent bg-surface-2 text-accent'
                                 : 'border-transparent text-fg hover:bg-surface-2 hover:text-accent',
@@ -403,7 +403,7 @@ export function ChannelPanel({
                             <li
                               key={voice.userId}
                               data-testid="voice-member"
-                              className="label flex cursor-pointer items-center gap-2 py-0.5 pr-3 pl-8 transition-colors hover:bg-surface-2"
+                              className="label flex cursor-pointer items-center gap-2 py-0.5 pr-3 pl-8 transition-colors hover:bg-surface-2 pointer-coarse:py-2"
                               {...userMenu({
                                 guild,
                                 targetId: voice.userId,
@@ -484,7 +484,7 @@ export function ChannelPanel({
                                   onClick={onNavigate}
                                   className={({ isActive }) =>
                                     cx(
-                                      'label flex items-center gap-1.5 border-l-2 py-1 pr-3 pl-8 transition-colors',
+                                      'label flex items-center gap-1.5 border-l-2 py-1 pr-3 pl-8 transition-colors pointer-coarse:py-2.5',
                                       isActive
                                         ? 'border-accent bg-surface-2 text-accent'
                                         : 'border-transparent text-muted hover:bg-surface-2 hover:text-accent',

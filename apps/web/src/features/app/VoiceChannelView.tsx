@@ -4,7 +4,7 @@ import { Icon } from '../../components/Icon';
 import { cx } from '../../lib/cx';
 import { channelPermissions, memberName } from '../guilds/permissions';
 import { useChannelUnread } from '../unread/unread-store';
-import { VoiceControls } from '../voice/components/VoiceControls';
+import { MobileVoiceControls } from '../voice/components/MobileVoice';
 import { VoiceStage } from '../voice/components/VoiceStage';
 import { useVoiceStore } from '../voice/voice-store';
 import { TextChannelView } from './TextChannelView';
@@ -108,7 +108,7 @@ export function VoiceChannelView({
             </div>
             {/* From md up the controls live in the channel column, next to the user. */}
             <div className="shrink-0 border-t border-line bg-surface p-3 md:hidden">
-              <VoiceControls canStream={hasPermission(permissions, Permissions.Stream)} />
+              <MobileVoiceControls canStream={hasPermission(permissions, Permissions.Stream)} />
             </div>
           </>
         ) : (

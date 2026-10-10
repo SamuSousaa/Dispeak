@@ -1,6 +1,6 @@
 import { APP_NAME } from '@frequencia/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { ContextMenuHost } from '../../components/ContextMenu';
@@ -23,7 +23,9 @@ import { startVoiceSounds } from '../sounds/sound-player';
 import { notifyMention } from '../unread/notify';
 import { applyUnreadEvent, useUnreadTitle } from '../unread/unread-store';
 import { useVoiceShortcuts } from '../voice/use-voice-shortcuts';
+import { MobileVoiceBar } from '../voice/components/MobileVoice';
 import { leaveVoice } from '../voice/voice-actions';
+import { useVoiceStore } from '../voice/voice-store';
 import { ChannelPanel } from './ChannelPanel';
 import { MemberList } from './MemberList';
 import { ServerRail } from './ServerRail';
@@ -123,6 +125,49 @@ export function AppPage() {
     }
   }, [hasLoaded, guild, guildId, current, channelId, numbered, order, navigate]);
 
+  const voiceStatus = useVoiceStore((state) => state.status);
+  const voiceChannelId = useVoiceStore((state) => state.channelId);
+  const voiceChannelName = useVoiceStore((state) => state.channelName);
+  const inCall = voiceStatus === 'connected' || voiceStatus === 'reconnecting';
+  const callGuild = Object.values(guilds).find((entry) =>
+    entry.channels.some((channel) => channel.id === voiceChannelId),
+  );
+
+  // Phones: a sideways swipe opens and closes the drawers, like the edge of a page.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const swipe = {
+    onTouchStart: (event: TouchEvent) => {
+      const touch = event.touches[0];
+      const target = event.target as HTMLElement;
+      // Not while dragging a slider or scrolling something sideways.
+      const busy = target.closest('input, textarea, video, [data-no-swipe]');
+      let scroller: HTMLElement | null = target;
+      let sideways = false;
+      while (scroller && scroller !== event.currentTarget) {
+        if (scroller.scrollWidth > scroller.clientWidth + 4) {
+          const overflow = getComputedStyle(scroller).overflowX;
+          if (overflow === 'auto' || overflow === 'scroll') sideways = true;
+        }
+        scroller = scroller.parentElement;
+      }
+      swipeStart.current =
+        touch && event.touches.length === 1 && !busy && !sideways
+          ? { x: touch.clientX, y: touch.clientY }
+          : null;
+    },
+    onTouchEnd: (event: TouchEvent) => {
+      const start = swipeStart.current;
+      const touch = event.changedTouches[0];
+      swipeStart.current = null;
+      if (!start || !touch || window.innerWidth >= 768) return;
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+      if (dx > 0) setDrawer((open) => (open === 'members' ? null : 'channels'));
+      else setDrawer((open) => (open === 'channels' ? null : guild ? 'members' : open));
+    },
+  };
+
   if (!user) return null;
 
   const closeDialog = () => setDialog(null);
@@ -137,8 +182,10 @@ export function AppPage() {
       : undefined;
 
   return (
-    <div className="flex h-dvh flex-col bg-bg">
-      <div className="relative flex min-h-0 flex-1">
+    // Nothing may widen the page: the off-screen drawers would make a phone scroll sideways.
+    // `clip` rather than `hidden`, which focusing something inside a closed drawer can scroll.
+    <div className="safe-area flex h-dvh flex-col overflow-clip bg-bg" {...swipe}>
+      <div className="relative flex min-h-0 flex-1 overflow-clip">
         {drawer && (
           <button
             type="button"
@@ -180,7 +227,7 @@ export function AppPage() {
           <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-3">
             <button
               type="button"
-              className="label shrink-0 text-muted transition-colors hover:text-accent md:hidden"
+              className="label -my-3 shrink-0 py-3 text-muted transition-colors hover:text-accent md:hidden"
               onClick={() => setDrawer('channels')}
             >
               [ CANAIS ]
@@ -213,6 +260,13 @@ export function AppPage() {
               </button>
             )}
           </header>
+
+          {inCall && voiceChannelId !== channelId && (
+            <MobileVoiceBar
+              to={callGuild ? `/app/${callGuild.id}/${voiceChannelId}` : null}
+              channelName={voiceChannelName ?? ''}
+            />
+          )}
 
           <div className="min-h-0 flex-1">
             {!hasLoaded ? (

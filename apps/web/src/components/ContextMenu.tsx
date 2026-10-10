@@ -130,6 +130,11 @@ export function ContextMenuHost() {
       return;
     }
     const margin = 8;
+    // On a phone the menu is a sheet at the bottom, wherever the finger was.
+    if (window.innerWidth < 640) {
+      setPosition(null);
+      return;
+    }
     const { width, height } = element.getBoundingClientRect();
     setPosition({
       left: Math.max(margin, Math.min(menu.x, window.innerWidth - width - margin)),
@@ -172,6 +177,7 @@ export function ContextMenuHost() {
   }, [menu]);
 
   if (!menu) return null;
+  const sheet = window.innerWidth < 640;
 
   return (
     <div
@@ -179,10 +185,13 @@ export function ContextMenuHost() {
       role="menu"
       aria-label={menu.title}
       data-testid="context-menu"
-      style={position ?? { left: menu.x, top: menu.y, visibility: 'hidden' }}
+      style={position ?? (sheet ? undefined : { left: menu.x, top: menu.y, visibility: 'hidden' })}
       className={cx(
-        'anim-fade fixed z-50 max-h-[calc(100dvh-16px)] max-w-[calc(100vw-16px)] overflow-y-auto border border-line-strong bg-surface-2',
-        menu.wide ? 'w-[22rem]' : 'w-60',
+        'fixed z-50 overflow-y-auto border border-line-strong bg-surface-2',
+        sheet
+          ? 'anim-pop inset-x-2 bottom-2 max-h-[80dvh]'
+          : 'anim-fade max-h-[calc(100dvh-16px)] max-w-[calc(100vw-16px)]',
+        !sheet && (menu.wide ? 'w-[22rem]' : 'w-60'),
       )}
       onContextMenu={(event) => event.preventDefault()}
     >
@@ -209,7 +218,7 @@ export function ContextMenuHost() {
               entry.onSelect();
             }}
             className={cx(
-              'label flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors',
+              'label flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors pointer-coarse:py-3.5',
               'hover:bg-surface focus-visible:bg-surface focus-visible:-outline-offset-2 disabled:opacity-40',
               entry.danger ? 'text-danger' : 'text-fg hover:text-accent focus-visible:text-accent',
             )}
