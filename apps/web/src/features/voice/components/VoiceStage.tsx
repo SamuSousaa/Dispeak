@@ -1,5 +1,5 @@
 import type { Guild } from '@frequencia/shared';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { cx } from '../../../lib/cx';
 import { memberColor, memberName } from '../../guilds/permissions';
 import { userMenu } from '../../guilds/user-menu';
@@ -15,6 +15,8 @@ interface StageStream {
   id: string;
   name: string;
   stream: MediaStream | null;
+  /** Whether the streamer is sending the sound of what they share. */
+  hasAudio?: boolean;
 }
 
 const gridColumns = (count: number) =>
@@ -55,7 +57,10 @@ export function VoiceStage({
   const watching = useVoiceStore((state) => state.watching);
   const userVolumes = useSettingsStore((state) => state.userVolumes);
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  const gridRef = useRef<HTMLUListElement>(null);
+  // Kept in state, not in a ref: the grid is unmounted while a stream is on screen, and when it
+  // comes back the tiles must be sized again. With a ref nothing noticed the new element, the
+  // size stayed at zero and the tiles piled up on top of each other.
+  const [grid, setGrid] = useState<HTMLUListElement | null>(null);
 
   const memberOf = (id: string | undefined) => guild?.members.find((entry) => entry.user.id === id);
   const colorOf = (id: string | undefined) => (guild && id ? memberColor(guild, id) : undefined);
@@ -64,7 +69,7 @@ export function VoiceStage({
       ? userMenu({ guild, targetId, selfId: userId, onManageMembers })
       : undefined;
   const others = Object.values(peers).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  const cell = useFillGrid(gridRef, others.length + 1, 16 / 9, GAP);
+  const cell = useFillGrid(grid, others.length + 1, 16 / 9, GAP);
 
   const selfName = guild && userId ? memberName(guild, userId) : (givenName ?? '');
   const streams: StageStream[] = [
@@ -73,7 +78,12 @@ export function VoiceStage({
       : []),
     ...others
       .filter((peer) => watching[peer.id])
-      .map((peer) => ({ id: peer.id, name: peer.name, stream: watching[peer.id]?.stream ?? null })),
+      .map((peer) => ({
+        id: peer.id,
+        name: peer.name,
+        stream: watching[peer.id]?.stream ?? null,
+        hasAudio: peer.producers.some((producer) => producer.source === 'screen-audio'),
+      })),
   ];
   const focused = streams.find((stream) => stream.id === focusedId);
   const hasStreams = streams.length > 0;
@@ -84,6 +94,7 @@ export function VoiceStage({
       id={stream.id}
       name={stream.name}
       stream={stream.stream}
+      hasAudio={stream.hasAudio ?? false}
       focused={stream.id === focused?.id}
       compact={compact}
       onToggleFocus={() => setFocusedId(stream.id === focused?.id ? null : stream.id)}
@@ -92,8 +103,10 @@ export function VoiceStage({
   );
 
   // In the strip the tiles follow its height; in the grid each one gets the computed size.
-  const slot = hasStreams ? undefined : { width: cell.width, height: cell.height };
-  const slotClass = hasStreams ? 'h-full' : 'shrink-0';
+  // Until the grid has been measured the tiles fall back to a plain 16:9 box.
+  const measured = cell.width > 0 && cell.height > 0;
+  const slot = hasStreams || !measured ? undefined : { width: cell.width, height: cell.height };
+  const slotClass = hasStreams ? 'h-full' : measured ? 'shrink-0' : 'aspect-video w-full max-w-xl';
 
   const participants = (
     <>
@@ -142,7 +155,7 @@ export function VoiceStage({
     return (
       <div className="grid-bg h-full">
         <ul
-          ref={gridRef}
+          ref={setGrid}
           aria-label="Participantes"
           data-testid="participant-grid"
           style={{ gap: GAP }}

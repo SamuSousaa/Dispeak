@@ -15,6 +15,16 @@ describe('fillGrid', () => {
     expect(tall).toEqual({ width: 400, height: 225 });
   });
 
+  it('keeps two side by side on a desktop window, even where stacking would be bigger', () => {
+    // The call area of a 1360 x 820 window: stacked, each tile would be 629 wide.
+    const cell = fillGrid(800, 716, 2, 16 / 9, 12);
+    expect(cell).toEqual({ width: 394, height: 221 });
+    expect(cell.width * 2 + 12).toBeLessThanOrEqual(800);
+    // Three make two rows, never a column of three.
+    const three = fillGrid(800, 716, 3, 16 / 9, 12);
+    expect(three.width).toBe(394);
+  });
+
   it('grows the grid as people join', () => {
     const four = fillGrid(1200, 700, 4, 16 / 9, 12);
     // 2 x 2 beats 4 x 1 and 1 x 4.

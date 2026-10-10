@@ -10,6 +10,7 @@ import { IconButton } from '../../components/IconButton';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { channelPermissions } from '../guilds/permissions';
 import { useKeybind, useSettingsStore } from '../settings/settings-store';
+import { MicMeter } from '../voice/components/MicMeter';
 import { ScreenShareButton } from '../voice/components/ScreenShareButton';
 import { leaveVoice, toggleCamera, toggleDeafen, toggleMute } from '../voice/voice-actions';
 import { useVoiceStore } from '../voice/voice-store';
@@ -146,6 +147,7 @@ export function UserPanel({
                     : 'APERTAR PARA FALAR SEM TECLA — DEFINA EM CONFIGURAÇÕES'}
               </p>
             )}
+            {live && <MicMeter className="mt-2" />}
             {!micAvailable && (
               <p role="status" className="label mt-1.5 text-danger" data-testid="mic-status">
                 {serverMuted ? 'MUTADO NO SERVIDOR — ' : 'SEM MICROFONE — '}SOMENTE ESCUTA

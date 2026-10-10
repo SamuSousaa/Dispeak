@@ -20,6 +20,7 @@ import {
   type InputMode,
   type NoiseSuppressionMode,
 } from './settings-store';
+import { MicTest } from './MicTest';
 import { PasswordForm, ProfileTab } from './ProfileTab';
 
 const NOISE_OPTIONS: Array<{ value: NoiseSuppressionMode; label: string; hint: string }> = [
@@ -525,6 +526,40 @@ export function SettingsPanel({
               )}
             </fieldset>
 
+            {neural && (
+              <>
+                <Toggle
+                  label="CORTAR SONS BAIXOS"
+                  hint="Depois da rede neural, só passa o que tem força de voz: o resto de uma tecla ou de um clique entre as palavras é cortado."
+                  checked={settings.noiseGate}
+                  onChange={(noiseGate) => updateSettings({ noiseGate })}
+                />
+                {settings.noiseGate && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="label text-muted">
+                      CORTAR ABAIXO DE {settings.noiseGateThreshold} DB
+                    </span>
+                    <input
+                      type="range"
+                      min={-70}
+                      max={-30}
+                      step={1}
+                      value={settings.noiseGateThreshold}
+                      aria-label="Nível mínimo para o microfone abrir"
+                      className="w-full accent-(--accent)"
+                      onChange={(event) =>
+                        updateSettings({ noiseGateThreshold: Number(event.target.value) })
+                      }
+                    />
+                    <span className="text-xs text-muted">
+                      Para a direita corta mais (teclado some, mas voz baixa pode falhar); para a
+                      esquerda corta menos. Use o teste abaixo para acertar.
+                    </span>
+                  </label>
+                )}
+              </>
+            )}
+
             <Toggle
               label="CANCELAMENTO DE ECO"
               hint="Impede que o som das suas caixas volte pelo microfone."
@@ -537,6 +572,7 @@ export function SettingsPanel({
               checked={settings.autoGainControl}
               onChange={(autoGainControl) => updateSettings({ autoGainControl })}
             />
+            <MicTest />
           </Section>
 
           <Section number="02" title="SAÍDA">

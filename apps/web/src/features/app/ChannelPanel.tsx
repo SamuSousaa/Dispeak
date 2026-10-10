@@ -1,6 +1,6 @@
 import { hasPermission, Permissions, type Channel, type Guild } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, useParams } from 'react-router-dom';
+import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { contextMenu } from '../../components/ContextMenu';
 import { attempt } from '../../components/Toast';
@@ -10,6 +10,7 @@ import { isPrivate, setPrivate } from '../guilds/channel-privacy';
 import { actorIn, channelPermissions, groupChannels, memberName } from '../guilds/permissions';
 import { userMenu } from '../guilds/user-menu';
 import { markRead, useUnreadStore } from '../unread/unread-store';
+import { watchUser } from '../voice/voice-actions';
 import { useVoiceStore } from '../voice/voice-store';
 import { toggleCollapsed, useUiStore } from './ui-store';
 import { connectToVoiceChannel, useSpeakingUserIds } from './voice-channel';
@@ -181,6 +182,17 @@ export function ChannelPanel({
     hasPermission(channelPermissions(guild, channel, userId), Permissions.ManageRoles);
   const canConnectTo = (channel: Channel) =>
     hasPermission(channelPermissions(guild, channel, userId), Permissions.Connect);
+  const navigate = useNavigate();
+  /** Opens the channel, joins it when needed and starts watching that person's stream. */
+  const watchLive = (channel: Channel, targetId: string) => {
+    if (connectedChannelId !== channel.id) {
+      if (!canConnectTo(channel)) return;
+      connectToVoiceChannel(channel);
+    }
+    onNavigate();
+    void navigate(`/app/${guild.id}/${channel.id}`);
+    watchUser(targetId);
+  };
   const copyLink = (channel: Channel) =>
     void navigator.clipboard?.writeText(`${window.location.origin}/app/${guild.id}/${channel.id}`);
 
@@ -428,7 +440,29 @@ export function ChannelPanel({
                                 {memberName(guild, voice.userId)}
                               </span>
                               <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                                {voice.streaming && <span className="text-accent">AO VIVO</span>}
+                                {voice.streaming &&
+                                  (voice.userId === userId ? (
+                                    <span className="text-accent">AO VIVO</span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      data-testid="watch-live"
+                                      className="label text-accent hover:underline"
+                                      title={`Dois cliques para assistir à transmissão de ${memberName(guild, voice.userId)}`}
+                                      onClick={(event) => {
+                                        // The row itself opens the person's menu.
+                                        event.stopPropagation();
+                                        // Two clicks with a mouse; one tap is enough on touch,
+                                        // and so is the keyboard (detail 0).
+                                        const single =
+                                          event.detail === 1 &&
+                                          !window.matchMedia('(pointer: coarse)').matches;
+                                        if (!single) watchLive(channel, voice.userId);
+                                      }}
+                                    >
+                                      AO VIVO
+                                    </button>
+                                  ))}
                                 {guild.members.find((entry) => entry.user.id === voice.userId)
                                   ?.serverMuted && (
                                   <span className="text-danger" title="Mutado no servidor">

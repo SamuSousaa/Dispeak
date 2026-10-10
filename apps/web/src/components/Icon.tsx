@@ -17,6 +17,8 @@ export type IconName =
   | 'chevron-down'
   | 'chat'
   | 'pip'
+  | 'volume'
+  | 'volume-off'
   | 'lock';
 
 const slash = <path d="M3 3l18 18" />;
@@ -55,6 +57,13 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
       <rect x="14" y="5" width="4" height="4" />
       <rect x="6" y="15" width="4" height="4" />
+    </>
+  ),
+  volume: <path d="M4 9h4l5-4v14l-5-4H4zM16.5 9a4.5 4.5 0 010 6M19 6.5a8 8 0 010 11" />,
+  'volume-off': (
+    <>
+      <path d="M4 9h4l5-4v14l-5-4H4z" />
+      {slash}
     </>
   ),
   'hang-up': <path d="M2 15v-3c0-2 4-5 10-5s10 3 10 5v3l-5 1-1-4H8l-1 4z" />,

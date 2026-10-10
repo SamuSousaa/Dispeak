@@ -92,6 +92,10 @@ export interface VoiceState {
   watching: Record<string, WatchedStream>;
   /** Keyed by streamer session id, or `SELF_STREAM` for the local share. */
   streamStats: Record<string, StreamStats>;
+  /** How loud the microphone is right now, 0 to 1, measured on what is sent to the others. */
+  micLevel: number;
+  /** Volume chosen for the sound of each watched stream, by streamer session id (0 to 1). */
+  streamVolumes: Record<string, number>;
 }
 
 export const emptyVoiceStats: VoiceConnectionStats = {
@@ -131,6 +135,8 @@ export const initialVoiceState: VoiceState = {
   cameras: {},
   watching: {},
   streamStats: {},
+  micLevel: 0,
+  streamVolumes: {},
 };
 
 export const useVoiceStore = create<VoiceState>(() => initialVoiceState);

@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { IconButton } from '../../../components/IconButton';
 import { leaveVoice, toggleCamera, toggleDeafen, toggleMute } from '../voice-actions';
 import { useVoiceStore } from '../voice-store';
+import { MicMeter } from './MicMeter';
 import { ScreenShareButton } from './ScreenShareButton';
 
 /** Phones cannot capture their screen from a web page; the button would only fail. */
@@ -22,6 +23,7 @@ export function MobileVoiceControls({ canStream }: { canStream: boolean }) {
 
   return (
     <div className="flex flex-col gap-2">
+      <MicMeter className="justify-center" />
       <div className="flex items-center justify-center gap-3">
         <IconButton
           icon={muted ? 'mic-off' : 'mic'}

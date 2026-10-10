@@ -1,12 +1,14 @@
 import { SIMULCAST_LAYERS } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../components/Button';
+import { IconButton } from '../../../components/IconButton';
 import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
 import { registerStreamFullscreen } from '../stream-fullscreen';
-import { setStreamViewport } from '../voice-actions';
+import { setStreamViewport, setStreamVolume } from '../voice-actions';
 import { SELF_STREAM, useVoiceStore, type StreamStats } from '../voice-store';
 import { LiveBadge } from './LiveBadge';
+import { volumeIsFixed } from './VolumeControl';
 
 interface IosVideoElement extends HTMLVideoElement {
   webkitEnterFullscreen?: () => void;
@@ -25,6 +27,8 @@ interface StreamTileProps {
   id: string;
   name: string;
   stream: MediaStream | null;
+  /** Whether the streamer sends the sound of what they share. */
+  hasAudio?: boolean;
   focused: boolean;
   /** Thumbnail rendition shown next to a focused stream. */
   compact?: boolean;
@@ -80,11 +84,49 @@ function StatsPanel({ id, stats }: { id: string; stats: StreamStats | undefined 
   );
 }
 
-/** A live screen share: the video plus focus, fullscreen and statistics controls. */
+/** Sound of one stream, for this viewer only: silence it or turn it down. */
+function StreamVolume({ id, name }: { id: string; name: string }) {
+  const volume = useVoiceStore((state) => state.streamVolumes[id] ?? 1);
+  // What to go back to when the sound is turned on again.
+  const before = useRef(1);
+  const silent = volume === 0;
+  return (
+    <div className="mr-auto flex items-center gap-2 pl-1" data-testid="stream-volume">
+      <IconButton
+        icon={silent ? 'volume-off' : 'volume'}
+        tone={silent ? 'danger' : 'default'}
+        label={silent ? 'Ativar som da transmissão' : 'Silenciar transmissão'}
+        aria-pressed={silent}
+        className="border-transparent"
+        onClick={() => {
+          if (!silent) before.current = volume;
+          setStreamVolume(id, silent ? before.current || 1 : 0);
+        }}
+      />
+      {!volumeIsFixed && (
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={volume}
+          aria-label={`Volume da transmissão de ${name}`}
+          title={`Volume: ${Math.round(volume * 100)}%`}
+          className="w-24 accent-(--accent)"
+          onChange={(event) => setStreamVolume(id, Number(event.target.value))}
+        />
+      )}
+      <span className="label w-9 text-muted">{Math.round(volume * 100)}%</span>
+    </div>
+  );
+}
+
+/** A live screen share: the video plus sound, focus, fullscreen and statistics controls. */
 export function StreamTile({
   id,
   name,
   stream,
+  hasAudio = false,
   focused,
   compact = false,
   onToggleFocus,
@@ -233,6 +275,12 @@ export function StreamTile({
               (showStats || fullscreen) && 'md:opacity-100',
             )}
           >
+            {!isSelf &&
+              (hasAudio ? (
+                <StreamVolume id={id} name={name} />
+              ) : (
+                <span className="label mr-auto px-3 text-muted">SEM ÁUDIO</span>
+              ))}
             <Button
               className="border-transparent"
               variant={showStats ? 'active' : 'default'}

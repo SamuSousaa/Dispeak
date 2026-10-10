@@ -160,6 +160,10 @@ passar e de um commit ser feito.
 - [x] Celular: painéis como gavetas (com gesto de arrastar), diálogos em tela cheia, menus como
       folha na base da tela, controles de chamada grandes, faixa da chamada em curso enquanto se
       lê um chat, campos sem zoom no iOS, margens de segurança para o entalhe
+- [x] Chamada: supressão de ruído GTCRN com corte de sons baixos (RNNoise como reserva),
+      medidor do microfone e teste nas configurações, volume e mudo por transmissão, dois
+      cliques em AO VIVO para assistir, o áudio da própria chamada fora do som da transmissão
+      e duas pessoas lado a lado na grade
 
 **Único serviço externo.** A busca de GIF depende da GIPHY e por isso é opcional: sem a chave o
 botão não aparece. Não é mídia nem tempo real, então não fere a regra de infraestrutura própria.

@@ -2,6 +2,7 @@ import { Button } from '../../../components/Button';
 import { useKeybind } from '../../settings/settings-store';
 import { leaveVoice, toggleCamera, toggleDeafen, toggleMute } from '../voice-actions';
 import { useVoiceStore } from '../voice-store';
+import { MicMeter } from './MicMeter';
 import { ScreenShareButton } from './ScreenShareButton';
 
 const withKey = (text: string, binding: string | null) => (binding ? `${text} (${binding})` : text);
@@ -25,6 +26,7 @@ export function VoiceControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <MicMeter className="basis-full" />
       <Button
         variant={muted ? 'danger' : 'default'}
         aria-pressed={muted}

@@ -2,7 +2,7 @@ import type { MenuEntry } from '../../../components/ContextMenu';
 import { setUserVolume, useSettingsStore, useUserVolume } from '../../settings/settings-store';
 
 /** iPhones and iPads do not let a page set the volume of an audio element, only silence it. */
-const volumeIsFixed =
+export const volumeIsFixed =
   typeof navigator !== 'undefined' &&
   (/iP(hone|ad|od)/.test(navigator.userAgent) ||
     (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1));

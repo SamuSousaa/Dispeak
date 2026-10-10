@@ -15,6 +15,7 @@ import { Device, type types } from 'mediasoup-client';
 import { connectRpc, type RpcConnection } from '../../lib/rpc-client';
 import { useSettingsStore, type Settings } from '../settings/settings-store';
 import { CAMERA, openCamera } from './camera';
+import { meterTrack } from './level-meter';
 import { openMicrophone, type Microphone } from './microphone';
 import {
   layerForViewport,
@@ -103,6 +104,7 @@ export class VoiceSession {
   private micReload: Promise<void> = Promise.resolve();
   private unsubscribeSettings: (() => void) | null = null;
   private micProducer: types.Producer | null = null;
+  private stopMeter: (() => void) | null = null;
   private screenStream: MediaStream | null = null;
   private screenProducer: types.Producer | null = null;
   private screenAudioProducer: types.Producer | null = null;
@@ -207,7 +209,15 @@ export class VoiceSession {
         // System/tab audio is only offered by some browsers and capture surfaces.
         ...(withAudio
           ? {
-              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+              audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                // Keeps the call itself out of the captured system audio. Without it the
+                // viewers get their own voices back through the stream. Browsers that do
+                // not know the option ignore it.
+                restrictOwnAudio: true,
+              },
               systemAudio: 'include',
             }
           : {}),
@@ -386,6 +396,14 @@ export class VoiceSession {
   }
 
   /** Reports the size a watched stream is displayed at, to pick its simulcast layer. */
+  /** How loud this user hears the sound of one stream; nobody else is affected. */
+  setStreamVolume(peerId: string, volume: number): void {
+    set({ streamVolumes: { ...get().streamVolumes, [peerId]: Math.min(1, Math.max(0, volume)) } });
+    for (const entry of this.consumers.values()) {
+      if (entry.peerId === peerId && entry.source === 'screen-audio') this.applyVolume(entry);
+    }
+  }
+
   setStreamViewport(peerId: string, cssHeight: number): void {
     if (!this.watched.has(peerId)) return;
     const layer = layerForViewport(cssHeight, window.devicePixelRatio);
@@ -562,6 +580,8 @@ export class VoiceSession {
   private releaseLocalMedia(): void {
     this.unsubscribeSettings?.();
     this.unsubscribeSettings = null;
+    this.stopMeter?.();
+    this.stopMeter = null;
     this.microphone?.close();
     this.microphone = null;
     this.micTrack = null;
@@ -733,6 +753,7 @@ export class VoiceSession {
       this.microphone?.close();
       this.microphone = microphone;
       this.micTrack = microphone.track;
+      this.watchLevel();
       set({ micAvailable: true, noiseSuppression: microphone.noiseSuppression });
     } catch (error) {
       console.warn('[voice] microphone unavailable, joining listen-only', error);
@@ -740,6 +761,14 @@ export class VoiceSession {
       this.micTrack = null;
       set({ micAvailable: false, muted: true, noiseSuppression: null });
     }
+  }
+
+  /** Follows the level of the track being sent, so the user can see their voice going out. */
+  private watchLevel(): void {
+    this.stopMeter?.();
+    this.stopMeter = this.micTrack
+      ? meterTrack(this.micTrack, (micLevel) => set({ micLevel }))
+      : null;
   }
 
   private handleSettingsChange(settings: Settings, previous: Settings): void {
@@ -785,6 +814,7 @@ export class VoiceSession {
     const previous = this.microphone;
     this.microphone = next;
     this.micTrack = next.track;
+    this.watchLevel();
     set({ micAvailable: true, noiseSuppression: next.noiseSuppression });
     try {
       if (this.micProducer && !this.micProducer.closed) {
@@ -809,12 +839,16 @@ export class VoiceSession {
     else this.micProducer?.pause();
   }
 
-  /** How this user chose to hear a participant: their voice only, not what they stream. */
+  /** How this user chose to hear a participant's voice, and the sound of each stream. */
   private applyVolume({ audio, peerId, source }: ActiveConsumer): void {
     if (!audio) return;
     const userId = get().peers[peerId]?.userId;
     const volume =
-      source === 'mic' && userId ? (useSettingsStore.getState().userVolumes[userId] ?? 1) : 1;
+      source === 'screen-audio'
+        ? (get().streamVolumes[peerId] ?? 1)
+        : source === 'mic' && userId
+          ? (useSettingsStore.getState().userVolumes[userId] ?? 1)
+          : 1;
     // iPhones ignore `volume`; silencing someone still works there through `muted`.
     audio.volume = volume;
     audio.muted = get().deafened || volume === 0;

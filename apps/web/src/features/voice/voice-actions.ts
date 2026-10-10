@@ -77,6 +77,39 @@ export function setCameraViewport(peerId: string, cssHeight: number): void {
   session?.setCameraViewport(peerId, cssHeight);
 }
 
+export function setStreamVolume(peerId: string, volume: number): void {
+  session?.setStreamVolume(peerId, volume);
+}
+
+/** Someone the user asked to watch before their stream could be reached (still joining). */
+let pendingWatch: { userId: string; until: number } | null = null;
+
+function watchPending(): void {
+  if (!pendingWatch) return;
+  if (Date.now() > pendingWatch.until) {
+    pendingWatch = null;
+    return;
+  }
+  const state = useVoiceStore.getState();
+  if (state.status !== 'connected') return;
+  const peer = Object.values(state.peers).find(
+    (entry) => entry.userId === pendingWatch?.userId && isLive(entry),
+  );
+  if (!peer) return;
+  pendingWatch = null;
+  if (!state.watching[peer.id]) session?.watch(peer.id);
+}
+useVoiceStore.subscribe(watchPending);
+
+/**
+ * Watches the stream of a user, by user id. Works right after asking to join their channel:
+ * the request waits a few seconds for the connection and for the stream to show up.
+ */
+export function watchUser(userId: string): void {
+  pendingWatch = { userId, until: Date.now() + 15_000 };
+  watchPending();
+}
+
 /** Starts watching a participant's screen share. */
 export function watchStream(peerId: string): void {
   session?.watch(peerId);
