@@ -30,6 +30,7 @@ import type { GatewayBus } from '../../gateway/bus';
 import { sniffAudio } from '../../lib/audio';
 import { cleanFilename } from '../../lib/filename';
 import { inviteCode, uuidv7 } from '../../lib/ids';
+import { toPublicUser } from '../../lib/user';
 import type { PictureStore } from '../users/pictures';
 import type { AttachmentFiles } from '../messages/attachment-files';
 import type { VoiceAccess } from '../voice/voice-access';
@@ -404,12 +405,7 @@ export class GuildService {
       .where(eq(guildBans.guildId, guildId))
       .orderBy(guildBans.createdAt);
     return rows.map(({ ban, user }) => ({
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        avatar: user.avatarId,
-      },
+      user: toPublicUser(user),
       bannedBy: ban.bannedBy,
       createdAt: ban.createdAt.toISOString(),
     }));

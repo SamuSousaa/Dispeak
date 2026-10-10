@@ -235,9 +235,18 @@ test('account → server → invite → voice channel → stream, with permissio
   };
   const width = (image: HTMLElement) => (image as HTMLImageElement).naturalWidth;
   await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
-  await dialog(bruno.page).getByRole('tab', { name: 'CONTA' }).click();
+  await dialog(bruno.page).getByRole('tab', { name: 'PERFIL' }).click();
   await dialog(bruno.page).getByTestId('avatar-input').setInputFiles(picture);
   await expect(dialog(bruno.page).getByRole('button', { name: /^Remover sua foto/ })).toBeVisible();
+  // The rest of the profile, on the same tab.
+  await dialog(bruno.page)
+    .getByLabel(/^STATUS/)
+    .fill('🎮 até tarde');
+  await dialog(bruno.page)
+    .getByLabel(/^SOBRE MIM/)
+    .fill('Jogo de tudo um pouco.');
+  await dialog(bruno.page).getByRole('button', { name: 'SALVAR PERFIL' }).click();
+  await expect(dialog(bruno.page).getByRole('status')).toHaveText('SALVO');
   await dialog(bruno.page).getByRole('button', { name: 'Fechar' }).click();
   // Everyone sees it: in the member list, in the voice channel and on the stage.
   const brunoMember = alice.page.getByTestId('member').filter({ hasText: 'Bruno' });
@@ -248,6 +257,30 @@ test('account → server → invite → voice channel → stream, with permissio
   await expect(
     alice.page.getByTestId('participant').filter({ hasText: 'Bruno' }).getByTestId('avatar'),
   ).toHaveAttribute('data-picture', 'true');
+
+  // --- The profile card, and how each one chooses to be seen ---------------------------------
+  await expect(brunoMember.getByTestId('member-status')).toHaveText('🎮 até tarde');
+  await brunoMember.click();
+  const card = alice.page.getByTestId('profile-card');
+  await expect(card.getByTestId('profile-status')).toHaveText('🎮 até tarde');
+  await expect(card.getByTestId('profile-bio')).toHaveText('Jogo de tudo um pouco.');
+  await expect(card).toContainText('DISPONÍVEL');
+  await expect(card).toContainText('NO SERVIDOR DESDE');
+  await alice.page.keyboard.press('Escape');
+
+  const setStatus = async (label: string) => {
+    await bruno.page.getByTestId('self-status').click();
+    await bruno.page.getByRole('menuitem', { name: label }).click();
+  };
+  await setStatus('Não perturbe');
+  await expect(brunoMember.locator('[data-presence="dnd"]')).toBeVisible();
+  // Invisible: offline for everyone else, while he keeps using the app.
+  await setStatus('Invisível');
+  await expect(brunoMember).toHaveAttribute('data-online', 'false');
+  await expect(bruno.page.getByTestId('voice-status')).toHaveText('CONECTADO');
+  await setStatus('Disponível');
+  await expect(brunoMember).toHaveAttribute('data-online', 'true');
+  await expect(brunoMember.locator('[data-presence="online"]')).toBeVisible();
 
   // --- Moderation from the same menu: server mute, then out of the call ---------------------
   await brunoTile.click();

@@ -1,4 +1,9 @@
-import { idSchema, PICTURE_MAX_BYTES, userSchema } from '@frequencia/shared';
+import {
+  idSchema,
+  PICTURE_MAX_BYTES,
+  selfSchema,
+  updateProfileRequestSchema,
+} from '@frequencia/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { badRequest, notFound } from '../../errors';
@@ -30,7 +35,7 @@ export const userRoutes: FastifyPluginAsyncZod = async (app) => {
           '`application/octet-stream`. Clients are expected to send a small square picture.',
         security,
         consumes: ['application/octet-stream'],
-        response: { 200: userSchema },
+        response: { 200: selfSchema },
       },
     },
     (request) => {
@@ -47,10 +52,63 @@ export const userRoutes: FastifyPluginAsyncZod = async (app) => {
         tags: ['users'],
         summary: 'Remove your profile picture',
         security,
-        response: { 200: userSchema },
+        response: { 200: selfSchema },
       },
     },
     (request) => users.setAvatar(request.auth.userId, null),
+  );
+
+  app.put(
+    '/users/@me/banner',
+    {
+      onRequest: [app.authenticate],
+      bodyLimit: PICTURE_MAX_BYTES,
+      config: perUser(config.RATE_LIMIT_UPLOADS_MAX),
+      schema: {
+        tags: ['users'],
+        summary: 'Set the picture on top of your profile card',
+        description: 'Same format as the profile picture; clients send a wide image.',
+        security,
+        consumes: ['application/octet-stream'],
+        response: { 200: selfSchema },
+      },
+    },
+    (request) => {
+      if (!Buffer.isBuffer(request.body)) throw badRequest('the body must be an image');
+      return users.setBanner(request.auth.userId, request.body);
+    },
+  );
+
+  app.delete(
+    '/users/@me/banner',
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ['users'],
+        summary: 'Remove the picture on top of your profile card',
+        security,
+        response: { 200: selfSchema },
+      },
+    },
+    (request) => users.setBanner(request.auth.userId, null),
+  );
+
+  app.patch(
+    '/users/@me',
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ['users'],
+        summary: 'Change your profile',
+        description:
+          'Display name, "about me", status line, accent colour and how you want to be seen ' +
+          '(`invisible` shows you as offline to everyone else). Send only what changes.',
+        security,
+        body: updateProfileRequestSchema,
+        response: { 200: selfSchema },
+      },
+    },
+    (request) => users.updateProfile(request.auth.userId, request.body),
   );
 
   app.get(

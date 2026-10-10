@@ -9,7 +9,17 @@ const message = (channelId: string, patch: Partial<Message> = {}): Message => ({
   id: '00000000-0000-4000-8000-000000000001',
   channelId,
   guildId: 'g1',
-  author: { id: ANA, username: 'ana', displayName: 'Ana', avatar: null },
+  author: {
+    id: ANA,
+    username: 'ana',
+    displayName: 'Ana',
+    avatar: null,
+    banner: null,
+    bio: null,
+    customStatus: null,
+    accentColor: null,
+    status: 'online' as const,
+  },
   content: 'oi',
   attachments: [],
   reactions: [],
@@ -38,7 +48,17 @@ describe('unread counters', () => {
   it('ignore the user’s own messages', () => {
     const state = { channels: {} };
     const mine = message('c1', {
-      author: { id: ME, username: 'eu', displayName: 'Eu', avatar: null },
+      author: {
+        id: ME,
+        username: 'eu',
+        displayName: 'Eu',
+        avatar: null,
+        banner: null,
+        bio: null,
+        customStatus: null,
+        accentColor: null,
+        status: 'online' as const,
+      },
     });
     expect(unreadState.add(state, mine, ME)).toBe(state);
   });

@@ -22,6 +22,14 @@ export const users = pgTable('users', {
   displayName: text('display_name').notNull(),
   /** File id of the profile picture. */
   avatarId: uuid('avatar_id'),
+  /** File id of the picture on top of the profile card. */
+  bannerId: uuid('banner_id'),
+  bio: text('bio'),
+  customStatus: text('custom_status'),
+  /** `#rrggbb`. */
+  accentColor: text('accent_color'),
+  /** `online`, `idle`, `dnd` or `invisible`: how the user chose to be seen. */
+  presenceMode: text('presence_mode').notNull().default('online'),
   passwordHash: text('password_hash').notNull(),
   createdAt: createdAt(),
 });

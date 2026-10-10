@@ -1,9 +1,10 @@
-import { ApiErrorCode, type AuthResponse, type User } from '@frequencia/shared';
+import { ApiErrorCode, type AuthResponse, type Self } from '@frequencia/shared';
 import { hash, verify } from '@node-rs/argon2';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Config } from '../../config';
 import { schema, type Database, type Queryable } from '../../db/client';
 import { AppError, unauthorized } from '../../errors';
+import { toSelf } from '../../lib/user';
 import type { GatewayBus } from '../../gateway/bus';
 import { uuidv7 } from '../../lib/ids';
 import type { Redis } from '../../redis';
@@ -64,7 +65,7 @@ export class AuthService {
     if (!user) {
       throw new AppError(409, ApiErrorCode.UsernameTaken, 'username is already taken');
     }
-    return this.issue(toUser(user), uuidv7(), meta);
+    return this.issue(toSelf(user), uuidv7(), meta);
   }
 
   async login(
@@ -77,7 +78,7 @@ export class AuthService {
     if (!user || !valid) {
       throw new AppError(401, ApiErrorCode.InvalidCredentials, 'invalid username or password');
     }
-    return this.issue(toUser(user), uuidv7(), meta);
+    return this.issue(toSelf(user), uuidv7(), meta);
   }
 
   /** Rotates a refresh token: the presented one is revoked and its successor returned. */
@@ -102,7 +103,7 @@ export class AuthService {
         .returning();
       if (!token) return null;
       const [user] = await tx.select().from(users).where(eq(users.id, token.userId));
-      return user ? this.issue(toUser(user), token.familyId, meta, tx) : 'no-user';
+      return user ? this.issue(toSelf(user), token.familyId, meta, tx) : 'no-user';
     });
     if (rotated === 'no-user') throw unauthorized();
     if (rotated) return rotated;
@@ -123,7 +124,7 @@ export class AuthService {
     // Two tabs refreshed at the same time; let the slower one continue the session.
     const [user] = await this.db.select().from(users).where(eq(users.id, existing.userId));
     if (!user) throw unauthorized();
-    return this.issue(toUser(user), existing.familyId, meta);
+    return this.issue(toSelf(user), existing.familyId, meta);
   }
 
   /** Ends the session a refresh token belongs to. Unknown tokens are ignored. */
@@ -158,13 +159,33 @@ export class AuthService {
     return claims;
   }
 
-  async getUser(userId: string): Promise<User | null> {
+  /**
+   * Changes the password after checking the current one, and signs the user out everywhere:
+   * whoever had a session open with the old password has to come back with the new one.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
     const [user] = await this.db.select().from(users).where(eq(users.id, userId));
-    return user ? toUser(user) : null;
+    if (!user || !(await verify(user.passwordHash, currentPassword))) {
+      throw new AppError(401, ApiErrorCode.InvalidCredentials, 'the current password is wrong');
+    }
+    await this.db
+      .update(users)
+      .set({ passwordHash: await hash(newPassword, ARGON2) })
+      .where(eq(users.id, userId));
+    await this.logoutAll(userId);
+  }
+
+  async getUser(userId: string): Promise<Self | null> {
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId));
+    return user ? toSelf(user) : null;
   }
 
   private async issue(
-    user: User,
+    user: Self,
     familyId: string,
     meta: RequestMeta,
     db: Queryable = this.db,
@@ -215,13 +236,4 @@ export class AuthService {
   private async denySession(sessionId: string): Promise<void> {
     await this.redis.set(revokedKey(sessionId), '1', 'EX', this.config.ACCESS_TOKEN_TTL_SECONDS);
   }
-}
-
-function toUser(row: typeof users.$inferSelect): User {
-  return {
-    id: row.id,
-    username: row.username,
-    displayName: row.displayName,
-    avatar: row.avatarId,
-  };
 }

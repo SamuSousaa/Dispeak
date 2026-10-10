@@ -76,6 +76,7 @@ const claimed = new WeakSet<Event>();
 export function contextMenu(
   title: string,
   build: () => Array<MenuEntry | false | null | undefined>,
+  options: { wide?: boolean } = {},
 ) {
   return {
     onContextMenu: (event: MouseEvent) => {
@@ -85,7 +86,7 @@ export function contextMenu(
       event.preventDefault();
       event.stopPropagation();
       cancel();
-      openContextMenu({ x: event.clientX, y: event.clientY }, title, build());
+      openContextMenu({ x: event.clientX, y: event.clientY }, title, build(), options);
     },
     onTouchStart: (event: TouchEvent) => {
       const touch = event.touches[0];
@@ -97,7 +98,7 @@ export function contextMenu(
       start = point;
       timer = window.setTimeout(() => {
         start = null;
-        openContextMenu(point, title, build());
+        openContextMenu(point, title, build(), options);
       }, LONG_PRESS_MS);
     },
     onTouchMove: (event: TouchEvent) => {

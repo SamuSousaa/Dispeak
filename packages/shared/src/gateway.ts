@@ -6,7 +6,7 @@ import {
   memberSchema,
   messageSchema,
   presenceStatusSchema,
-  userSchema,
+  selfSchema,
 } from './api';
 
 /**
@@ -66,7 +66,7 @@ export const gatewayEvents = {
   /** First event of a new session: who you are and every guild you belong to. */
   READY: z.object({
     sessionId: z.string(),
-    user: userSchema,
+    user: selfSchema,
     guilds: z.array(guildSchema),
   }),
   /** A resumed session has replayed everything it missed. */

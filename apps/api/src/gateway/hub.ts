@@ -294,7 +294,7 @@ export class GatewayHub {
       user,
       guilds: guilds.filter((guild) => guild !== null),
     });
-    if (cameOnline) {
+    if (cameOnline && user.presence !== 'invisible') {
       await this.deps.bus.publish({
         kind: 'presence',
         userId,

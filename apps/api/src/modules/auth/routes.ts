@@ -3,7 +3,8 @@ import {
   authResponseSchema,
   loginRequestSchema,
   registerRequestSchema,
-  userSchema,
+  changePasswordRequestSchema,
+  selfSchema,
 } from '@frequencia/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -129,13 +130,37 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
         tags: ['auth'],
         summary: 'The authenticated user',
         security: [{ bearerAuth: [] }],
-        response: { 200: userSchema, 401: apiErrorSchema },
+        response: { 200: selfSchema, 401: apiErrorSchema },
       },
     },
     async (request) => {
       const user = await auth.getUser(request.auth.userId);
       if (!user) throw notFound('user');
       return user;
+    },
+  );
+
+  app.post(
+    '/users/@me/password',
+    {
+      onRequest: [app.authenticate],
+      config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: '1 minute' } },
+      schema: {
+        tags: ['auth'],
+        summary: 'Change your password; every session is signed out',
+        security: [{ bearerAuth: [] }],
+        body: changePasswordRequestSchema,
+        response: { 204: z.null(), 401: apiErrorSchema },
+      },
+    },
+    async (request, reply) => {
+      await auth.changePassword(
+        request.auth.userId,
+        request.body.currentPassword,
+        request.body.newPassword,
+      );
+      reply.clearCookie(REFRESH_COOKIE, cookieOptions);
+      return reply.code(204).send(null);
     },
   );
 };

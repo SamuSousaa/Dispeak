@@ -1,4 +1,5 @@
 import type { Guild, Message } from '@frequencia/shared';
+import { useAuthStore } from '../auth/auth-store';
 import { parseContent } from '../chat/mentions';
 import { memberName } from '../guilds/permissions';
 import { useSettingsStore } from '../settings/settings-store';
@@ -14,6 +15,7 @@ export function notifyMention(
 ): void {
   if (
     !useSettingsStore.getState().desktopNotifications ||
+    useAuthStore.getState().user?.presence === 'dnd' ||
     typeof Notification === 'undefined' ||
     Notification.permission !== 'granted'
   ) {

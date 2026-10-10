@@ -100,8 +100,10 @@ export async function createTestApp(env: Record<string, string> = {}): Promise<T
       'register',
     );
     const body = response.json<AuthResponse>();
+    // Tests compare this with what other people receive, which leaves the private part out.
+    const { presence: _private, ...user } = body.user;
     return {
-      user: body.user,
+      user,
       token: body.accessToken,
       cookie: refreshCookieOf(response),
       password,

@@ -17,6 +17,7 @@ import {
   type VoiceState,
 } from '@frequencia/shared';
 import { eq } from 'drizzle-orm';
+import { toPublicUser, type PublicUserRow } from '../../lib/user';
 import { schema, type Queryable } from '../../db/client';
 import { forbidden, notFound } from '../../errors';
 
@@ -39,6 +40,8 @@ export interface MemberEntry {
   username: string;
   displayName: string;
   avatarId: string | null;
+  /** The user's public columns, as stored. */
+  row: PublicUserRow;
   nickname: string | null;
   serverMuted: boolean;
   joinedAt: Date;
@@ -101,6 +104,7 @@ export async function loadGuildSnapshot(
       username: user.username,
       displayName: user.displayName,
       avatarId: user.avatarId,
+      row: user,
       nickname: member.nickname,
       serverMuted: member.serverMuted,
       joinedAt: member.joinedAt,
@@ -228,12 +232,7 @@ export function toChannel(snapshot: GuildSnapshot, row: ChannelRow): Channel {
 
 export function toMember(entry: MemberEntry): Member {
   return {
-    user: {
-      id: entry.userId,
-      username: entry.username,
-      displayName: entry.displayName,
-      avatar: entry.avatarId,
-    },
+    user: toPublicUser(entry.row),
     nickname: entry.nickname,
     roleIds: [...entry.roleIds],
     joinedAt: entry.joinedAt.toISOString(),
@@ -263,7 +262,11 @@ export function guildPayloadFor(
     channels: visible.map((channel) => toChannel(snapshot, channel)),
     roles: [...snapshot.roles.values()].sort((a, b) => b.position - a.position).map(toRole),
     members: [...snapshot.members.values()].map(toMember),
-    onlineUserIds: live.onlineUserIds.filter((id) => snapshot.members.has(id)),
+    // Whoever chose to be invisible is online only to themselves.
+    onlineUserIds: live.onlineUserIds.filter((id) => {
+      const member = snapshot.members.get(id);
+      return member !== undefined && (id === userId || member.row.presenceMode !== 'invisible');
+    }),
     voiceStates: live.voiceStates.filter((state) => visibleIds.has(state.channelId)),
     sounds: Object.fromEntries(
       GUILD_SOUND_EVENTS.map((event) => [event, snapshot.sounds.get(event) ?? null]),

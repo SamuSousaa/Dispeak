@@ -55,7 +55,7 @@ export function Dialog({
       className={cx(
         'border-line-strong bg-surface p-0 text-fg backdrop:bg-black/70',
         side
-          ? 'my-0 mr-0 ml-auto h-dvh max-h-dvh w-96 max-w-full border-l'
+          ? 'my-0 mr-0 ml-auto h-dvh max-h-dvh w-[27rem] max-w-full border-l'
           : 'm-auto max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] border',
         !side && (wide ? 'max-w-3xl' : 'max-w-md'),
       )}

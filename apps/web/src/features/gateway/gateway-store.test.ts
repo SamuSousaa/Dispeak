@@ -9,7 +9,17 @@ const ALICE = '00000000-0000-4000-8000-00000000000a';
 const BRUNO = '00000000-0000-4000-8000-00000000000b';
 
 const member = (id: string, displayName: string): Member => ({
-  user: { id, username: displayName.toLowerCase(), displayName, avatar: null },
+  user: {
+    id,
+    username: displayName.toLowerCase(),
+    displayName,
+    avatar: null,
+    banner: null,
+    bio: null,
+    customStatus: null,
+    accentColor: null,
+    status: 'online' as const,
+  },
   nickname: null,
   roleIds: [],
   joinedAt: '2026-01-01T00:00:00.000Z',
@@ -68,7 +78,7 @@ describe('gateway reducers', () => {
     const other = guild({ id: '00000000-0000-4000-8000-000000000009', name: 'Outro' });
     const next = gatewayReducers.READY(initialGatewayState, {
       sessionId: 's',
-      user: member(ALICE, 'Alice').user,
+      user: { ...member(ALICE, 'Alice').user, presence: 'online' },
       guilds: [guild(), other],
     });
     expect(next.status).toBe('ready');

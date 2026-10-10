@@ -16,7 +16,7 @@ import { CreateChannelDialog } from '../guilds/dialogs/CreateChannelDialog';
 import { GuildSettingsDialog, type GuildSettingsTab } from '../guilds/dialogs/GuildSettingsDialog';
 import { InviteDialog } from '../guilds/dialogs/InviteDialog';
 import { groupChannels } from '../guilds/permissions';
-import { SettingsPanel } from '../settings/SettingsPanel';
+import { SettingsPanel, type SettingsTab } from '../settings/SettingsPanel';
 import { startVoiceSounds } from '../sounds/sound-player';
 import { notifyMention } from '../unread/notify';
 import { applyUnreadEvent, useUnreadTitle } from '../unread/unread-store';
@@ -36,7 +36,7 @@ type DialogState =
   | { kind: 'guild-settings'; tab?: GuildSettingsTab }
   | { kind: 'create-channel'; parentId: string | null }
   | { kind: 'channel-settings'; channelId: string }
-  | { kind: 'settings' }
+  | { kind: 'settings'; tab?: SettingsTab }
   | null;
 
 type Drawer = 'channels' | 'members' | null;
@@ -170,7 +170,7 @@ export function AppPage() {
             ) : (
               <div className="flex-1" />
             )}
-            <UserPanel user={user} onOpenSettings={() => setDialog({ kind: 'settings' })} />
+            <UserPanel user={user} onOpenSettings={(tab) => setDialog({ kind: 'settings', tab })} />
           </div>
         </aside>
 
@@ -279,7 +279,13 @@ export function AppPage() {
 
       {dialog?.kind === 'add-guild' && <AddGuildDialog onClose={closeDialog} />}
       {dialog?.kind === 'settings' && (
-        <SettingsPanel user={user} onSignOut={() => void signOut()} onClose={closeDialog} />
+        <SettingsPanel
+          user={user}
+          guild={guild}
+          initialTab={dialog.tab}
+          onSignOut={() => void signOut()}
+          onClose={closeDialog}
+        />
       )}
       {guild && dialog?.kind === 'invite' && <InviteDialog guild={guild} onClose={closeDialog} />}
       {guild && dialog?.kind === 'guild-settings' && (

@@ -1,6 +1,11 @@
-import { hasPermission, Permissions, type User } from '@frequencia/shared';
+import { hasPermission, Permissions, type PresenceMode, type Self } from '@frequencia/shared';
 import { NavLink } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
+import { openContextMenu } from '../../components/ContextMenu';
+import { attempt } from '../../components/Toast';
+import { profileApi } from '../auth/profile-api';
+import { StatusMark } from '../profile/ProfileCard';
+import type { SettingsTab } from '../settings/SettingsPanel';
 import { IconButton } from '../../components/IconButton';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { channelPermissions } from '../guilds/permissions';
@@ -16,7 +21,20 @@ const withKey = (text: string, binding: string | null) => (binding ? `${text} ($
  * (status, channel, screen share, hang up) and, below it, the user with the microphone,
  * headphones and settings buttons. It stays put while the user browses other channels.
  */
-export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings: () => void }) {
+const MODES: Array<{ mode: PresenceMode; label: string }> = [
+  { mode: 'online', label: 'Disponível' },
+  { mode: 'idle', label: 'Ausente' },
+  { mode: 'dnd', label: 'Não perturbe' },
+  { mode: 'invisible', label: 'Invisível' },
+];
+
+export function UserPanel({
+  user,
+  onOpenSettings,
+}: {
+  user: Self;
+  onOpenSettings: (tab?: SettingsTab) => void;
+}) {
   const status = useVoiceStore((state) => state.status);
   const channelId = useVoiceStore((state) => state.channelId);
   const channelName = useVoiceStore((state) => state.channelName);
@@ -137,11 +155,39 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
         </div>
       )}
       <div className="flex items-center gap-1.5 px-3 py-2">
-        <Avatar name={user.displayName} picture={user.avatar} size={32} />
-        <div className="min-w-0 flex-1">
-          <p className="label-lg truncate text-fg">{user.displayName}</p>
-          <p className="label truncate text-muted">@{user.username}</p>
-        </div>
+        <button
+          type="button"
+          data-testid="self-status"
+          title="Mudar seu status ou editar o perfil"
+          aria-label={`${user.displayName}: mudar status ou editar perfil`}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:-outline-offset-2"
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            openContextMenu({ x: box.left, y: box.top - 250 }, 'SEU STATUS', [
+              ...MODES.map(({ mode, label }) => ({
+                label,
+                hint: user.presence === mode ? 'ATUAL' : undefined,
+                onSelect: () => attempt(() => profileApi.update({ presence: mode })),
+              })),
+              { type: 'separator' as const },
+              { label: 'Editar perfil', onSelect: () => onOpenSettings('profile') },
+            ]);
+          }}
+        >
+          <span className="relative shrink-0">
+            <Avatar name={user.displayName} picture={user.avatar} size={32} />
+            <StatusMark
+              presence={user.presence === 'invisible' ? 'offline' : user.presence}
+              className="absolute -right-0.5 -bottom-0.5"
+            />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="label-lg block truncate text-fg">{user.displayName}</span>
+            <span className="label block truncate text-muted normal-case">
+              {user.customStatus ?? `@${user.username}`}
+            </span>
+          </span>
+        </button>
         <IconButton
           icon={muted ? 'mic-off' : 'mic'}
           tone={muted ? 'danger' : 'default'}
@@ -168,7 +214,7 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
           disabled={!inVoice}
           onClick={toggleDeafen}
         />
-        <IconButton icon="settings" label="Configurações" onClick={onOpenSettings} />
+        <IconButton icon="settings" label="Configurações" onClick={() => onOpenSettings()} />
       </div>
     </div>
   );

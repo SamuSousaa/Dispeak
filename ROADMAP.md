@@ -152,6 +152,9 @@ passar e de um commit ser feito.
 - [x] Tópicos: conversas à parte penduradas num canal de texto, com as permissões dele
 - [x] Enquetes: uma ou várias respostas, votos ao vivo
 - [x] Sons ao começar e ao parar de assistir a uma transmissão
+- [x] Perfil: cartão com banner, cor, "sobre mim", status personalizado, cargos e data de entrada;
+      presença escolhida (disponível, ausente, não perturbe, invisível); nome de exibição, apelido
+      por servidor e troca de senha nas configurações. Sem e-mail: não há recuperação de senha.
 
 **Único serviço externo.** A busca de GIF depende da GIPHY e por isso é opcional: sem a chave o
 botão não aparece. Não é mídia nem tempo real, então não fere a regra de infraestrutura própria.

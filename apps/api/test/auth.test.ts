@@ -106,7 +106,7 @@ describe('authentication', () => {
     it('identifies the user', async () => {
       const account = await t.account('Alice');
       const response = await t.request('GET', '/users/@me', { token: account.token });
-      expect(response.json()).toEqual(account.user);
+      expect(response.json()).toEqual({ ...account.user, presence: 'online' });
     });
 
     it('is required and must be valid', async () => {

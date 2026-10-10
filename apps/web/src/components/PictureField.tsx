@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { describeError } from '../lib/http';
 import { squareImage } from '../lib/square-image';
 import { Avatar } from './Avatar';
@@ -9,8 +9,13 @@ interface PictureFieldProps {
   subject: string;
   name: string;
   picture: string | null;
-  /** Receives the picture already cut to a small square. */
+  /** Receives the picture already cut to size. */
   onChange: (image: Blob) => Promise<unknown>;
+  /** Cuts the chosen file to size; a small square unless told otherwise. */
+  prepare?: (file: Blob) => Promise<Blob>;
+  /** Shown instead of the square thumbnail. */
+  preview?: ReactNode;
+  hint?: string;
   onRemove: () => Promise<unknown>;
   testId: string;
 }
@@ -23,6 +28,9 @@ export function PictureField({
   onChange,
   onRemove,
   testId,
+  prepare = squareImage,
+  preview,
+  hint = 'Qualquer imagem serve: ela é cortada no centro, em quadrado, antes de ser enviada.',
 }: PictureFieldProps) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -47,7 +55,9 @@ export function PictureField({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-3">
-        <Avatar name={name} picture={picture} size={64} className="border border-line-strong" />
+        {preview ?? (
+          <Avatar name={name} picture={picture} size={64} className="border border-line-strong" />
+        )}
         <div className="flex flex-wrap gap-1.5">
           <input
             ref={input}
@@ -58,7 +68,7 @@ export function PictureField({
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = '';
-              if (file) void run(async () => onChange(await squareImage(file)));
+              if (file) void run(async () => onChange(await prepare(file)));
             }}
           />
           <Button
@@ -80,9 +90,7 @@ export function PictureField({
           )}
         </div>
       </div>
-      <p className="text-xs text-muted">
-        Qualquer imagem serve: ela é cortada no centro, em quadrado, antes de ser enviada.
-      </p>
+      <p className="text-xs text-muted">{hint}</p>
       {error && (
         <p role="alert" className="label text-danger">
           {error}

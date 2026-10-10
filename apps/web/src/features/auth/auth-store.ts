@@ -5,7 +5,7 @@ import {
   type AuthResponse,
   type LoginRequest,
   type RegisterRequest,
-  type User,
+  type Self,
 } from '@frequencia/shared';
 import { create } from 'zustand';
 
@@ -13,7 +13,7 @@ export type AuthStatus = 'loading' | 'anonymous' | 'authenticated';
 
 interface AuthState {
   status: AuthStatus;
-  user: User | null;
+  user: Self | null;
   /** Kept in memory only; the refresh token lives in an httpOnly cookie. */
   accessToken: string | null;
   /** Epoch milliseconds at which the access token expires. */

@@ -1,10 +1,8 @@
-import type { User } from '@frequencia/shared';
+import type { Guild, Self } from '@frequencia/shared';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '../../components/Button';
 import { Dialog, Field } from '../../components/Dialog';
-import { PictureField } from '../../components/PictureField';
 import { cx } from '../../lib/cx';
-import { profileApi } from '../auth/profile-api';
 import { SOUND_EVENTS, SOUND_LABELS, type SoundEvent } from '../sounds/sound-events';
 import {
   clearCustomSound,
@@ -22,6 +20,7 @@ import {
   type InputMode,
   type NoiseSuppressionMode,
 } from './settings-store';
+import { PasswordForm, ProfileTab } from './ProfileTab';
 
 const NOISE_OPTIONS: Array<{ value: NoiseSuppressionMode; label: string; hint: string }> = [
   {
@@ -46,7 +45,8 @@ const INPUT_OPTIONS: Array<{ value: InputMode; label: string; hint: string }> = 
   },
 ];
 
-type Tab = 'voice' | 'video' | 'chat' | 'sounds' | 'keys' | 'account';
+export type SettingsTab = 'profile' | 'voice' | 'video' | 'chat' | 'sounds' | 'keys' | 'account';
+type Tab = SettingsTab;
 
 const NOISE_NAMES: Record<NoiseSuppressionMode, string> = {
   rnnoise: 'RNNOISE',
@@ -360,10 +360,15 @@ function SoundRow({ event }: { event: SoundEvent }) {
 /** Personal settings docked to the right, one tab per subject. */
 export function SettingsPanel({
   user,
+  guild,
+  initialTab = 'voice',
   onSignOut,
   onClose,
 }: {
-  user: User;
+  user: Self;
+  /** The server on screen, for the nickname the user has in it. */
+  guild?: Guild;
+  initialTab?: SettingsTab;
   onSignOut: () => void;
   onClose: () => void;
 }) {
@@ -373,7 +378,7 @@ export function SettingsPanel({
   const activeNoise = useVoiceStore((state) => state.noiseSuppression);
   const cameraStatus = useVoiceStore((state) => state.camera.status);
   const devices = useAudioDevices(`${voiceStatus}:${micAvailable}:${cameraStatus}`);
-  const [tab, setTab] = useState<Tab>('voice');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [capturing, setCapturing] = useState<KeybindAction | null>(null);
 
   const namesHidden = devices.inputs.length > 0 && devices.inputs.every((device) => !device.label);
@@ -399,6 +404,7 @@ export function SettingsPanel({
   }, [capturing]);
 
   const tabs: Array<{ id: Tab; label: string }> = [
+    { id: 'profile', label: 'PERFIL' },
     { id: 'voice', label: 'VOZ' },
     { id: 'video', label: 'VÍDEO' },
     { id: 'chat', label: 'CHAT' },
@@ -431,7 +437,7 @@ export function SettingsPanel({
               setTab(entry.id);
             }}
             className={cx(
-              'label shrink-0 border-b-2 px-3 py-2.5 transition-colors',
+              'label shrink-0 border-b-2 px-2.5 py-2.5 transition-colors',
               tab === entry.id
                 ? 'border-accent text-accent'
                 : 'border-transparent text-muted hover:text-fg',
@@ -665,30 +671,25 @@ export function SettingsPanel({
         </Section>
       )}
 
+      {tab === 'profile' && <ProfileTab key={user.id} user={user} guild={guild} />}
+
       {tab === 'account' && (
-        <Section number="01" title="FOTO DE PERFIL">
-          <PictureField
-            subject="sua foto de perfil"
-            name={user.displayName}
-            picture={user.avatar}
-            testId="avatar-input"
-            onChange={profileApi.setAvatar}
-            onRemove={profileApi.clearAvatar}
-          />
-        </Section>
-      )}
-      {tab === 'account' && (
-        <Section number="02" title="CONTA">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="label-lg truncate text-fg">{user.displayName}</p>
-              <p className="label truncate text-muted">@{user.username}</p>
+        <>
+          <Section number="01" title="SENHA">
+            <PasswordForm onChanged={onSignOut} />
+          </Section>
+          <Section number="02" title="SESSÃO">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="label-lg truncate text-fg">{user.displayName}</p>
+                <p className="label truncate text-muted">@{user.username}</p>
+              </div>
+              <Button variant="danger" onClick={onSignOut}>
+                SAIR DA CONTA
+              </Button>
             </div>
-            <Button variant="danger" onClick={onSignOut}>
-              SAIR DA CONTA
-            </Button>
-          </div>
-        </Section>
+          </Section>
+        </>
       )}
     </Dialog>
   );

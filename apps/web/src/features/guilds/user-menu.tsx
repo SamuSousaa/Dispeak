@@ -2,9 +2,10 @@ import { hasPermission, outranks, Permissions, type Guild } from '@frequencia/sh
 import type { MouseEvent } from 'react';
 import { contextMenu, openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { attempt } from '../../components/Toast';
+import { ProfileCard } from '../profile/ProfileCard';
 import { volumeMenuEntries } from '../voice/components/VolumeControl';
 import { guildApi } from './guild-api';
-import { actorIn, memberName } from './permissions';
+import { actorIn, memberColor, memberName } from './permissions';
 
 export interface UserMenuContext {
   guild: Guild;
@@ -50,7 +51,31 @@ export function userMenuEntries(
   const above = outranks(actor, target);
   const inVoice = guild.voiceStates.some((state) => state.userId === targetId);
 
+  const online = guild.onlineUserIds.includes(targetId);
+  const roles = guild.roles
+    .filter((role) => role.id !== guild.id && member.roleIds.includes(role.id))
+    .sort((a, b) => b.position - a.position);
+
   return [
+    {
+      type: 'custom',
+      key: 'profile',
+      render: () => (
+        // Edge to edge inside the menu, which pads its custom entries.
+        <div className="-mx-3 -my-2">
+          <ProfileCard
+            user={member.user}
+            name={name}
+            presence={online ? member.user.status : 'offline'}
+            nameColor={memberColor(guild, targetId)}
+            roles={roles}
+            memberSince={member.joinedAt}
+            isOwner={guild.ownerId === targetId}
+          />
+        </div>
+      ),
+    },
+    { type: 'separator' },
     ...(isSelf ? [] : volumeMenuEntries(targetId, name)),
     { type: 'separator' },
     can(Permissions.MuteMembers) &&
@@ -109,7 +134,7 @@ export function userMenu(context: UserMenuContext) {
   const title = memberName(context.guild, context.targetId);
   // The long press has no pointer position to hand over; the menu itself reads it from the store.
   let last = { x: 0, y: 0 };
-  const handlers = contextMenu(title, () => userMenuEntries(context, last));
+  const handlers = contextMenu(title, () => userMenuEntries(context, last), { wide: true });
   return {
     ...handlers,
     onContextMenu: (event: MouseEvent) => {
@@ -126,7 +151,7 @@ export function userMenu(context: UserMenuContext) {
       const control = (event.target as HTMLElement).closest('button, a');
       if (control && control !== event.currentTarget) return;
       last = { x: event.clientX, y: event.clientY };
-      openContextMenu(last, title, userMenuEntries(context, last));
+      openContextMenu(last, title, userMenuEntries(context, last), { wide: true });
     },
   };
 }

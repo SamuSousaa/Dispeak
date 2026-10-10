@@ -22,6 +22,7 @@ import { schema, type Database } from '../../db/client';
 import { badRequest, forbidden, notFound } from '../../errors';
 import type { GatewayBus } from '../../gateway/bus';
 import { cleanFilename } from '../../lib/filename';
+import { publicUserColumns, toPublicUser, type PublicUserRow } from '../../lib/user';
 import { uuidv7 } from '../../lib/ids';
 import { sniffImage } from '../../lib/image';
 import {
@@ -47,22 +48,11 @@ const {
 
 type MessageRow = typeof messages.$inferSelect;
 type AttachmentRow = typeof attachments.$inferSelect;
-type AuthorRow = Pick<typeof users.$inferSelect, 'id' | 'username' | 'displayName' | 'avatarId'>;
+type AuthorRow = PublicUserRow;
 type MessageWithAuthor = { message: MessageRow; author: AuthorRow };
 
-const authorColumns = {
-  id: users.id,
-  username: users.username,
-  displayName: users.displayName,
-  avatarId: users.avatarId,
-};
-
-const toAuthor = (author: AuthorRow) => ({
-  id: author.id,
-  username: author.username,
-  displayName: author.displayName,
-  avatar: author.avatarId,
-});
+const authorColumns = publicUserColumns;
+const toAuthor = toPublicUser;
 
 /** An upload must be used in a message within this time, or it is discarded. */
 const UNATTACHED_TTL_MS = 60 * 60 * 1000;
@@ -680,12 +670,7 @@ export class MessageService {
   private authorOf(snapshot: GuildSnapshot, userId: string): AuthorRow {
     const member = snapshot.members.get(userId);
     if (!member) throw notFound('member');
-    return {
-      id: member.userId,
-      username: member.username,
-      displayName: member.displayName,
-      avatarId: member.avatarId,
-    };
+    return member.row;
   }
 }
 

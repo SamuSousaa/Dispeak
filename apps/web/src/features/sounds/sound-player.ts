@@ -1,3 +1,4 @@
+import { useAuthStore } from '../auth/auth-store';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { guildApi } from '../guilds/guild-api';
 import { updateSettings, useSettingsStore } from '../settings/settings-store';
@@ -140,6 +141,8 @@ export function startVoiceSounds(): () => void {
     const settings = useSettingsStore.getState();
     // Deafened means no sound at all; leaving resets that flag, so the leave sound still plays.
     if (!settings.soundsEnabled || next.deafened) return;
+    // "Do not disturb" means it.
+    if (useAuthStore.getState().user?.presence === 'dnd') return;
     // Leaving clears the channel from the state, so the previous one is consulted as well.
     const guildId = guildOfChannel(next.channelId ?? previous.channelId);
     for (const event of soundEventsFor(previous, next)) {

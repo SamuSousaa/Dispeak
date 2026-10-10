@@ -47,7 +47,7 @@ describe('gateway', () => {
       expect(hello.d).toEqual({ heartbeatInterval: 30_000 });
 
       const ready = await client.identify(account.token);
-      expect(ready.user).toEqual(account.user);
+      expect(ready.user).toEqual({ ...account.user, presence: 'online' });
       expect(ready.sessionId).toMatch(/^[0-9a-f-]{36}$/);
       expect(ready.guilds).toHaveLength(1);
       expect(ready.guilds[0]).toMatchObject({

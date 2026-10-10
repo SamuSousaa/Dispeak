@@ -4,6 +4,7 @@ import { Icon } from '../../components/Icon';
 import { cx } from '../../lib/cx';
 import { highestRole, memberColor } from '../guilds/permissions';
 import { userMenu } from '../guilds/user-menu';
+import { StatusMark } from '../profile/ProfileCard';
 
 interface RowProps {
   guild: Guild;
@@ -27,17 +28,30 @@ function Row({ guild, member, online, userId, onManageMembers }: RowProps) {
         {...userMenu({ guild, targetId: member.user.id, selfId: userId, onManageMembers })}
       >
         <span className="flex min-w-0 items-center gap-2">
-          <Avatar
-            name={name}
-            picture={member.user.avatar}
-            size={24}
-            className={cx(!online && 'opacity-50')}
-          />
-          <span
-            className={cx('label-lg truncate', online ? 'text-fg' : 'text-muted')}
-            style={color ? { color } : undefined}
-          >
-            {name}
+          <span className="relative shrink-0">
+            <Avatar
+              name={name}
+              picture={member.user.avatar}
+              size={28}
+              className={cx(!online && 'opacity-50')}
+            />
+            <StatusMark
+              presence={online ? member.user.status : 'offline'}
+              className="absolute -right-0.5 -bottom-0.5 h-2 w-2"
+            />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span
+              className={cx('label-lg truncate', online ? 'text-fg' : 'text-muted')}
+              style={color ? { color } : undefined}
+            >
+              {name}
+            </span>
+            {online && member.user.customStatus && (
+              <span className="truncate text-xs text-muted" data-testid="member-status">
+                {member.user.customStatus}
+              </span>
+            )}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-1.5 text-muted">

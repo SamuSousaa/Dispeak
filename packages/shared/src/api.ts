@@ -27,8 +27,50 @@ export const userSchema = z.object({
   displayName: z.string(),
   /** Id of the profile picture, served at `/images/:id`; a new id for every upload. */
   avatar: idSchema.nullable(),
+  /** Id of the wide picture on top of the profile card. */
+  banner: idSchema.nullable(),
+  /** "About me". */
+  bio: z.string().nullable(),
+  /** A line the user wrote about what they are up to. */
+  customStatus: z.string().nullable(),
+  /** `#rrggbb` that tints the profile card. */
+  accentColor: z.string().nullable(),
+  /** How the user wants to be seen while online. Who is online at all is a separate list. */
+  status: z.enum(['online', 'idle', 'dnd']),
 });
 export type User = z.infer<typeof userSchema>;
+
+/** What the user picks; `invisible` shows them as offline to everyone else. */
+export const presenceModeSchema = z.enum(['online', 'idle', 'dnd', 'invisible']);
+export type PresenceMode = z.infer<typeof presenceModeSchema>;
+
+/** The signed-in user, with what only they are told. */
+export const selfSchema = userSchema.extend({ presence: presenceModeSchema });
+export type Self = z.infer<typeof selfSchema>;
+
+export const BIO_MAX_LENGTH = 190;
+export const CUSTOM_STATUS_MAX_LENGTH = 80;
+/** Side of the banner clients send, in pixels (width x height). */
+export const BANNER_SIZE = { width: 680, height: 240 } as const;
+
+export const updateProfileRequestSchema = z
+  .object({
+    displayName: displayNameSchema,
+    bio: z.string().trim().max(BIO_MAX_LENGTH).nullable(),
+    customStatus: z.string().trim().max(CUSTOM_STATUS_MAX_LENGTH).nullable(),
+    accentColor: z
+      .string()
+      .regex(/^#[0-9a-f]{6}$/i)
+      .nullable(),
+    presence: presenceModeSchema,
+  })
+  .partial();
+export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
+
+export const changePasswordRequestSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: passwordSchema,
+});
 
 // --- auth -----------------------------------------------------------------------------------
 
@@ -49,7 +91,7 @@ export const authResponseSchema = z.object({
   accessToken: z.string(),
   /** Seconds until the access token expires. */
   expiresIn: z.number().int(),
-  user: userSchema,
+  user: selfSchema,
 });
 export type AuthResponse = z.infer<typeof authResponseSchema>;
 
