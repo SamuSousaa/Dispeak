@@ -70,7 +70,7 @@ export class VoiceAccess {
     }
 
     const grant: Grant = {
-      speak: hasPermission(permissions, Permissions.Speak),
+      speak: hasPermission(permissions, Permissions.Speak) && !member.serverMuted,
       stream: hasPermission(permissions, Permissions.Stream),
     };
     await this.deps.redis.set(
@@ -109,15 +109,28 @@ export class VoiceAccess {
         }
         const raw = await this.deps.redis.get(grantKey(entry.channelId, entry.userId));
         const grant = raw ? (JSON.parse(raw) as Grant) : null;
+        const speak =
+          hasPermission(permissions, Permissions.Speak) &&
+          !snapshot.members.get(entry.userId)?.serverMuted;
         if (
           grant &&
-          (grant.speak !== hasPermission(permissions, Permissions.Speak) ||
-            grant.stream !== hasPermission(permissions, Permissions.Stream))
+          (grant.speak !== speak || grant.stream !== hasPermission(permissions, Permissions.Stream))
         ) {
           await this.disconnect(entry.userId, entry.channelId, 'permissions');
         }
       }),
     );
+  }
+
+  /** Takes a user out of whatever voice channel of the guild they are in. They may rejoin. */
+  async kick(guildId: string, userId: string): Promise<boolean> {
+    const snapshot = await loadGuildSnapshot(this.deps.db, guildId);
+    if (!snapshot) return false;
+    const voiceChannels = [...snapshot.channels.values()].filter((c) => c.type === 'voice');
+    const entries = await this.deps.voiceStates.listChannels(voiceChannels.map((c) => c.id));
+    const mine = entries.filter((entry) => entry.userId === userId);
+    await Promise.all(mine.map((entry) => this.disconnect(userId, entry.channelId, 'kicked')));
+    return mine.length > 0;
   }
 
   /** The channel is gone: close its room and forget who was in it. */

@@ -43,6 +43,13 @@
       "when": 1791655363309,
       "tag": "0005_avatars_and_icons",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791661748548,
+      "tag": "0006_moderation_and_role_colors",
+      "breakpoints": true
     }
   ]
 }

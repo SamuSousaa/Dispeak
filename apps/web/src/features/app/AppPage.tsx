@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { ContextMenuHost } from '../../components/ContextMenu';
+import { ToastHost } from '../../components/Toast';
 import { cx } from '../../lib/cx';
 import { logout, useAuthStore } from '../auth/auth-store';
 import { releaseAttachmentUrls } from '../chat/Attachments';
@@ -21,13 +22,11 @@ import { notifyMention } from '../unread/notify';
 import { applyUnreadEvent, useUnreadTitle } from '../unread/unread-store';
 import { useVoiceShortcuts } from '../voice/use-voice-shortcuts';
 import { leaveVoice } from '../voice/voice-actions';
-import { useVoiceStore } from '../voice/voice-store';
 import { ChannelPanel } from './ChannelPanel';
 import { MemberList } from './MemberList';
 import { ServerRail } from './ServerRail';
 import { SystemBar } from './SystemBar';
 import { TextChannelView } from './TextChannelView';
-import { rememberTextChannel, toggleSideChat, useUiStore } from './ui-store';
 import { UserPanel } from './UserPanel';
 import { VoiceChannelView } from './VoiceChannelView';
 
@@ -55,9 +54,6 @@ export function AppPage() {
   const order = useGatewayStore((state) => state.guildOrder);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
-
-  const sideChatOpen = useUiStore((state) => state.sideChatOpen);
-  const voiceChannelId = useVoiceStore((state) => state.channelId);
 
   useVoiceShortcuts();
   useUnreadTitle();
@@ -98,11 +94,6 @@ export function AppPage() {
   const numbered = groups.flatMap((group) => group.channels);
   const current = numbered.find((entry) => entry.channel.id === channelId);
   const hasLoaded = status === 'ready' || order.length > 0;
-
-  const currentChannel = current?.channel;
-  useEffect(() => {
-    if (guildId && currentChannel?.type === 'text') rememberTextChannel(guildId, currentChannel.id);
-  }, [guildId, currentChannel?.id, currentChannel?.type]);
 
   // Keep the URL pointing at something that exists (guilds and channels come and go).
   useEffect(() => {
@@ -164,6 +155,7 @@ export function AppPage() {
                   setDialog({ kind: 'channel-settings', channelId: channel.id })
                 }
                 onNavigate={() => setDrawer(null)}
+                onManageMembers={() => setDialog({ kind: 'guild-settings', tab: 'members' })}
               />
             ) : (
               <div className="flex-1" />
@@ -196,31 +188,15 @@ export function AppPage() {
             ) : (
               <span className="label-lg text-muted">FREQUÊNCIA</span>
             )}
-            <div className="ml-auto flex shrink-0 items-center gap-3">
-              {current?.channel.type === 'voice' && voiceChannelId === current.channel.id && (
-                <button
-                  type="button"
-                  aria-pressed={sideChatOpen}
-                  title="Abrir um canal de texto ao lado da chamada"
-                  className={cx(
-                    'label transition-colors hover:text-accent',
-                    sideChatOpen ? 'text-accent' : 'text-muted',
-                  )}
-                  onClick={toggleSideChat}
-                >
-                  [ CHAT ]
-                </button>
-              )}
-              {guild && (
-                <button
-                  type="button"
-                  className="label text-muted transition-colors hover:text-accent lg:hidden"
-                  onClick={() => setDrawer('members')}
-                >
-                  [ MEMBROS ]
-                </button>
-              )}
-            </div>
+            {guild && (
+              <button
+                type="button"
+                className="label ml-auto shrink-0 text-muted transition-colors hover:text-accent lg:hidden"
+                onClick={() => setDrawer('members')}
+              >
+                [ MEMBROS ]
+              </button>
+            )}
           </header>
 
           <div className="min-h-0 flex-1">
@@ -255,6 +231,7 @@ export function AppPage() {
                 guild={guild}
                 channel={current.channel}
                 userId={user.id}
+                onManageMembers={() => setDialog({ kind: 'guild-settings', tab: 'members' })}
               />
             ) : (
               <TextChannelView
@@ -285,6 +262,7 @@ export function AppPage() {
 
       <SystemBar />
       <ContextMenuHost />
+      <ToastHost />
 
       {dialog?.kind === 'add-guild' && <AddGuildDialog onClose={closeDialog} />}
       {dialog?.kind === 'settings' && (

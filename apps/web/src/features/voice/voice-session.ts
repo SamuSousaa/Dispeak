@@ -839,6 +839,8 @@ export class VoiceSession {
         appData: { source: 'mic' satisfies ProducerSource },
       });
       this.micProducer = producer;
+      // After a server mute is lifted the same session is allowed to publish again.
+      if (!get().micAvailable) set({ micAvailable: true });
       this.gateMicrophone();
       producer.on('transportclose', () => {
         if (this.micProducer === producer) this.micProducer = null;

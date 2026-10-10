@@ -108,6 +108,7 @@ export class MessageService {
       Permissions.SendMessages,
     );
     const ids = [...new Set(attachmentIds)];
+    if (ids.length > 0 && !hasPermission(permissions, Permissions.AttachFiles)) throw forbidden();
     const repliedAuthorId = replyToId ? await this.authorOfReply(replyToId, channelId) : null;
     if (replyToId && !repliedAuthorId) throw badRequest('unknown message to reply to');
 
@@ -229,7 +230,7 @@ export class MessageService {
   /** Anyone who can see the channel may react; a message takes a limited variety of emojis. */
   async react(userId: string, messageId: string, emoji: string): Promise<Message> {
     const existing = await this.find(messageId);
-    const { snapshot } = await this.access(userId, existing.channelId, Permissions.ViewChannel);
+    const { snapshot } = await this.access(userId, existing.channelId, Permissions.AddReactions);
     const used = await this.db
       .selectDistinct({ emoji: messageReactions.emoji })
       .from(messageReactions)
@@ -353,7 +354,7 @@ export class MessageService {
     filename: string,
     data: Buffer,
   ): Promise<Attachment> {
-    await this.access(userId, channelId, Permissions.SendMessages);
+    await this.access(userId, channelId, Permissions.SendMessages | Permissions.AttachFiles);
     if (data.length === 0 || data.length > ATTACHMENT_MAX_BYTES) {
       throw badRequest('attachment is empty or too large');
     }
@@ -404,13 +405,23 @@ export class MessageService {
 
   /** Drops uploads that were never used and files left behind by deleted channels or guilds. */
   async sweepAttachments(now: Date = new Date()): Promise<void> {
+    await this.sweepUnusedUploads(now);
+    await this.sweepOrphanFiles(now);
+  }
+
+  /** Uploads that never made it into a message. */
+  async sweepUnusedUploads(now: Date = new Date()): Promise<void> {
     const cutoff = new Date(now.getTime() - UNATTACHED_TTL_MS);
     const abandoned = await this.db
       .delete(attachments)
       .where(and(isNull(attachments.messageId), lt(attachments.createdAt, cutoff)))
       .returning({ id: attachments.id });
     await this.files.remove(abandoned.map((row) => row.id));
+  }
 
+  /** Files whose row is gone, because their message, channel or guild was deleted. */
+  async sweepOrphanFiles(now: Date = new Date()): Promise<void> {
+    const cutoff = new Date(now.getTime() - UNATTACHED_TTL_MS);
     const stored = await this.files.list(cutoff);
     for (let index = 0; index < stored.length; index += 500) {
       const batch = stored.slice(index, index + 500);
@@ -435,7 +446,8 @@ export class MessageService {
     if (!row || !snapshot || !canViewChannel(snapshot, userId, channelId)) {
       throw notFound('channel');
     }
-    if (row.type !== 'text') throw notFound('text channel');
+    // Voice channels carry a text chat of their own; categories hold no messages.
+    if (row.type === 'category') throw notFound('text channel');
     const permissions = channelPermissionsOf(snapshot, userId, channelId);
     if (!hasPermission(permissions, permission)) throw forbidden();
     return { snapshot, permissions };

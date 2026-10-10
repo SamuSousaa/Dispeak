@@ -82,6 +82,8 @@ export const channelSchema = z.object({
 });
 export type Channel = z.infer<typeof channelSchema>;
 
+export const roleColorSchema = z.string().regex(/^#[0-9a-f]{6}$/i);
+
 export const roleSchema = z.object({
   /** The @everyone role shares its id with the guild. */
   id: idSchema,
@@ -90,6 +92,8 @@ export const roleSchema = z.object({
   permissions: permissionBitsSchema,
   /** Rank in the hierarchy; higher outranks lower, @everyone is 0. */
   position: z.number().int(),
+  /** `#rrggbb` shown on the names of its members; `null` leaves them plain. */
+  color: roleColorSchema.nullable(),
 });
 export type Role = z.infer<typeof roleSchema>;
 
@@ -99,6 +103,8 @@ export const memberSchema = z.object({
   /** Roles besides @everyone. */
   roleIds: z.array(idSchema),
   joinedAt: z.iso.datetime(),
+  /** Silenced by a moderator: cannot send their microphone in any voice channel of the guild. */
+  serverMuted: z.boolean(),
 });
 export type Member = z.infer<typeof memberSchema>;
 
@@ -211,11 +217,16 @@ const roleNameSchema = z.string().trim().min(1).max(32);
 export const createRoleRequestSchema = z.object({
   name: roleNameSchema,
   permissions: permissionBitsSchema.default('0'),
+  color: roleColorSchema.nullable().default(null),
 });
 export type CreateRoleRequest = z.input<typeof createRoleRequestSchema>;
 
 export const updateRoleRequestSchema = z
-  .object({ name: roleNameSchema, permissions: permissionBitsSchema })
+  .object({
+    name: roleNameSchema,
+    permissions: permissionBitsSchema,
+    color: roleColorSchema.nullable(),
+  })
   .partial();
 export type UpdateRoleRequest = z.input<typeof updateRoleRequestSchema>;
 
@@ -228,9 +239,22 @@ export const updateMemberRequestSchema = z
   .object({
     roleIds: z.array(idSchema).max(250),
     nickname: z.string().trim().min(1).max(32).nullable(),
+    /** MUTE_MEMBERS: silences the member's microphone in the guild's voice channels. */
+    serverMuted: z.boolean(),
   })
   .partial();
 export type UpdateMemberRequest = z.input<typeof updateMemberRequestSchema>;
+
+// --- bans -----------------------------------------------------------------------------------
+
+/** Someone removed from a guild who cannot come back with an invite. */
+export const banSchema = z.object({
+  user: userSchema,
+  /** Who banned them. */
+  bannedBy: idSchema,
+  createdAt: z.iso.datetime(),
+});
+export type Ban = z.infer<typeof banSchema>;
 
 // --- invites --------------------------------------------------------------------------------
 
@@ -472,6 +496,7 @@ export const ApiErrorCode = {
   Conflict: 'conflict',
   UsernameTaken: 'username_taken',
   InviteInvalid: 'invite_invalid',
+  Banned: 'banned',
   RateLimited: 'rate_limited',
   MediaUnavailable: 'media_unavailable',
   Internal: 'internal_error',

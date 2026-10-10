@@ -88,12 +88,12 @@ describe('messages', () => {
       expect((await send(member, channelId, 'x'.repeat(2000))).statusCode).toBe(201);
     });
 
-    it('requires membership, visibility, SEND_MESSAGES and a text channel', async () => {
+    it('requires membership, visibility, SEND_MESSAGES and a channel that holds messages', async () => {
       const { guild, channelId } = await scenario();
-      const voice = guild.channels.find((channel) => channel.type === 'voice');
+      const category = guild.channels.find((channel) => channel.type === 'category');
 
       expect((await send(outsider, channelId, 'oi')).statusCode).toBe(404);
-      expect((await send(member, voice?.id ?? '', 'oi')).statusCode).toBe(404);
+      expect((await send(member, category?.id ?? '', 'oi')).statusCode).toBe(404);
 
       // Read-only channel: members can still read but not write.
       await t.request('PUT', `/channels/${channelId}/overwrites/${guild.id}`, {

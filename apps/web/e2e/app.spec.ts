@@ -114,7 +114,8 @@ test('account → server → invite → voice channel → stream, with permissio
 
   // --- Right click on a person: their volume, for this user only ---------------------------
   const brunoTile = alice.page.getByTestId('participant').filter({ hasText: 'Bruno' });
-  await voiceMembers(alice.page).filter({ hasText: 'Bruno' }).click({ button: 'right' });
+  // A plain click on the name opens the same menu as a right click.
+  await voiceMembers(alice.page).filter({ hasText: 'Bruno' }).click();
   await expect(alice.page.getByTestId('context-menu')).toContainText('VOLUME PARA MIM — 100%');
   await alice.page.getByRole('menuitem', { name: 'Silenciar para mim' }).click();
   await expect(brunoTile.getByTestId('volume-note')).toHaveText('SILENCIADO');
@@ -122,15 +123,40 @@ test('account → server → invite → voice channel → stream, with permissio
   await alice.page.getByRole('menuitem', { name: 'Voltar a ouvir' }).click();
   await expect(brunoTile.getByTestId('volume-note')).toHaveCount(0);
 
-  // --- A text channel next to the call ------------------------------------------------------
-  await alice.page.getByRole('button', { name: '[ CHAT ]' }).click();
+  // --- The voice channel has a chat of its own, opened next to the call ---------------------
+  await alice.page.getByTestId('voice-chat-toggle').click();
   const sideChat = alice.page.getByTestId('side-chat');
-  await sideChat.getByRole('textbox', { name: /^Mensagem em/ }).fill('do lado da chamada');
-  await sideChat.getByRole('textbox', { name: /^Mensagem em/ }).press('Enter');
+  await expect(sideChat).toContainText('CHAT DE Geral');
+  await sideChat.getByRole('textbox', { name: 'Mensagem em Geral' }).fill('do lado da chamada');
+  await sideChat.getByRole('textbox', { name: 'Mensagem em Geral' }).press('Enter');
   await expect(sideChat.getByTestId('message').last()).toContainText('do lado da chamada');
   await expect(alice.page.getByTestId('participant')).toHaveCount(2);
+  // Bruno has it closed: the button tells him something arrived, and opening it shows the message.
+  await expect(bruno.page.getByTestId('voice-chat-toggle')).toContainText('1');
+  await bruno.page.getByTestId('voice-chat-toggle').click();
+  await expect(bruno.page.getByTestId('side-chat').getByTestId('message').last()).toContainText(
+    'do lado da chamada',
+  );
+  await bruno.page.getByTestId('side-chat').getByRole('button', { name: 'Fechar chat' }).click();
   await sideChat.getByRole('button', { name: 'Fechar chat' }).click();
   await expect(sideChat).toHaveCount(0);
+
+  // --- The participants share the whole stage -------------------------------------------------
+  const stage = await alice.page.getByTestId('participant-grid').boundingBox();
+  const tile = await alice.page.getByTestId('participant').first().boundingBox();
+  // Two people side by side: each tile takes close to half of the width.
+  expect((tile?.width ?? 0) * 2).toBeGreaterThan((stage?.width ?? 0) * 0.85);
+
+  // --- Categories fold away, keeping the channel the user is in -------------------------------
+  const channelList = alice.page.getByRole('navigation', { name: 'Canais' });
+  await expect(channelList.getByRole('link', { name: /geral/ })).toHaveCount(1);
+  await channelList.getByTestId('category-toggle').first().click();
+  await expect(channelList.getByRole('link', { name: /geral/ })).toHaveCount(0);
+  await channelList.getByTestId('category-toggle').last().click();
+  await expect(channelList.getByRole('link', { name: /Geral/ })).toHaveCount(1);
+  await channelList.getByTestId('category-toggle').first().click();
+  await channelList.getByTestId('category-toggle').last().click();
+  await expect(channelList.getByRole('link', { name: /geral/ })).toHaveCount(1);
 
   // --- Quick settings: RNNoise is really running, and shortcuts can be rebound ---------------
   await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
@@ -222,6 +248,34 @@ test('account → server → invite → voice channel → stream, with permissio
   await expect(
     alice.page.getByTestId('participant').filter({ hasText: 'Bruno' }).getByTestId('avatar'),
   ).toHaveAttribute('data-picture', 'true');
+
+  // --- Moderation from the same menu: server mute, then out of the call ---------------------
+  await brunoTile.click();
+  await alice.page.getByRole('menuitem', { name: 'Mutar no servidor' }).click();
+  await expect(bruno.page.getByTestId('mic-status')).toHaveText(
+    'MUTADO NO SERVIDOR — SOMENTE ESCUTA',
+  );
+  await expect(brunoTile).toContainText('MUTADO NO SERVIDOR');
+  // Bruno has no such item in anyone's menu, his own included.
+  await bruno.page.getByTestId('participant').filter({ hasText: 'Alice' }).click();
+  await expect(bruno.page.getByTestId('context-menu')).toContainText('VOLUME PARA MIM');
+  await expect(bruno.page.getByRole('menuitem', { name: /Mutar no servidor|Banir/ })).toHaveCount(
+    0,
+  );
+  await bruno.page.keyboard.press('Escape');
+  await brunoMember.click();
+  await alice.page.getByRole('menuitem', { name: 'Devolver o microfone' }).click();
+  await expect(bruno.page.getByTestId('mic-status')).toHaveCount(0);
+  await expect(bruno.page.getByTestId('voice-status')).toHaveText('CONECTADO');
+  await expect(alice.page.getByTestId('participant')).toHaveCount(2);
+
+  await brunoTile.click();
+  await alice.page.getByRole('menuitem', { name: 'Desconectar da chamada' }).click();
+  await expect(bruno.page.getByRole('alert')).toHaveText('Você foi removido do canal.');
+  await expect(alice.page.getByTestId('participant')).toHaveCount(1);
+  await bruno.page.getByRole('button', { name: 'ENTRAR NO CANAL' }).click();
+  await expect(bruno.page.getByTestId('voice-status')).toHaveText('CONECTADO');
+  await expect(alice.page.getByTestId('participant')).toHaveCount(2);
 
   // --- The owner picks a sound for the whole server; members download and play it -----------
   await alice.page.getByTestId('server-menu').click();
@@ -391,9 +445,10 @@ test('a kicked member loses the server immediately', async ({ browser }) => {
   await guest.page.getByTestId('server-menu').click();
   await expect(guest.page.getByRole('menuitem', { name: /CRIAR CANAL/ })).toBeVisible();
   await guest.page.keyboard.press('Escape');
-  await expect(guest.page.getByTestId('member').filter({ hasText: 'Visita' })).toContainText(
-    'Moderador',
-  );
+  // The member list groups whoever is online under their highest role.
+  await expect(
+    guest.page.getByTestId('member-group').filter({ hasText: 'Moderador' }).getByTestId('member'),
+  ).toHaveText([/Visita$/]);
 
   await guestRow.getByRole('button', { name: 'EXPULSAR' }).click();
   await expect(guest.page.getByRole('heading', { name: 'Nenhum servidor ainda' })).toBeVisible();

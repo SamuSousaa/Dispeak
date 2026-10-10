@@ -11,6 +11,7 @@ import { Button } from '../../../components/Button';
 import { Dialog, Field, FormError } from '../../../components/Dialog';
 import { cx } from '../../../lib/cx';
 import { describeError } from '../../../lib/http';
+import { isAllowedIn, isPrivate, setAllowedIn, setPrivate } from '../channel-privacy';
 import { guildApi } from '../guild-api';
 import { PERMISSION_INFO } from '../permission-labels';
 import { channelPermissions, memberName } from '../permissions';
@@ -91,6 +92,7 @@ export function ChannelSettingsDialog({
   };
 
   const kind = channel.type === 'category' ? 'categoria' : 'canal';
+  const hidden = isPrivate(guild, channel);
 
   return (
     <Dialog
@@ -127,6 +129,71 @@ export function ChannelSettingsDialog({
               </Button>
             </div>
           </form>
+        )}
+
+        {canEditPermissions && (
+          <section className="flex flex-col gap-3 p-4" data-testid="privacy">
+            <h3 className="label text-muted">PRIVACIDADE</h3>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-(--accent)"
+                checked={hidden}
+                disabled={busy}
+                onChange={(event) =>
+                  void run(() => setPrivate(guild, channel, userId, event.target.checked))
+                }
+              />
+              <span className="flex min-w-0 flex-col">
+                <span className="label text-fg">
+                  {kind === 'categoria' ? 'CATEGORIA PRIVADA' : 'CANAL PRIVADO'}
+                </span>
+                <span className="text-xs text-muted">
+                  Some da lista para todo mundo, menos para o dono, os administradores e quem você
+                  marcar abaixo.
+                </span>
+              </span>
+            </label>
+            {hidden && (
+              <div className="flex flex-col gap-2">
+                <p className="label text-muted">QUEM PODE VER</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    ...guild.roles
+                      .filter((role) => role.id !== guild.id)
+                      .map((role) => ({ id: role.id, label: role.name, color: role.color })),
+                    ...guild.members
+                      .filter((member) => member.user.id !== guild.ownerId)
+                      .map((member) => ({
+                        id: member.user.id,
+                        label: `@${memberName(guild, member.user.id)}`,
+                        color: null,
+                      })),
+                  ].map((target) => {
+                    const allowed = isAllowedIn(channel, target.id);
+                    return (
+                      <button
+                        key={target.id}
+                        type="button"
+                        aria-pressed={allowed}
+                        disabled={busy}
+                        onClick={() =>
+                          void run(() => setAllowedIn(guild, channel, target.id, !allowed))
+                        }
+                        style={allowed && target.color ? { color: target.color } : undefined}
+                        className={cx(
+                          'label border px-2 py-0.5 transition-colors hover:border-accent',
+                          allowed ? 'border-accent text-accent' : 'border-line-strong text-muted',
+                        )}
+                      >
+                        {target.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
         )}
 
         {canEditPermissions && (

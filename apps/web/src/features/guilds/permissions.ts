@@ -6,8 +6,10 @@ import {
   type Channel,
   type Guild,
   type HierarchyActor,
+  type Member,
   type Overwrite,
   type PermissionOverwrite,
+  type Role,
 } from '@frequencia/shared';
 
 /**
@@ -59,6 +61,24 @@ export function channelPermissions(guild: Guild, channel: Channel, userId: strin
 export function memberName(guild: Guild, userId: string): string {
   const member = guild.members.find((entry) => entry.user.id === userId);
   return member?.nickname ?? member?.user.displayName ?? 'desconhecido';
+}
+
+/** The highest-ranked role a member holds, @everyone aside. */
+export function highestRole(guild: Guild, member: Member): Role | undefined {
+  return guild.roles
+    .filter((role) => role.id !== guild.id && member.roleIds.includes(role.id))
+    .sort((a, b) => b.position - a.position)[0];
+}
+
+/** Colour of a member's name: that of their highest role that has one. */
+export function memberColor(guild: Guild, userId: string): string | undefined {
+  const member = guild.members.find((entry) => entry.user.id === userId);
+  if (!member) return undefined;
+  return (
+    guild.roles
+      .filter((role) => role.color && member.roleIds.includes(role.id))
+      .sort((a, b) => b.position - a.position)[0]?.color ?? undefined
+  );
 }
 
 export interface ChannelGroup {

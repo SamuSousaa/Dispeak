@@ -1,4 +1,5 @@
 import {
+  banSchema,
   channelSchema,
   guildSchema,
   guildSoundSchema,
@@ -48,6 +49,11 @@ export const guildApi = {
     apiBlob(`/guilds/${guildId}/sounds/${event}`),
 
   kick: (guildId: string, userId: string) => api('DELETE', `/guilds/${guildId}/members/${userId}`),
+  disconnectFromVoice: (guildId: string, userId: string) =>
+    api('DELETE', `/guilds/${guildId}/voice-states/${userId}`),
+  bans: (guildId: string) => api('GET', `/guilds/${guildId}/bans`, { schema: z.array(banSchema) }),
+  ban: (guildId: string, userId: string) => api('PUT', `/guilds/${guildId}/bans/${userId}`),
+  unban: (guildId: string, userId: string) => api('DELETE', `/guilds/${guildId}/bans/${userId}`),
   updateMember: (guildId: string, userId: string, body: UpdateMemberRequest) =>
     api('PATCH', `/guilds/${guildId}/members/${userId}`, { body, schema: memberSchema }),
 

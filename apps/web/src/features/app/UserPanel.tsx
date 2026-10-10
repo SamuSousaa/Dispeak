@@ -40,6 +40,9 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
   );
   const channel = guild?.channels.find((entry) => entry.id === channelId);
 
+  const serverMuted =
+    guild?.members.find((member) => member.user.id === user.id)?.serverMuted ?? false;
+
   const inVoice = status === 'connected' || status === 'reconnecting' || status === 'connecting';
   const live = status === 'connected' || status === 'reconnecting';
   const canStream =
@@ -126,8 +129,8 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
               </p>
             )}
             {!micAvailable && (
-              <p role="status" className="label mt-1.5 text-danger">
-                SEM MICROFONE — SOMENTE ESCUTA
+              <p role="status" className="label mt-1.5 text-danger" data-testid="mic-status">
+                {serverMuted ? 'MUTADO NO SERVIDOR — ' : 'SEM MICROFONE — '}SOMENTE ESCUTA
               </p>
             )}
           </div>

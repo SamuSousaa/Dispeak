@@ -27,6 +27,14 @@ export const Permissions = {
   ManageGuild: 1n << 11n,
   /** Every permission, and immunity to channel overwrites. */
   Administrator: 1n << 12n,
+  /** Send images along with messages. */
+  AttachFiles: 1n << 13n,
+  AddReactions: 1n << 14n,
+  /** Silence other members' microphones in voice channels. */
+  MuteMembers: 1n << 15n,
+  /** Take other members out of a voice channel. */
+  DisconnectMembers: 1n << 16n,
+  BanMembers: 1n << 17n,
 } as const;
 
 export type PermissionName = keyof typeof Permissions;
@@ -42,7 +50,9 @@ export const DEFAULT_EVERYONE_PERMISSIONS =
   Permissions.Connect |
   Permissions.Speak |
   Permissions.Stream |
-  Permissions.CreateInvite;
+  Permissions.CreateInvite |
+  Permissions.AttachFiles |
+  Permissions.AddReactions;
 
 /** Permissions that only make sense inside a voice channel. */
 const VOICE_ONLY = Permissions.Speak | Permissions.Stream;
@@ -176,6 +186,7 @@ export function computeChannelPermissions(input: ChannelPermissionInput): bigint
   permissions &= ~Permissions.Administrator;
 
   if (!hasPermission(permissions, Permissions.ViewChannel)) return 0n;
+  // Voice channels have a text chat of their own, so the text permissions apply there too.
   if (input.channelType !== 'voice') {
     permissions &= ~(VOICE_ONLY | Permissions.Connect);
   } else if (!hasPermission(permissions, Permissions.Connect)) {

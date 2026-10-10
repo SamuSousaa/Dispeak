@@ -177,7 +177,9 @@ describe('guild notification sounds', () => {
   it('keeps guild sounds out of reach of the attachment sweep', async () => {
     const guild = await scenario();
     const sound = (await put(owner, guild.id, 'join', WAV)).json<GuildSound>();
-    await t.app.ctx.messages.sweepAttachments(new Date(Date.now() + 2 * 60 * 60 * 1000));
+    // Only the file half of the sweep: the other half deletes rows in the database every test
+    // file shares, and would take the fresh uploads of the attachment tests with it.
+    await t.app.ctx.messages.sweepOrphanFiles(new Date(Date.now() + 2 * 60 * 60 * 1000));
     expect(await storedFiles()).toContain(sound.id);
     expect((await get(member, guild.id, 'join')).statusCode).toBe(200);
   });

@@ -1,14 +1,15 @@
-import { useState } from 'react';
-import { contextMenu } from '../../../components/ContextMenu';
+import type { Guild } from '@frequencia/shared';
+import { useRef, useState } from 'react';
 import { cx } from '../../../lib/cx';
-import { useAuthStore } from '../../auth/auth-store';
-import { useAvatars } from '../../guilds/use-avatars';
+import { memberColor, memberName } from '../../guilds/permissions';
+import { userMenu } from '../../guilds/user-menu';
 import { useSettingsStore } from '../../settings/settings-store';
 import { setCameraViewport, stopScreenShare, unwatchStream, watchStream } from '../voice-actions';
 import { isLive, SELF_STREAM, useVoiceStore } from '../voice-store';
 import { ParticipantTile } from './ParticipantTile';
 import { StreamTile } from './StreamTile';
-import { volumeLabel, volumeMenuEntries } from './VolumeControl';
+import { useFillGrid } from './use-fill-grid';
+import { volumeLabel } from './VolumeControl';
 
 interface StageStream {
   id: string;
@@ -23,12 +24,26 @@ const gridColumns = (count: number) =>
       ? 'grid-cols-1 md:grid-cols-2'
       : 'grid-cols-2 lg:grid-cols-3';
 
+const GAP = 12;
+
 /**
- * Main area of a voice channel. With no stream on screen it is a grid of participants; once
- * the user watches a stream (or shares their own) the streams take over and the participants
- * move to a strip below.
+ * Main area of a voice channel. With no stream on screen the participants share the whole
+ * area, each tile as large as fits; once the user watches a stream (or shares their own) the
+ * streams take over and the participants move to a strip below.
  */
-export function VoiceStage({ selfName }: { selfName: string }) {
+export function VoiceStage({
+  guild,
+  userId,
+  selfName: givenName,
+  onManageMembers,
+}: {
+  /** The server the channel belongs to; absent in the lab, where there are only nicknames. */
+  guild?: Guild;
+  userId?: string;
+  /** Name of the local user when there is no server to look it up in. */
+  selfName?: string;
+  onManageMembers?: () => void;
+}) {
   const selfId = useVoiceStore((state) => state.selfId);
   const muted = useVoiceStore((state) => state.muted);
   const deafened = useVoiceStore((state) => state.deafened);
@@ -39,12 +54,19 @@ export function VoiceStage({ selfName }: { selfName: string }) {
   const cameras = useVoiceStore((state) => state.cameras);
   const watching = useVoiceStore((state) => state.watching);
   const userVolumes = useSettingsStore((state) => state.userVolumes);
-  const selfAvatar = useAuthStore((state) => state.user?.avatar ?? null);
-  const avatarOf = useAvatars();
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const gridRef = useRef<HTMLUListElement>(null);
 
+  const memberOf = (id: string | undefined) => guild?.members.find((entry) => entry.user.id === id);
+  const colorOf = (id: string | undefined) => (guild && id ? memberColor(guild, id) : undefined);
+  const menuOf = (targetId: string | undefined) =>
+    guild && userId && targetId
+      ? userMenu({ guild, targetId, selfId: userId, onManageMembers })
+      : undefined;
   const others = Object.values(peers).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  const cell = useFillGrid(gridRef, others.length + 1, 16 / 9, GAP);
 
+  const selfName = guild && userId ? memberName(guild, userId) : (givenName ?? '');
   const streams: StageStream[] = [
     ...(screen.status === 'live'
       ? [{ id: SELF_STREAM, name: selfName, stream: screen.stream }]
@@ -69,45 +91,47 @@ export function VoiceStage({ selfName }: { selfName: string }) {
     />
   );
 
+  // In the strip the tiles follow its height; in the grid each one gets the computed size.
+  const slot = hasStreams ? undefined : { width: cell.width, height: cell.height };
+  const slotClass = hasStreams ? 'h-full' : 'shrink-0';
+
   const participants = (
     <>
-      <li className={cx(hasStreams && 'h-full')}>
+      <li className={slotClass} style={slot}>
         <ParticipantTile
           name={selfName}
+          nameColor={colorOf(userId)}
           isSelf
           speaking={selfId !== null && speaking.includes(selfId)}
           muted={muted}
           deafened={deafened}
+          serverMuted={memberOf(userId)?.serverMuted}
           live={screen.status === 'live'}
-          picture={selfAvatar}
+          picture={memberOf(userId)?.user.avatar}
           video={camera.stream}
           compact={hasStreams}
+          menu={menuOf(userId)}
         />
       </li>
       {others.map((peer) => (
-        <li key={peer.id} className={cx(hasStreams && 'h-full')}>
+        <li key={peer.id} className={slotClass} style={slot}>
           <ParticipantTile
             name={peer.name}
+            nameColor={colorOf(peer.userId)}
             speaking={speaking.includes(peer.id)}
             muted={peer.muted}
             deafened={peer.deafened}
+            serverMuted={memberOf(peer.userId)?.serverMuted}
             live={isLive(peer)}
             watching={Boolean(watching[peer.id])}
-            picture={avatarOf(peer.userId)}
+            picture={memberOf(peer.userId)?.user.avatar}
             video={cameras[peer.id] ?? null}
             onVideoViewport={(cssHeight) => setCameraViewport(peer.id, cssHeight)}
             onWatch={() => watchStream(peer.id)}
             onUnwatch={() => unwatchStream(peer.id)}
             compact={hasStreams}
             volumeNote={volumeLabel(userVolumes[peer.userId] ?? 1)}
-            menu={contextMenu(peer.name, () => [
-              ...volumeMenuEntries(peer.userId, peer.name),
-              { type: 'separator' },
-              isLive(peer) &&
-                (watching[peer.id]
-                  ? { label: 'Parar de assistir', onSelect: () => unwatchStream(peer.id) }
-                  : { label: 'Assistir transmissão', onSelect: () => watchStream(peer.id) }),
-            ])}
+            menu={menuOf(peer.userId)}
           />
         </li>
       ))}
@@ -116,10 +140,13 @@ export function VoiceStage({ selfName }: { selfName: string }) {
 
   if (!hasStreams) {
     return (
-      <div className="grid-bg h-full overflow-y-auto p-3">
+      <div className="grid-bg h-full">
         <ul
+          ref={gridRef}
           aria-label="Participantes"
-          className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(220px,1fr))]"
+          data-testid="participant-grid"
+          style={{ gap: GAP }}
+          className="flex h-full flex-wrap content-center items-center justify-center overflow-hidden p-3"
         >
           {participants}
         </ul>

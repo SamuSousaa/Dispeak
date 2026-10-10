@@ -207,8 +207,8 @@ export function ContextMenuHost() {
               entry.danger ? 'text-danger' : 'text-fg hover:text-accent focus-visible:text-accent',
             )}
           >
-            <span className="truncate">{entry.label}</span>
-            {entry.hint && <span className="shrink-0 text-muted">{entry.hint}</span>}
+            <span className={entry.hint ? 'shrink-0' : 'truncate'}>{entry.label}</span>
+            {entry.hint && <span className="min-w-0 truncate text-muted">{entry.hint}</span>}
           </button>
         );
       })}

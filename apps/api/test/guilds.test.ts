@@ -45,6 +45,7 @@ describe('guilds', () => {
           name: '@everyone',
           permissions: DEFAULT_EVERYONE_PERMISSIONS.toString(),
           position: 0,
+          color: null,
         },
       ]);
       expect(guild.members.map((entry) => entry.user.id)).toEqual([owner.user.id]);

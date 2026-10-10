@@ -133,6 +133,19 @@ passar e de um commit ser feito.
 - [x] Foto de perfil e ícone do servidor: a imagem é cortada em quadrado de 256 px no navegador e
       servida em `/api/images/:id` (pública, com id aleatório que muda a cada envio)
 
+## Etapa 8 — Moderação e organização
+
+- [x] Chat de texto próprio em cada canal de voz, aberto ao lado da chamada
+- [x] Quadros dos participantes ocupam toda a área da chamada (o maior tamanho 16:9 que couber)
+- [x] Categorias recolhíveis (mantêm à vista o canal aberto, a chamada em curso e o que não foi lido)
+- [x] Um só menu de pessoa em todo lugar (clique, clique direito ou toque longo): volume e moderação
+- [x] Moderação por permissão, com hierarquia: mutar no servidor, desconectar da chamada, expulsar,
+      banir (com lista de banidos); o dono tem todas
+- [x] Canal ou categoria privados com um clique, e a lista de quem pode ver
+- [x] Cargos com cor do nome; novas permissões: anexar imagens, reagir, mutar, desconectar e banir
+- [x] Lista de membros agrupada pelo cargo mais alto de quem está online
+- [x] Correção: quem ficava sozinho num canal de voz era reconectado a cada 30 segundos
+
 **Único serviço externo.** A busca de GIF depende da GIPHY e por isso é opcional: sem a chave o
 botão não aparece. Não é mídia nem tempo real, então não fere a regra de infraestrutura própria.
 Imagens de links e GIFs são carregadas pelo navegador direto do site de origem (dá para desligar

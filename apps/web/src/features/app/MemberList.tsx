@@ -1,9 +1,9 @@
-import { hasPermission, Permissions, type Guild, type Member } from '@frequencia/shared';
+import type { Guild, Member } from '@frequencia/shared';
 import { Avatar } from '../../components/Avatar';
-import { contextMenu, openContextMenu, type MenuEntry } from '../../components/ContextMenu';
+import { Icon } from '../../components/Icon';
 import { cx } from '../../lib/cx';
-import { actorIn } from '../guilds/permissions';
-import { volumeMenuEntries } from '../voice/components/VolumeControl';
+import { highestRole, memberColor } from '../guilds/permissions';
+import { userMenu } from '../guilds/user-menu';
 
 interface RowProps {
   guild: Guild;
@@ -14,37 +14,17 @@ interface RowProps {
 }
 
 function Row({ guild, member, online, userId, onManageMembers }: RowProps) {
-  const roles = guild.roles
-    .filter((role) => member.roleIds.includes(role.id))
-    .sort((a, b) => b.position - a.position);
-  const tag = guild.ownerId === member.user.id ? 'DONO' : (roles[0]?.name ?? null);
   const name = member.nickname ?? member.user.displayName;
-  const actor = actorIn(guild, userId);
-  const canManage =
-    hasPermission(actor.permissions, Permissions.ManageRoles) ||
-    hasPermission(actor.permissions, Permissions.KickMembers);
-
-  const entries = (): Array<MenuEntry | false> => [
-    ...(member.user.id === userId ? [] : volumeMenuEntries(member.user.id, name)),
-    { type: 'separator' },
-    {
-      label: 'Copiar nome de usuário',
-      hint: `@${member.user.username}`,
-      onSelect: () => void navigator.clipboard?.writeText(member.user.username),
-    },
-    canManage && { label: 'Gerenciar membros', onSelect: onManageMembers },
-  ];
+  const isOwner = guild.ownerId === member.user.id;
+  const color = online ? memberColor(guild, member.user.id) : undefined;
 
   return (
-    <li data-testid="member" data-online={online} {...contextMenu(name, entries)}>
+    <li data-testid="member" data-online={online}>
       <button
         type="button"
         title={`${name} (@${member.user.username})`}
         className="flex w-full items-center justify-between gap-2 px-3 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:-outline-offset-2"
-        // A plain click opens the same menu, so it can be found without a right button.
-        onClick={(event) =>
-          openContextMenu({ x: event.clientX, y: event.clientY }, name, entries())
-        }
+        {...userMenu({ guild, targetId: member.user.id, selfId: userId, onManageMembers })}
       >
         <span className="flex min-w-0 items-center gap-2">
           <Avatar
@@ -53,15 +33,30 @@ function Row({ guild, member, online, userId, onManageMembers }: RowProps) {
             size={24}
             className={cx(!online && 'opacity-50')}
           />
-          <span className={cx('label-lg truncate', online ? 'text-fg' : 'text-muted')}>{name}</span>
+          <span
+            className={cx('label-lg truncate', online ? 'text-fg' : 'text-muted')}
+            style={color ? { color } : undefined}
+          >
+            {name}
+          </span>
         </span>
-        {tag && <span className="label shrink-0 truncate text-muted">{tag}</span>}
+        <span className="flex shrink-0 items-center gap-1.5 text-muted">
+          {member.serverMuted && (
+            <span className="text-danger" title="Mutado no servidor">
+              <Icon name="mic-off" size={12} />
+            </span>
+          )}
+          {isOwner && <span className="label">DONO</span>}
+        </span>
       </button>
     </li>
   );
 }
 
-/** Right column: members split by presence. */
+/**
+ * Right column. People who are online come first, under the highest role they hold (in the
+ * order of the hierarchy), then those online without a role, then everyone who is offline.
+ */
 export function MemberList({
   guild,
   userId,
@@ -75,9 +70,26 @@ export function MemberList({
   const online = new Set(guild.onlineUserIds);
   const byName = (a: Member, b: Member) =>
     (a.nickname ?? a.user.displayName).localeCompare(b.nickname ?? b.user.displayName, 'pt-BR');
+  const here = guild.members.filter((member) => online.has(member.user.id)).sort(byName);
+  const away = guild.members.filter((member) => !online.has(member.user.id)).sort(byName);
+
+  const ranked = guild.roles
+    .filter((role) => role.id !== guild.id)
+    .sort((a, b) => b.position - a.position);
   const groups = [
-    { label: 'ONLINE', members: guild.members.filter((m) => online.has(m.user.id)).sort(byName) },
-    { label: 'OFFLINE', members: guild.members.filter((m) => !online.has(m.user.id)).sort(byName) },
+    ...ranked.map((role) => ({
+      key: role.id,
+      label: role.name,
+      color: role.color,
+      members: here.filter((member) => highestRole(guild, member)?.id === role.id),
+    })),
+    {
+      key: 'online',
+      label: 'ONLINE',
+      color: null,
+      members: here.filter((member) => !highestRole(guild, member)),
+    },
+    { key: 'offline', label: 'OFFLINE', color: null, members: away },
   ];
 
   return (
@@ -89,8 +101,11 @@ export function MemberList({
         {groups.map(
           (group) =>
             group.members.length > 0 && (
-              <section key={group.label} className="mb-3">
-                <h3 className="label px-3 py-1 text-muted">
+              <section key={group.key} className="mb-3" data-testid="member-group">
+                <h3
+                  className="label truncate px-3 py-1 text-muted"
+                  style={group.color ? { color: group.color } : undefined}
+                >
                   {group.label} — {group.members.length}
                 </h3>
                 <ul>

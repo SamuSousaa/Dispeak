@@ -1,14 +1,23 @@
 import { hasPermission, Permissions, type Channel, type Guild } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useParams } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { contextMenu } from '../../components/ContextMenu';
+import { attempt } from '../../components/Toast';
 import { Icon, type IconName } from '../../components/Icon';
 import { cx } from '../../lib/cx';
-import { actorIn, channelPermissions, groupChannels, memberName } from '../guilds/permissions';
+import { isPrivate, setPrivate } from '../guilds/channel-privacy';
+import {
+  actorIn,
+  channelPermissions,
+  groupChannels,
+  memberColor,
+  memberName,
+} from '../guilds/permissions';
+import { userMenu } from '../guilds/user-menu';
 import { markRead, useUnreadStore } from '../unread/unread-store';
-import { volumeMenuEntries } from '../voice/components/VolumeControl';
 import { useVoiceStore } from '../voice/voice-store';
+import { toggleCollapsed, useUiStore } from './ui-store';
 import { connectToVoiceChannel, useSpeakingUserIds } from './voice-channel';
 
 interface ChannelPanelProps {
@@ -20,6 +29,7 @@ interface ChannelPanelProps {
   onChannelSettings: (channel: Channel) => void;
   /** Called after navigating, so a mobile drawer can close. */
   onNavigate: () => void;
+  onManageMembers: () => void;
 }
 
 /** Small icon action inside a channel or category row. */
@@ -157,6 +167,7 @@ export function ChannelPanel({
   onGuildSettings,
   onChannelSettings,
   onNavigate,
+  onManageMembers,
 }: ChannelPanelProps) {
   const actor = actorIn(guild, userId);
   const canManageChannels = hasPermission(actor.permissions, Permissions.ManageChannels);
@@ -169,7 +180,11 @@ export function ChannelPanel({
   const connectedChannelId = useVoiceStore((state) => state.channelId);
   const speaking = useSpeakingUserIds(userId);
   const unread = useUnreadStore((state) => state.channels);
+  const collapsed = useUiStore((state) => state.collapsed);
+  const { channelId: openChannelId } = useParams();
 
+  const canConfigureAccess = (channel: Channel) =>
+    hasPermission(channelPermissions(guild, channel, userId), Permissions.ManageRoles);
   const canConnectTo = (channel: Channel) =>
     hasPermission(channelPermissions(guild, channel, userId), Permissions.Connect);
   const copyLink = (channel: Channel) =>
@@ -215,193 +230,246 @@ export function ChannelPanel({
       />
 
       <nav aria-label="Canais" className="min-h-0 flex-1 overflow-y-auto py-2">
-        {groupChannels(guild).map((group) => (
-          <section key={group.category?.id ?? 'root'} className="mb-3">
-            {group.category && (
-              <div
-                className="flex items-center justify-between gap-2 py-1 pr-1.5 pl-3"
-                {...contextMenu(group.category.name, () => [
-                  canManageChannels && {
-                    label: 'Criar canal aqui',
-                    onSelect: () => onCreateChannel(group.category?.id ?? null),
-                  },
-                  group.category &&
-                    canConfigure(group.category) && {
-                      label: 'Configurar categoria',
-                      onSelect: () => group.category && onChannelSettings(group.category),
+        {groupChannels(guild).map((group) => {
+          const folded = Boolean(group.category && collapsed[group.category.id]);
+          // A folded category still shows where the user is and what is waiting for them.
+          const shown = folded
+            ? group.channels.filter(
+                ({ channel }) =>
+                  channel.id === openChannelId ||
+                  channel.id === connectedChannelId ||
+                  Boolean(unread[channel.id]),
+              )
+            : group.channels;
+          return (
+            <section key={group.category?.id ?? 'root'} className="mb-3">
+              {group.category && (
+                <div
+                  className="flex items-center justify-between gap-2 py-1 pr-1.5 pl-3"
+                  {...contextMenu(group.category.name, () => [
+                    canManageChannels && {
+                      label: 'Criar canal aqui',
+                      onSelect: () => onCreateChannel(group.category?.id ?? null),
                     },
-                ])}
-              >
-                <h3 className="label truncate text-muted">{group.category.name}</h3>
-                <span className="flex shrink-0">
-                  {canManageChannels && (
-                    <RowAction
-                      icon="plus"
-                      label={`Criar canal em ${group.category.name}`}
-                      onClick={() => onCreateChannel(group.category?.id ?? null)}
-                    />
-                  )}
-                  {canConfigure(group.category) && (
-                    <RowAction
-                      icon="settings"
-                      label={`Configurar categoria ${group.category.name}`}
-                      onClick={() => group.category && onChannelSettings(group.category)}
-                    />
-                  )}
-                </span>
-              </div>
-            )}
-            <ul>
-              {group.channels.map(({ channel, number }) => {
-                const voices = guild.voiceStates.filter((state) => state.channelId === channel.id);
-                const pending = unread[channel.id];
-                const joinable =
-                  channel.type === 'voice' &&
-                  connectedChannelId !== channel.id &&
-                  canConnectTo(channel);
-                return (
-                  <li key={channel.id}>
-                    <div
-                      className="group flex items-center"
-                      data-testid="channel-row"
-                      data-unread={Boolean(pending)}
-                      {...contextMenu(channel.name, () => [
-                        pending && {
-                          label: 'Marcar como lido',
-                          onSelect: () => markRead(channel.id),
-                        },
-                        joinable && {
-                          label: 'Entrar no canal',
-                          onSelect: () => connectToVoiceChannel(channel),
-                        },
-                        { label: 'Copiar link do canal', onSelect: () => copyLink(channel) },
-                        { type: 'separator' },
-                        canInvite && { label: 'Convidar pessoas', onSelect: onInvite },
-                        canConfigure(channel) && {
-                          label: 'Configurar canal',
-                          onSelect: () => onChannelSettings(channel),
-                        },
-                        canManageChannels && {
-                          label: 'Criar canal',
-                          onSelect: () => onCreateChannel(channel.parentId),
-                        },
-                      ])}
+                    group.category &&
+                      canConfigure(group.category) && {
+                        label: 'Configurar categoria',
+                        onSelect: () => group.category && onChannelSettings(group.category),
+                      },
+                  ])}
+                >
+                  <h3 className="min-w-0 flex-1">
+                    <button
+                      type="button"
+                      aria-expanded={!folded}
+                      title={folded ? 'Mostrar canais' : 'Recolher canais'}
+                      data-testid="category-toggle"
+                      className="label flex w-full items-center gap-1 truncate text-left text-muted transition-colors hover:text-fg"
+                      onClick={() => group.category && toggleCollapsed(group.category.id)}
                     >
-                      <NavLink
-                        to={`/app/${guild.id}/${channel.id}`}
-                        onClick={() => {
-                          onNavigate();
-                          // Like a phone call: picking a voice channel joins it right away.
-                          if (joinable) connectToVoiceChannel(channel);
-                        }}
-                        className={({ isActive }) =>
-                          cx(
-                            'label-lg flex min-w-0 flex-1 items-center gap-2 border-l-2 py-1.5 pr-2 pl-[10px] transition-colors',
-                            isActive
-                              ? 'border-accent bg-surface-2 text-accent'
-                              : 'border-transparent text-fg hover:bg-surface-2 hover:text-accent',
-                          )
-                        }
+                      <span className={cx('shrink-0 transition-transform', folded && '-rotate-90')}>
+                        <Icon name="chevron-down" size={12} />
+                      </span>
+                      <span className="truncate">{group.category.name}</span>
+                    </button>
+                  </h3>
+                  <span className="flex shrink-0">
+                    {canManageChannels && (
+                      <RowAction
+                        icon="plus"
+                        label={`Criar canal em ${group.category.name}`}
+                        onClick={() => onCreateChannel(group.category?.id ?? null)}
+                      />
+                    )}
+                    {canConfigure(group.category) && (
+                      <RowAction
+                        icon="settings"
+                        label={`Configurar categoria ${group.category.name}`}
+                        onClick={() => group.category && onChannelSettings(group.category)}
+                      />
+                    )}
+                  </span>
+                </div>
+              )}
+              <ul>
+                {shown.map(({ channel, number }) => {
+                  const voices = guild.voiceStates.filter(
+                    (state) => state.channelId === channel.id,
+                  );
+                  const pending = unread[channel.id];
+                  const joinable =
+                    channel.type === 'voice' &&
+                    connectedChannelId !== channel.id &&
+                    canConnectTo(channel);
+                  return (
+                    <li key={channel.id}>
+                      <div
+                        className="group flex items-center"
+                        data-testid="channel-row"
+                        data-unread={Boolean(pending)}
+                        {...contextMenu(channel.name, () => [
+                          pending && {
+                            label: 'Marcar como lido',
+                            onSelect: () => markRead(channel.id),
+                          },
+                          joinable && {
+                            label: 'Entrar no canal',
+                            onSelect: () => connectToVoiceChannel(channel),
+                          },
+                          { label: 'Copiar link do canal', onSelect: () => copyLink(channel) },
+                          { type: 'separator' },
+                          canConfigureAccess(channel) && {
+                            label: isPrivate(guild, channel) ? 'Tornar público' : 'Tornar privado',
+                            onSelect: () =>
+                              attempt(() =>
+                                setPrivate(guild, channel, userId, !isPrivate(guild, channel)),
+                              ),
+                          },
+                          canInvite && { label: 'Convidar pessoas', onSelect: onInvite },
+                          canConfigure(channel) && {
+                            label: 'Configurar canal',
+                            onSelect: () => onChannelSettings(channel),
+                          },
+                          canManageChannels && {
+                            label: 'Criar canal',
+                            onSelect: () => onCreateChannel(channel.parentId),
+                          },
+                        ])}
                       >
-                        <span className="text-muted">{number}.</span>
-                        <span className={cx('truncate', pending && 'font-semibold')}>
-                          {channel.name}
-                        </span>
-                        {pending &&
-                          (pending.mentions > 0 ? (
-                            <span
-                              className="label ml-auto shrink-0 bg-fg px-1 text-bg"
-                              data-testid="mention-badge"
-                              aria-label={`${pending.mentions} ${pending.mentions === 1 ? 'menção' : 'menções'}`}
-                            >
-                              {pending.mentions > 99 ? '99+' : pending.mentions}
-                            </span>
-                          ) : (
-                            <span
-                              className="ml-auto h-1.5 w-1.5 shrink-0 bg-fg"
-                              data-testid="unread-dot"
-                              role="img"
-                              aria-label="Mensagens não lidas"
-                            />
-                          ))}
-                        {channel.type === 'voice' && (
-                          <span
-                            className={cx(
-                              'label ml-auto shrink-0',
-                              connectedChannelId === channel.id ? 'text-accent' : 'text-muted',
-                            )}
-                          >
-                            VOZ{voices.length > 0 ? ` · ${voices.length}` : ''}
+                        <NavLink
+                          to={`/app/${guild.id}/${channel.id}`}
+                          onClick={() => {
+                            onNavigate();
+                            // Like a phone call: picking a voice channel joins it right away.
+                            if (joinable) connectToVoiceChannel(channel);
+                          }}
+                          className={({ isActive }) =>
+                            cx(
+                              'label-lg flex min-w-0 flex-1 items-center gap-2 border-l-2 py-1.5 pr-2 pl-[10px] transition-colors',
+                              isActive
+                                ? 'border-accent bg-surface-2 text-accent'
+                                : 'border-transparent text-fg hover:bg-surface-2 hover:text-accent',
+                            )
+                          }
+                        >
+                          <span className="text-muted">{number}.</span>
+                          <span className={cx('truncate', pending && 'font-semibold')}>
+                            {channel.name}
                           </span>
-                        )}
-                      </NavLink>
-                      {canConfigure(channel) && (
-                        <RowAction
-                          icon="settings"
-                          label={`Configurar canal ${channel.name}`}
-                          onClick={() => onChannelSettings(channel)}
-                          // Always there on touch screens; on desktop it shows with the row.
-                          className="mx-1 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
-                        />
-                      )}
-                    </div>
-                    {voices.length > 0 && (
-                      <ul className="pb-1" aria-label={`Conectados em ${channel.name}`}>
-                        {voices.map((voice) => (
-                          <li
-                            key={voice.userId}
-                            data-testid="voice-member"
-                            className="label flex items-center gap-2 py-0.5 pr-3 pl-8 transition-colors hover:bg-surface-2"
-                            {...contextMenu(memberName(guild, voice.userId), () =>
-                              voice.userId === userId
-                                ? []
-                                : volumeMenuEntries(voice.userId, memberName(guild, voice.userId)),
-                            )}
-                          >
-                            <Avatar
-                              name={memberName(guild, voice.userId)}
-                              picture={
-                                guild.members.find((entry) => entry.user.id === voice.userId)?.user
-                                  .avatar
-                              }
-                              size={18}
-                            />
+                          {isPrivate(guild, channel) && (
+                            <span className="shrink-0 text-muted" title="Canal privado">
+                              <Icon name="lock" size={12} />
+                              <span className="sr-only">privado</span>
+                            </span>
+                          )}
+                          {pending &&
+                            (pending.mentions > 0 ? (
+                              <span
+                                className="label ml-auto shrink-0 bg-fg px-1 text-bg"
+                                data-testid="mention-badge"
+                                aria-label={`${pending.mentions} ${pending.mentions === 1 ? 'menção' : 'menções'}`}
+                              >
+                                {pending.mentions > 99 ? '99+' : pending.mentions}
+                              </span>
+                            ) : (
+                              <span
+                                className="ml-auto h-1.5 w-1.5 shrink-0 bg-fg"
+                                data-testid="unread-dot"
+                                role="img"
+                                aria-label="Mensagens não lidas"
+                              />
+                            ))}
+                          {channel.type === 'voice' && (
                             <span
                               className={cx(
-                                'truncate transition-colors',
-                                speaking.has(voice.userId) ? 'text-accent' : 'text-muted',
+                                'label ml-auto shrink-0',
+                                connectedChannelId === channel.id ? 'text-accent' : 'text-muted',
                               )}
                             >
-                              {memberName(guild, voice.userId)}
+                              VOZ{voices.length > 0 ? ` · ${voices.length}` : ''}
                             </span>
-                            <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                              {voice.streaming && <span className="text-accent">AO VIVO</span>}
-                              {(voice.muted || voice.deafened) && (
-                                <span
-                                  className="text-danger"
-                                  title={voice.deafened ? 'Ensurdecido' : 'Microfone mutado'}
-                                >
-                                  <Icon name="mic-off" size={12} />
-                                  <span className="sr-only">MUDO</span>
-                                </span>
-                              )}
-                              {voice.deafened && (
-                                <span className="text-danger" title="Ensurdecido">
-                                  <Icon name="headphones-off" size={12} />
-                                  <span className="sr-only">SURDO</span>
-                                </span>
-                              )}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+                          )}
+                        </NavLink>
+                        {canConfigure(channel) && (
+                          <RowAction
+                            icon="settings"
+                            label={`Configurar canal ${channel.name}`}
+                            onClick={() => onChannelSettings(channel)}
+                            // Always there on touch screens; on desktop it shows with the row.
+                            className="mx-1 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                          />
+                        )}
+                      </div>
+                      {voices.length > 0 && (
+                        <ul className="pb-1" aria-label={`Conectados em ${channel.name}`}>
+                          {voices.map((voice) => (
+                            <li
+                              key={voice.userId}
+                              data-testid="voice-member"
+                              className="label flex cursor-pointer items-center gap-2 py-0.5 pr-3 pl-8 transition-colors hover:bg-surface-2"
+                              {...userMenu({
+                                guild,
+                                targetId: voice.userId,
+                                selfId: userId,
+                                onManageMembers,
+                              })}
+                            >
+                              <Avatar
+                                name={memberName(guild, voice.userId)}
+                                picture={
+                                  guild.members.find((entry) => entry.user.id === voice.userId)
+                                    ?.user.avatar
+                                }
+                                size={18}
+                              />
+                              <span
+                                className={cx(
+                                  'truncate transition-colors',
+                                  speaking.has(voice.userId) ? 'text-accent' : 'text-muted',
+                                )}
+                                style={
+                                  speaking.has(voice.userId)
+                                    ? undefined
+                                    : { color: memberColor(guild, voice.userId) }
+                                }
+                              >
+                                {memberName(guild, voice.userId)}
+                              </span>
+                              <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                                {voice.streaming && <span className="text-accent">AO VIVO</span>}
+                                {guild.members.find((entry) => entry.user.id === voice.userId)
+                                  ?.serverMuted && (
+                                  <span className="text-danger" title="Mutado no servidor">
+                                    [M]<span className="sr-only"> mutado no servidor</span>
+                                  </span>
+                                )}
+                                {(voice.muted || voice.deafened) && (
+                                  <span
+                                    className="text-danger"
+                                    title={voice.deafened ? 'Ensurdecido' : 'Microfone mutado'}
+                                  >
+                                    <Icon name="mic-off" size={12} />
+                                    <span className="sr-only">MUDO</span>
+                                  </span>
+                                )}
+                                {voice.deafened && (
+                                  <span className="text-danger" title="Ensurdecido">
+                                    <Icon name="headphones-off" size={12} />
+                                    <span className="sr-only">SURDO</span>
+                                  </span>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
       </nav>
     </div>
   );

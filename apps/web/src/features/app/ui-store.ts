@@ -2,17 +2,19 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 interface UiState {
-  /** The text chat docked next to a voice channel. */
+  /** The text chat of a voice channel, docked next to the call. */
   sideChatOpen: boolean;
-  /** Text channel last opened in each guild; the side chat starts there. */
-  lastTextChannel: Record<string, string>;
+  /** Categories folded away in the channel list, by id. */
+  collapsed: Record<string, true>;
 }
 
 /** Where things were left on this device. */
 export const useUiStore = create<UiState>()(
-  persist(() => ({ sideChatOpen: false, lastTextChannel: {} }) as UiState, {
+  persist(() => ({ sideChatOpen: false, collapsed: {} }) as UiState, {
     name: 'frequencia.ui',
-    version: 1,
+    version: 2,
+    // Older versions kept other things here; start from the defaults.
+    migrate: () => ({ sideChatOpen: false, collapsed: {} }),
   }),
 );
 
@@ -20,9 +22,9 @@ export function toggleSideChat(): void {
   useUiStore.setState((state) => ({ sideChatOpen: !state.sideChatOpen }));
 }
 
-export function rememberTextChannel(guildId: string, channelId: string): void {
-  if (useUiStore.getState().lastTextChannel[guildId] === channelId) return;
-  useUiStore.setState((state) => ({
-    lastTextChannel: { ...state.lastTextChannel, [guildId]: channelId },
-  }));
+export function toggleCollapsed(categoryId: string): void {
+  useUiStore.setState((state) => {
+    const { [categoryId]: folded, ...others } = state.collapsed;
+    return { collapsed: folded ? others : { ...others, [categoryId]: true } };
+  });
 }

@@ -25,7 +25,21 @@ import { playSound } from '../../sounds/sound-player';
 import { PERMISSION_INFO } from '../permission-labels';
 import { actorIn } from '../permissions';
 
-export type GuildSettingsTab = 'overview' | 'roles' | 'members' | 'invites' | 'sounds';
+export type GuildSettingsTab = 'overview' | 'roles' | 'members' | 'bans' | 'invites' | 'sounds';
+
+/** Colours that read well on the dark background; any other can be picked by hand. */
+const ROLE_COLORS = [
+  '#ff5a4d',
+  '#ff9f1c',
+  '#ffd60a',
+  '#7ae582',
+  '#2ec4b6',
+  '#4cc9f0',
+  '#4895ef',
+  '#b388ff',
+  '#f72585',
+  '#ededed',
+];
 type Tab = GuildSettingsTab;
 
 interface TabProps {
@@ -163,6 +177,60 @@ function RoleEditor({ role, guild, actor, run, busy }: TabProps & { role: Role }
           </Button>
         </form>
       )}
+      {!isEveryone && (
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="label mb-1.5 text-muted">COR DO NOME</legend>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {ROLE_COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={`Cor ${color}`}
+                aria-pressed={role.color === color}
+                disabled={busy}
+                onClick={() => void run(() => guildApi.updateRole(role.id, { color }))}
+                style={{ backgroundColor: color }}
+                className={cx(
+                  'pressable h-7 w-7 border-2',
+                  role.color === color ? 'border-fg' : 'border-transparent hover:border-muted',
+                )}
+              />
+            ))}
+            <label className="label flex h-7 cursor-pointer items-center gap-1.5 border border-line-strong px-2 text-muted transition-colors hover:border-accent hover:text-fg">
+              OUTRA
+              <input
+                type="color"
+                aria-label="Escolher outra cor"
+                className="h-4 w-6 cursor-pointer border-0 bg-transparent p-0"
+                value={role.color ?? '#ededed'}
+                disabled={busy}
+                // Saved when the picker closes, not on every shade it passes through.
+                onBlur={(event) => {
+                  const color = event.target.value;
+                  if (color !== role.color) void run(() => guildApi.updateRole(role.id, { color }));
+                }}
+                onChange={() => undefined}
+              />
+            </label>
+            {role.color && (
+              <Button
+                disabled={busy}
+                onClick={() => void run(() => guildApi.updateRole(role.id, { color: null }))}
+              >
+                SEM COR
+              </Button>
+            )}
+          </div>
+          <p
+            className="label"
+            style={{ color: role.color ?? undefined }}
+            data-testid="role-preview"
+          >
+            <span className="text-muted">COMO FICA: </span>
+            {role.name}
+          </p>
+        </fieldset>
+      )}
       <ul className="border border-line">
         {PERMISSION_INFO.map((info) => {
           const granted = hasPermission(permissions, info.bit);
@@ -244,7 +312,13 @@ function RolesTab(props: TabProps) {
                     : 'border-transparent text-fg hover:bg-surface-2',
                 )}
               >
-                {role.name}
+                <span
+                  style={{
+                    color: selected?.id === role.id ? undefined : (role.color ?? undefined),
+                  }}
+                >
+                  {role.name}
+                </span>
               </button>
               {role.id !== guild.id && manageable(role) && (
                 <span className="flex shrink-0">
@@ -314,6 +388,8 @@ function MembersTab({ guild, userId, actor, run, busy }: TabProps) {
     .sort((a, b) => b.position - a.position);
   const canAssign = hasPermission(actor.permissions, Permissions.ManageRoles);
   const canKick = hasPermission(actor.permissions, Permissions.KickMembers);
+  const canBan = hasPermission(actor.permissions, Permissions.BanMembers);
+  const [banning, setBanning] = useState<string | null>(null);
 
   return (
     <ul className="divide-y divide-line">
@@ -341,14 +417,43 @@ function MembersTab({ guild, userId, actor, run, busy }: TabProps) {
                 </p>
                 <p className="label truncate text-muted">@{member.user.username}</p>
               </div>
-              {canKick && !isSelf && outranks(actor, target) && (
-                <Button
-                  variant="danger"
-                  disabled={busy}
-                  onClick={() => void run(() => guildApi.kick(guild.id, member.user.id))}
-                >
-                  EXPULSAR
-                </Button>
+              {!isSelf && outranks(actor, target) && (
+                <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                  {banning === member.user.id ? (
+                    <>
+                      <Button
+                        variant="danger"
+                        disabled={busy}
+                        onClick={() => void run(() => guildApi.ban(guild.id, member.user.id))}
+                      >
+                        CONFIRMAR BANIMENTO
+                      </Button>
+                      <Button onClick={() => setBanning(null)}>CANCELAR</Button>
+                    </>
+                  ) : (
+                    <>
+                      {canKick && (
+                        <Button
+                          variant="danger"
+                          disabled={busy}
+                          onClick={() => void run(() => guildApi.kick(guild.id, member.user.id))}
+                        >
+                          EXPULSAR
+                        </Button>
+                      )}
+                      {canBan && (
+                        <Button
+                          variant="danger"
+                          disabled={busy}
+                          aria-label={`Banir ${member.nickname ?? member.user.displayName}`}
+                          onClick={() => setBanning(member.user.id)}
+                        >
+                          BANIR
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
             {ranked.length > 0 && (
@@ -453,6 +558,63 @@ function SoundRow({ guild, event, run, busy }: TabProps & { event: GuildSoundEve
   );
 }
 
+/** People who were banned, and the way to let them back in. */
+function BansTab({ guild, run, busy }: TabProps) {
+  const queryClient = useQueryClient();
+  const key = ['bans', guild.id];
+  // The member count changes with every ban made elsewhere in this dialog.
+  const bans = useQuery({
+    queryKey: [...key, guild.members.length],
+    queryFn: () => guildApi.bans(guild.id),
+  });
+
+  if (bans.isPending) return <p className="label p-4 text-muted">CARREGANDO</p>;
+  if (bans.isError) {
+    return (
+      <p role="alert" className="label p-4 text-danger">
+        NÃO FOI POSSÍVEL CARREGAR A LISTA
+      </p>
+    );
+  }
+  if (bans.data.length === 0) {
+    return (
+      <p className="p-4 text-sm text-muted">
+        Ninguém foi banido. Para banir alguém, use o menu da pessoa (clique no nome dela) ou a aba
+        MEMBROS. Quem é banido sai do servidor e não consegue voltar com convite.
+      </p>
+    );
+  }
+  return (
+    <ul className="divide-y divide-line">
+      {bans.data.map((ban) => (
+        <li
+          key={ban.user.id}
+          className="flex items-center justify-between gap-3 p-4"
+          data-testid="ban"
+        >
+          <div className="min-w-0">
+            <p className="label-lg truncate text-fg">{ban.user.displayName}</p>
+            <p className="label truncate text-muted">
+              @{ban.user.username} · {new Date(ban.createdAt).toLocaleDateString('pt-BR')}
+            </p>
+          </div>
+          <Button
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await guildApi.unban(guild.id, ban.user.id);
+                await queryClient.invalidateQueries({ queryKey: key });
+              })
+            }
+          >
+            REMOVER BANIMENTO
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Owner only: the notification sounds everyone in the guild hears. */
 function SoundsTab(props: TabProps) {
   return (
@@ -554,6 +716,11 @@ export function GuildSettingsDialog({
     },
     { id: 'members', label: 'MEMBROS', visible: true },
     {
+      id: 'bans',
+      label: 'BANIDOS',
+      visible: hasPermission(actor.permissions, Permissions.BanMembers),
+    },
+    {
       id: 'invites',
       label: 'CONVITES',
       visible: hasPermission(actor.permissions, Permissions.ManageGuild),
@@ -596,6 +763,7 @@ export function GuildSettingsDialog({
       {tab === 'overview' && <OverviewTab {...props} />}
       {tab === 'roles' && <RolesTab {...props} />}
       {tab === 'members' && <MembersTab {...props} />}
+      {tab === 'bans' && <BansTab {...props} />}
       {tab === 'invites' && <InvitesTab {...props} />}
       {tab === 'sounds' && <SoundsTab {...props} />}
     </Dialog>

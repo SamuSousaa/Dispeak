@@ -73,6 +73,8 @@ export const guildMembers = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     nickname: text('nickname'),
+    /** Silenced by a moderator in every voice channel of the guild. */
+    serverMuted: boolean('server_muted').notNull().default(false),
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -93,6 +95,8 @@ export const roles = pgTable(
     permissions: bigint('permissions', { mode: 'bigint' }).notNull(),
     /** Rank in the hierarchy: higher outranks lower, @everyone is 0. */
     position: integer('position').notNull(),
+    /** `#rrggbb` for the names of its members. */
+    color: text('color'),
     createdAt: createdAt(),
   },
   (table) => [index('roles_guild_idx').on(table.guildId)],
@@ -115,6 +119,22 @@ export const memberRoles = pgTable(
       foreignColumns: [guildMembers.guildId, guildMembers.userId],
     }).onDelete('cascade'),
   ],
+);
+
+/** People removed from a guild who may not rejoin. */
+export const guildBans = pgTable(
+  'guild_bans',
+  {
+    guildId: uuid('guild_id')
+      .notNull()
+      .references(() => guilds.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    bannedBy: uuid('banned_by').notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.userId] })],
 );
 
 export const channelType = pgEnum('channel_type', ['text', 'voice', 'category']);

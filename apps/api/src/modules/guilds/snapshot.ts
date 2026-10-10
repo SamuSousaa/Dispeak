@@ -40,6 +40,7 @@ export interface MemberEntry {
   displayName: string;
   avatarId: string | null;
   nickname: string | null;
+  serverMuted: boolean;
   joinedAt: Date;
   /** Roles besides @everyone. */
   roleIds: string[];
@@ -101,6 +102,7 @@ export async function loadGuildSnapshot(
       displayName: user.displayName,
       avatarId: user.avatarId,
       nickname: member.nickname,
+      serverMuted: member.serverMuted,
       joinedAt: member.joinedAt,
       roleIds: [],
     });
@@ -195,6 +197,7 @@ export function toRole(row: RoleRow): Role {
     name: row.name,
     permissions: serializePermissions(row.permissions),
     position: row.position,
+    color: row.color,
   };
 }
 
@@ -227,6 +230,7 @@ export function toMember(entry: MemberEntry): Member {
     nickname: entry.nickname,
     roleIds: [...entry.roleIds],
     joinedAt: entry.joinedAt.toISOString(),
+    serverMuted: entry.serverMuted,
   };
 }
 

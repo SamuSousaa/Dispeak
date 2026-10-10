@@ -1,5 +1,6 @@
 import {
   GUILD_SOUND_MAX_BYTES,
+  banSchema,
   PICTURE_MAX_BYTES,
   channelSchema,
   createChannelRequestSchema,
@@ -125,6 +126,75 @@ export const guildRoutes: FastifyPluginAsyncZod = async (app) => {
     'application/octet-stream',
     { parseAs: 'buffer', bodyLimit: GUILD_SOUND_MAX_BYTES },
     (_request, body, done) => done(null, body),
+  );
+
+  app.delete(
+    '/guilds/:guildId/voice-states/:userId',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'Take a member out of the voice channel they are in (DISCONNECT_MEMBERS)',
+        security,
+        params: memberParams,
+        response: noContent,
+      },
+    },
+    async (request, reply) => {
+      await guilds.disconnectFromVoice(
+        request.auth.userId,
+        request.params.guildId,
+        request.params.userId,
+      );
+      return reply.code(204).send(null);
+    },
+  );
+
+  app.get(
+    '/guilds/:guildId/bans',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'People banned from the server (BAN_MEMBERS)',
+        security,
+        params: guildParams,
+        response: { 200: z.array(banSchema) },
+      },
+    },
+    (request) => guilds.listBans(request.auth.userId, request.params.guildId),
+  );
+
+  app.put(
+    '/guilds/:guildId/bans/:userId',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'Ban someone: removes them and refuses their invites (BAN_MEMBERS)',
+        security,
+        params: memberParams,
+        response: noContent,
+      },
+    },
+    async (request, reply) => {
+      await guilds.ban(request.auth.userId, request.params.guildId, request.params.userId);
+      return reply.code(204).send(null);
+    },
+  );
+
+  app.delete(
+    '/guilds/:guildId/bans/:userId',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'Lift a ban (BAN_MEMBERS)',
+        security,
+        params: memberParams,
+        response: noContent,
+      },
+    },
+    async (request, reply) => {
+      await guilds.unban(request.auth.userId, request.params.guildId, request.params.userId);
+      return reply.code(204).send(null);
+    },
   );
 
   app.put(

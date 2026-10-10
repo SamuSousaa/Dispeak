@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ReadStream } from 'node:fs';
 import {
+  ApiErrorCode,
   GUILD_SOUND_MAX_BYTES,
   canGrantPermissions,
   canManageRole,
@@ -9,6 +10,7 @@ import {
   outranks,
   parsePermissions,
   Permissions,
+  type Ban,
   type Channel,
   type ChannelType,
   type Guild,
@@ -55,6 +57,8 @@ const {
   memberRoles,
   invites,
   guildSounds,
+  guildBans,
+  users,
 } = schema;
 
 export interface GuildServiceDeps {
@@ -268,7 +272,7 @@ export class GuildService {
     actorId: string,
     guildId: string,
     targetId: string,
-    changes: { roleIds?: string[]; nickname?: string | null },
+    changes: { roleIds?: string[]; nickname?: string | null; serverMuted?: boolean },
   ): Promise<Member> {
     const snapshot = await this.load(guildId);
     const actor = requireActor(snapshot, actorId);
@@ -284,6 +288,20 @@ export class GuildService {
         .update(guildMembers)
         .set({ nickname: changes.nickname })
         .where(and(eq(guildMembers.guildId, guildId), eq(guildMembers.userId, targetId)));
+    }
+
+    let voiceChanged = false;
+    if (changes.serverMuted !== undefined && changes.serverMuted !== target.member.serverMuted) {
+      requirePermission(actor, Permissions.MuteMembers);
+      // Anyone with the permission may lift a mute from themselves, never impose on a superior.
+      if (targetId !== actorId && !outranks(actor, target)) {
+        throw forbidden('the member has an equal or higher role');
+      }
+      await this.db
+        .update(guildMembers)
+        .set({ serverMuted: changes.serverMuted })
+        .where(and(eq(guildMembers.guildId, guildId), eq(guildMembers.userId, targetId)));
+      voiceChanged = true;
     }
 
     let rolesChanged = false;
@@ -322,7 +340,79 @@ export class GuildService {
     const member = toMember(updated);
     await this.bus.event(guildId, 'MEMBER_UPDATE', { guildId, member });
     if (rolesChanged) await this.permissionsChanged(guildId);
+    // The microphone right travels in the voice token: whoever is in a call rejoins with a new one.
+    else if (voiceChanged) await this.deps.voice.enforce(guildId);
     return member;
+  }
+
+  /** Takes a member out of the voice channel they are in (DISCONNECT_MEMBERS). */
+  async disconnectFromVoice(actorId: string, guildId: string, targetId: string): Promise<void> {
+    const snapshot = await this.load(guildId);
+    const actor = requireActor(snapshot, actorId);
+    requirePermission(actor, Permissions.DisconnectMembers);
+    const target = actorOf(snapshot, targetId);
+    if (!target) throw notFound('member');
+    if (targetId !== actorId && !outranks(actor, target)) {
+      throw forbidden('the member has an equal or higher role');
+    }
+    if (!(await this.deps.voice.kick(guildId, targetId))) throw notFound('voice connection');
+  }
+
+  // --- bans ---------------------------------------------------------------------------------
+
+  /** Removes a member and keeps them from coming back with an invite (BAN_MEMBERS). */
+  async ban(actorId: string, guildId: string, targetId: string): Promise<void> {
+    const snapshot = await this.load(guildId);
+    const actor = requireActor(snapshot, actorId);
+    requirePermission(actor, Permissions.BanMembers);
+    if (targetId === actorId) throw badRequest('you cannot ban yourself');
+    const target = actorOf(snapshot, targetId);
+    // Someone who already left can still be banned, as long as the account exists.
+    if (target) {
+      if (!outranks(actor, target)) throw forbidden('the member has an equal or higher role');
+    } else {
+      const [user] = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, targetId));
+      if (!user) throw notFound('user');
+    }
+    await this.db
+      .insert(guildBans)
+      .values({ guildId, userId: targetId, bannedBy: actorId })
+      .onConflictDoNothing();
+    if (target) await this.removeMember(guildId, targetId);
+  }
+
+  async unban(actorId: string, guildId: string, targetId: string): Promise<void> {
+    const snapshot = await this.load(guildId);
+    requirePermission(requireActor(snapshot, actorId), Permissions.BanMembers);
+    const removed = await this.db
+      .delete(guildBans)
+      .where(and(eq(guildBans.guildId, guildId), eq(guildBans.userId, targetId)))
+      .returning();
+    if (removed.length === 0) throw notFound('ban');
+  }
+
+  async listBans(actorId: string, guildId: string): Promise<Ban[]> {
+    const snapshot = await this.load(guildId);
+    requirePermission(requireActor(snapshot, actorId), Permissions.BanMembers);
+    const rows = await this.db
+      .select({ ban: guildBans, user: users })
+      .from(guildBans)
+      .innerJoin(users, eq(users.id, guildBans.userId))
+      .where(eq(guildBans.guildId, guildId))
+      .orderBy(guildBans.createdAt);
+    return rows.map(({ ban, user }) => ({
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatar: user.avatarId,
+      },
+      bannedBy: ban.bannedBy,
+      createdAt: ban.createdAt.toISOString(),
+    }));
   }
 
   // --- channels -----------------------------------------------------------------------------
@@ -492,7 +582,7 @@ export class GuildService {
   async createRole(
     userId: string,
     guildId: string,
-    input: { name: string; permissions: string },
+    input: { name: string; permissions: string; color?: string | null },
   ): Promise<Role> {
     const snapshot = await this.load(guildId);
     const actor = requireActor(snapshot, userId);
@@ -511,7 +601,14 @@ export class GuildService {
         .where(and(eq(roles.guildId, guildId), gte(roles.position, 1)));
       return tx
         .insert(roles)
-        .values({ id, guildId, name: input.name, permissions, position: 1 })
+        .values({
+          id,
+          guildId,
+          name: input.name,
+          permissions,
+          position: 1,
+          color: input.color?.toLowerCase() ?? null,
+        })
         .returning();
     });
     if (!role) throw new Error('role insert returned nothing');
@@ -522,7 +619,7 @@ export class GuildService {
   async updateRole(
     userId: string,
     roleId: string,
-    changes: { name?: string; permissions?: string },
+    changes: { name?: string; permissions?: string; color?: string | null },
   ): Promise<Role> {
     const { snapshot, role } = await this.loadRole(roleId);
     const actor = requireActor(snapshot, userId);
@@ -543,7 +640,12 @@ export class GuildService {
 
     const [updated] = await this.db
       .update(roles)
-      .set({ name: changes.name, permissions })
+      .set({
+        name: changes.name,
+        permissions,
+        // `undefined` leaves the colour alone; `null` removes it.
+        ...(changes.color === undefined ? {} : { color: changes.color?.toLowerCase() ?? null }),
+      })
       .where(eq(roles.id, roleId))
       .returning();
     if (!updated) throw notFound('role');
@@ -677,6 +779,7 @@ export class GuildService {
     const [invite] = await this.db.select().from(invites).where(eq(invites.code, code));
     if (!invite) throw inviteInvalid();
     const guildId = invite.guildId;
+    await this.refuseBanned(guildId, userId);
 
     const joined = await this.db.transaction(async (tx) => {
       const [existing] = await tx
@@ -710,6 +813,14 @@ export class GuildService {
     const snapshot = await loadGuildSnapshot(db, guildId);
     if (!snapshot) throw notFound('guild');
     return snapshot;
+  }
+
+  private async refuseBanned(guildId: string, userId: string): Promise<void> {
+    const [ban] = await this.db
+      .select({ userId: guildBans.userId })
+      .from(guildBans)
+      .where(and(eq(guildBans.guildId, guildId), eq(guildBans.userId, userId)));
+    if (ban) throw new AppError(403, ApiErrorCode.Banned, 'you are banned from this server');
   }
 
   private async loadChannel(channelId: string) {

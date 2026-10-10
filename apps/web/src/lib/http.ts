@@ -74,6 +74,8 @@ export function describeError(
       return 'Este nome de usuário já está em uso.';
     case 'forbidden':
       return 'Você não tem permissão para fazer isso.';
+    case 'banned':
+      return 'Você foi banido deste servidor.';
     case 'invite_invalid':
       return 'Este convite é inválido ou expirou.';
     case 'rate_limited':

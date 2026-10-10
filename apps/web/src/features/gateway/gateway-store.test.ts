@@ -13,6 +13,7 @@ const member = (id: string, displayName: string): Member => ({
   nickname: null,
   roleIds: [],
   joinedAt: '2026-01-01T00:00:00.000Z',
+  serverMuted: false,
 });
 
 const channel = (id: string, type: Channel['type'], position: number): Channel => ({

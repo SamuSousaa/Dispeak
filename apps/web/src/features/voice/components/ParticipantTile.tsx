@@ -7,6 +7,10 @@ import { LiveBadge } from './LiveBadge';
 
 interface ParticipantTileProps {
   name: string;
+  /** Colour of the participant's highest role, for the name. */
+  nameColor?: string;
+  /** Silenced by a moderator. */
+  serverMuted?: boolean;
   isSelf?: boolean;
   speaking: boolean;
   muted: boolean;
@@ -34,6 +38,8 @@ interface ParticipantTileProps {
 /** One participant of a voice channel. The accent outline means "speaking right now". */
 export function ParticipantTile({
   name,
+  nameColor,
+  serverMuted = false,
   isSelf = false,
   speaking,
   muted,
@@ -49,7 +55,7 @@ export function ParticipantTile({
   volumeNote = null,
   menu,
 }: ParticipantTileProps) {
-  const status = deafened ? 'SURDO' : muted ? 'MUDO' : null;
+  const status = serverMuted ? 'MUTADO NO SERVIDOR' : deafened ? 'SURDO' : muted ? 'MUDO' : null;
   const containerRef = useRef<HTMLDivElement>(null);
   const reportViewport = useRef(onVideoViewport);
   useEffect(() => {
@@ -85,7 +91,8 @@ export function ParticipantTile({
       {...menu}
       className={cx(
         'anim-rise relative flex flex-col border bg-surface transition-colors',
-        compact ? 'h-full w-44 shrink-0' : 'aspect-video',
+        compact ? 'h-full w-44 shrink-0' : 'h-full w-full',
+        menu && 'cursor-pointer',
         speaking ? 'border-accent' : 'border-line',
       )}
     >
@@ -133,7 +140,7 @@ export function ParticipantTile({
         )}
       </div>
       <div className="label flex items-center justify-between gap-2 border-t border-line px-2 py-1">
-        <span className="truncate text-fg">
+        <span className="truncate text-fg" style={nameColor ? { color: nameColor } : undefined}>
           {name}
           {isSelf && <span className="text-muted"> (VOCÊ)</span>}
         </span>

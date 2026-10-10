@@ -3,7 +3,7 @@ import { useState, type MouseEvent } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { contextMenu } from '../../components/ContextMenu';
 import { cx } from '../../lib/cx';
-import { memberName } from '../guilds/permissions';
+import { memberColor, memberName } from '../guilds/permissions';
 import { Attachments } from './Attachments';
 import { chatApi } from './chat-store';
 import { Composer } from './Composer';
@@ -197,7 +197,12 @@ export function MessageItem({
       {(showHeader || message.replyTo) && (
         <div className="relative flex items-baseline gap-2">
           <Avatar name={author} picture={picture} size={32} className="absolute top-0.5 -left-11" />
-          <span className="label-lg text-fg">{author}</span>
+          <span
+            className="label-lg text-fg"
+            style={member ? { color: memberColor(guild, message.author.id) } : undefined}
+          >
+            {author}
+          </span>
           <time className="label text-muted" dateTime={message.createdAt}>
             {timeFormat.format(new Date(message.createdAt))}
           </time>
