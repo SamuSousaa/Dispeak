@@ -16,10 +16,17 @@ export const usernameSchema = z
 export const passwordSchema = z.string().min(8).max(128);
 export const displayNameSchema = z.string().trim().min(1).max(32);
 
+/** Profile pictures and server icons: small square images, prepared by the client. */
+export const PICTURE_MAX_BYTES = 1024 * 1024;
+/** Side, in pixels, clients resize a picture to before sending it. */
+export const PICTURE_SIZE = 256;
+
 export const userSchema = z.object({
   id: idSchema,
   username: z.string(),
   displayName: z.string(),
+  /** Id of the profile picture, served at `/images/:id`; a new id for every upload. */
+  avatar: idSchema.nullable(),
 });
 export type User = z.infer<typeof userSchema>;
 
@@ -141,6 +148,8 @@ export const uploadGuildSoundQuerySchema = z.object({
 export const guildSchema = z.object({
   id: idSchema,
   name: z.string(),
+  /** Id of the server icon, served at `/images/:id`. */
+  icon: idSchema.nullable(),
   ownerId: idSchema,
   channels: z.array(channelSchema),
   roles: z.array(roleSchema),
@@ -158,7 +167,12 @@ export const guildSchema = z.object({
 });
 export type Guild = z.infer<typeof guildSchema>;
 
-export const guildSummarySchema = guildSchema.pick({ id: true, name: true, ownerId: true });
+export const guildSummarySchema = guildSchema.pick({
+  id: true,
+  name: true,
+  icon: true,
+  ownerId: true,
+});
 export type GuildSummary = z.infer<typeof guildSummarySchema>;
 
 const guildNameSchema = z.string().trim().min(2).max(48);

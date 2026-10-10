@@ -2,7 +2,9 @@ import type { User } from '@frequencia/shared';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '../../components/Button';
 import { Dialog, Field } from '../../components/Dialog';
+import { PictureField } from '../../components/PictureField';
 import { cx } from '../../lib/cx';
+import { profileApi } from '../auth/profile-api';
 import { SOUND_EVENTS, SOUND_LABELS, type SoundEvent } from '../sounds/sound-events';
 import {
   clearCustomSound,
@@ -664,7 +666,19 @@ export function SettingsPanel({
       )}
 
       {tab === 'account' && (
-        <Section number="01" title="CONTA">
+        <Section number="01" title="FOTO DE PERFIL">
+          <PictureField
+            subject="sua foto de perfil"
+            name={user.displayName}
+            picture={user.avatar}
+            testId="avatar-input"
+            onChange={profileApi.setAvatar}
+            onRemove={profileApi.clearAvatar}
+          />
+        </Section>
+      )}
+      {tab === 'account' && (
+        <Section number="02" title="CONTA">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="label-lg truncate text-fg">{user.displayName}</p>

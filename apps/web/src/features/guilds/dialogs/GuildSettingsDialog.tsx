@@ -16,6 +16,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/Button';
 import { Dialog, Field, FormError } from '../../../components/Dialog';
+import { PictureField } from '../../../components/PictureField';
 import { cx } from '../../../lib/cx';
 import { describeError } from '../../../lib/http';
 import { guildApi, inviteLink } from '../guild-api';
@@ -65,6 +66,18 @@ function OverviewTab({ guild, actor, run, busy, onClose }: TabProps) {
 
   return (
     <div className="divide-y divide-line">
+      {canRename && (
+        <Section title="ÍCONE DO SERVIDOR">
+          <PictureField
+            subject="o ícone do servidor"
+            name={guild.name}
+            picture={guild.icon}
+            testId="guild-icon-input"
+            onChange={(image) => guildApi.setIcon(guild.id, image)}
+            onRemove={() => guildApi.clearIcon(guild.id)}
+          />
+        </Section>
+      )}
       {canRename && (
         <form onSubmit={rename} className="flex flex-col gap-3 p-4">
           <Field label="NOME DO SERVIDOR">

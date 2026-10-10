@@ -32,6 +32,9 @@ import { AttachmentFiles } from './modules/messages/attachment-files';
 import { messageRoutes } from './modules/messages/routes';
 import { MessageService } from './modules/messages/service';
 import { MediaLink } from './modules/voice/media-link';
+import { PictureStore } from './modules/users/pictures';
+import { userRoutes } from './modules/users/routes';
+import { UserService } from './modules/users/service';
 import { voiceRoutes } from './modules/voice/routes';
 import { VoiceAccess } from './modules/voice/voice-access';
 import { VoiceStateStore } from './modules/voice/voice-state';
@@ -91,12 +94,17 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     onVoiceState: (event) => voice.applyVoiceState(event),
   });
   voice.attach(media);
+  // Subdirectories are out of reach of the attachment sweep.
+  const pictures = new PictureStore(
+    new AttachmentFiles(path.resolve(config.UPLOADS_DIR, 'pictures')),
+  );
+  const users = new UserService(database.db, bus, pictures);
   const guilds = new GuildService({
     db: database.db,
     bus,
     live,
     voice,
-    // A subdirectory, out of reach of the attachment sweep.
+    pictures,
     soundFiles: new AttachmentFiles(path.resolve(config.UPLOADS_DIR, 'sounds')),
   });
   const messages = new MessageService(
@@ -129,6 +137,8 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     auth,
     guilds,
     messages,
+    users,
+    pictures,
     linkPreviews,
     gifs,
     voice,
@@ -199,6 +209,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       await api.register(guildRoutes);
       await api.register(messageRoutes);
       await api.register(embedRoutes);
+      await api.register(userRoutes);
       await api.register(voiceRoutes);
       if (config.LAB_ENABLED) await api.register(labRoutes);
     },

@@ -23,7 +23,7 @@ const message = (id: number, content = `m${id}`): Message => ({
   id: `00000000-0000-4000-8000-${String(id).padStart(12, '0')}`,
   channelId: 'c',
   guildId: guild.id,
-  author: { id: ANA, username: 'ana', displayName: 'Ana' },
+  author: { id: ANA, username: 'ana', displayName: 'Ana', avatar: null },
   content,
   attachments: [],
   reactions: [],

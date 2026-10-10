@@ -1,4 +1,5 @@
 import { useEffect, useRef, type HTMLAttributes } from 'react';
+import { Avatar, initials } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
@@ -18,6 +19,8 @@ interface ParticipantTileProps {
   onUnwatch?: () => void;
   /** Smaller rendition used when streams take the main area. */
   compact?: boolean;
+  /** Profile picture id, shown while the camera is off. */
+  picture?: string | null;
   /** The participant's camera, when it is on. */
   video?: MediaStream | null;
   /** Reports the displayed height (CSS px) of a remote camera, to pick its quality. */
@@ -26,13 +29,6 @@ interface ParticipantTileProps {
   volumeNote?: string | null;
   /** Handlers that open the participant's menu (right click, long press). */
   menu?: HTMLAttributes<HTMLDivElement>;
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1] ?? '') : '';
-  return (last ? `${first[0] ?? ''}${last[0] ?? ''}` : first.slice(0, 2)).toUpperCase();
 }
 
 /** One participant of a voice channel. The accent outline means "speaking right now". */
@@ -47,6 +43,7 @@ export function ParticipantTile({
   onWatch,
   onUnwatch,
   compact = false,
+  picture = null,
   video = null,
   onVideoViewport,
   volumeNote = null,
@@ -103,10 +100,19 @@ export function ParticipantTile({
             className={cx('absolute inset-0 h-full w-full object-cover', isSelf && '-scale-x-100')}
           />
         )}
+        {picture && !video && (
+          <Avatar
+            name={name}
+            picture={picture}
+            size={compact ? 44 : 88}
+            className={cx('border transition-colors', speaking ? 'border-accent' : 'border-line')}
+          />
+        )}
         <span
           aria-hidden="true"
           className={cx(
             'display transition-colors',
+            picture && !video && 'hidden',
             compact ? 'text-xl' : 'text-4xl',
             speaking ? 'text-accent' : 'text-muted',
             video && 'invisible',

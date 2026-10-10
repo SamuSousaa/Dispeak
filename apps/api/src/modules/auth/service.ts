@@ -218,5 +218,10 @@ export class AuthService {
 }
 
 function toUser(row: typeof users.$inferSelect): User {
-  return { id: row.id, username: row.username, displayName: row.displayName };
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.displayName,
+    avatar: row.avatarId,
+  };
 }

@@ -1,4 +1,5 @@
 import { hasPermission, Permissions, type Guild, type Member } from '@frequencia/shared';
+import { Avatar } from '../../components/Avatar';
 import { contextMenu, openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { cx } from '../../lib/cx';
 import { actorIn } from '../guilds/permissions';
@@ -45,7 +46,15 @@ function Row({ guild, member, online, userId, onManageMembers }: RowProps) {
           openContextMenu({ x: event.clientX, y: event.clientY }, name, entries())
         }
       >
-        <span className={cx('label-lg truncate', online ? 'text-fg' : 'text-muted')}>{name}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <Avatar
+            name={name}
+            picture={member.user.avatar}
+            size={24}
+            className={cx(!online && 'opacity-50')}
+          />
+          <span className={cx('label-lg truncate', online ? 'text-fg' : 'text-muted')}>{name}</span>
+        </span>
         {tag && <span className="label shrink-0 truncate text-muted">{tag}</span>}
       </button>
     </li>

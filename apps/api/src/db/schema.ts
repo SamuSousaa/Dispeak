@@ -20,6 +20,8 @@ export const users = pgTable('users', {
   /** Lowercase, unique login handle. */
   username: text('username').notNull().unique(),
   displayName: text('display_name').notNull(),
+  /** File id of the profile picture. */
+  avatarId: uuid('avatar_id'),
   passwordHash: text('password_hash').notNull(),
   createdAt: createdAt(),
 });
@@ -53,6 +55,8 @@ export const refreshTokens = pgTable(
 export const guilds = pgTable('guilds', {
   id: uuid('id').primaryKey(),
   name: text('name').notNull(),
+  /** File id of the server icon. */
+  iconId: uuid('icon_id'),
   ownerId: uuid('owner_id')
     .notNull()
     .references(() => users.id),

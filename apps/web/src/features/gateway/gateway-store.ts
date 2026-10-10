@@ -51,7 +51,7 @@ export const gatewayReducers: { [T in GatewayEventName]: Reducer<T> } = {
   GUILD_CREATE: upsertGuild,
   GUILD_SYNC: upsertGuild,
   GUILD_UPDATE: (state, data) =>
-    updateGuild(state, data.id, (guild) => ({ ...guild, name: data.name })),
+    updateGuild(state, data.id, (guild) => ({ ...guild, name: data.name, icon: data.icon })),
   GUILD_DELETE: (state, data) => {
     const { [data.id]: _removed, ...guilds } = state.guilds;
     return { guilds, guildOrder: state.guildOrder.filter((id) => id !== data.id) };

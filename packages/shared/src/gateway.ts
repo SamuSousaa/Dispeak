@@ -76,7 +76,7 @@ export const gatewayEvents = {
   GUILD_CREATE: guildSchema,
   /** Full replacement of a guild, sent when permissions may have changed what is visible. */
   GUILD_SYNC: guildSchema,
-  GUILD_UPDATE: z.object({ id: idSchema, name: z.string() }),
+  GUILD_UPDATE: z.object({ id: idSchema, name: z.string(), icon: idSchema.nullable() }),
   /** The guild was deleted, or the user left it or was kicked. */
   GUILD_DELETE: z.object({ id: idSchema }),
 

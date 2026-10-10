@@ -9,7 +9,7 @@ const message = (channelId: string, patch: Partial<Message> = {}): Message => ({
   id: '00000000-0000-4000-8000-000000000001',
   channelId,
   guildId: 'g1',
-  author: { id: ANA, username: 'ana', displayName: 'Ana' },
+  author: { id: ANA, username: 'ana', displayName: 'Ana', avatar: null },
   content: 'oi',
   attachments: [],
   reactions: [],
@@ -36,7 +36,9 @@ describe('unread counters', () => {
 
   it('ignore the user’s own messages', () => {
     const state = { channels: {} };
-    const mine = message('c1', { author: { id: ME, username: 'eu', displayName: 'Eu' } });
+    const mine = message('c1', {
+      author: { id: ME, username: 'eu', displayName: 'Eu', avatar: null },
+    });
     expect(unreadState.add(state, mine, ME)).toBe(state);
   });
 

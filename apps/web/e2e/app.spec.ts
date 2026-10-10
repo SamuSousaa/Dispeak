@@ -92,7 +92,7 @@ test('account → server → invite → voice channel → stream, with permissio
   // --- both join the voice channel ----------------------------------------------------------
   await joinVoice(alice.page);
   // Bruno has not joined yet, but already sees Alice connected in the channel list.
-  await expect(voiceMembers(bruno.page)).toHaveText(['Alice']);
+  await expect(voiceMembers(bruno.page)).toHaveText([/Alice$/]);
   await joinVoice(bruno.page);
   // One sound for Bruno joining; Alice hears him arrive.
   const sounds = (page: Page) =>
@@ -197,9 +197,37 @@ test('account → server → invite → voice channel → stream, with permissio
   // A camera is not a stream: nobody is marked as live because of it.
   await expect(voiceMembers(bruno.page).filter({ hasText: 'Alice' })).not.toContainText('AO VIVO');
 
+  // --- Pictures: a profile picture and a server icon, cut to a square by the browser --------
+  // A 3x2 PNG, so the crop has something to do.
+  const picture = {
+    name: 'foto.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAGElEQVR4nGP4z8DAAMH//zMw/P//n+E/AErJCPgO3Eq0AAAAAElFTkSuQmCC',
+      'base64',
+    ),
+  };
+  const width = (image: HTMLElement) => (image as HTMLImageElement).naturalWidth;
+  await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await dialog(bruno.page).getByRole('tab', { name: 'CONTA' }).click();
+  await dialog(bruno.page).getByTestId('avatar-input').setInputFiles(picture);
+  await expect(dialog(bruno.page).getByRole('button', { name: /^Remover sua foto/ })).toBeVisible();
+  await dialog(bruno.page).getByRole('button', { name: 'Fechar' }).click();
+  // Everyone sees it: in the member list, in the voice channel and on the stage.
+  const brunoMember = alice.page.getByTestId('member').filter({ hasText: 'Bruno' });
+  await expect.poll(() => brunoMember.locator('img').evaluate(width)).toBe(256);
+  await expect(
+    voiceMembers(alice.page).filter({ hasText: 'Bruno' }).getByTestId('avatar'),
+  ).toHaveAttribute('data-picture', 'true');
+  await expect(
+    alice.page.getByTestId('participant').filter({ hasText: 'Bruno' }).getByTestId('avatar'),
+  ).toHaveAttribute('data-picture', 'true');
+
   // --- The owner picks a sound for the whole server; members download and play it -----------
   await alice.page.getByTestId('server-menu').click();
   await alice.page.getByRole('menuitem', { name: /CONFIGURAÇÕES DO SERVIDOR/ }).click();
+  await dialog(alice.page).getByTestId('guild-icon-input').setInputFiles(picture);
+  await expect.poll(() => bruno.page.getByTestId('guild-icon').evaluate(width)).toBe(256);
   await dialog(alice.page).getByRole('tab', { name: 'SONS' }).click();
   await dialog(alice.page)
     .getByTestId('guild-sound-input-streamStart')

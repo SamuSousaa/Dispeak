@@ -24,7 +24,8 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
   transmissões ao mesmo tempo, modo foco, tela cheia e janela flutuante (picture-in-picture).
 - **Assistir sob demanda**: o vídeo só é encaminhado para quem clicou em assistir, e a camada de
   simulcast é escolhida pelo tamanho em que a transmissão aparece na tela de cada espectador.
-- **Servidores, canais e categorias**, convites com expiração e limite de usos.
+- **Servidores, canais e categorias**, convites com expiração e limite de usos; foto de perfil e
+  ícone do servidor.
 - **Cargos e permissões** em bitflags, com hierarquia e sobrescritas por canal, aplicadas no
   servidor inclusive durante uma chamada em andamento.
 - **Chat de texto** com edição, exclusão, menções, paginação por cursor e "digitando"; emojis e

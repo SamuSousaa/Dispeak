@@ -1,5 +1,6 @@
 import type { Guild, Message, MessageReference } from '@frequencia/shared';
 import { useState, type MouseEvent } from 'react';
+import { Avatar } from '../../components/Avatar';
 import { contextMenu } from '../../components/ContextMenu';
 import { cx } from '../../lib/cx';
 import { memberName } from '../guilds/permissions';
@@ -120,8 +121,10 @@ export function MessageItem({
   const isMine = message.author.id === userId;
   const canDelete = isMine || canModerate;
   const mentionsMe = message.mentionEveryone || message.mentions.includes(userId);
-  const isMember = guild.members.some((member) => member.user.id === message.author.id);
-  const author = isMember ? memberName(guild, message.author.id) : message.author.displayName;
+  const member = guild.members.find((entry) => entry.user.id === message.author.id);
+  const author = member ? memberName(guild, message.author.id) : message.author.displayName;
+  // Members show the picture they have now; people who left keep the one the message came with.
+  const picture = member ? member.user.avatar : message.author.avatar;
   const parts = parseContent(message.content, guild, message.mentionEveryone);
   const links = parts.flatMap((part) => (part.type === 'link' ? [part.href] : []));
   const actionClass = 'label px-1.5 py-0.5 text-muted transition-colors hover:text-accent';
@@ -184,7 +187,7 @@ export function MessageItem({
       data-testid="message"
       data-mentions-me={mentionsMe}
       className={cx(
-        'anim-fade group relative border-l-2 px-4 py-0.5 transition-colors hover:bg-surface data-flash:bg-surface-2',
+        'anim-fade group relative border-l-2 py-0.5 pr-4 pl-[58px] transition-colors hover:bg-surface data-flash:bg-surface-2',
         (showHeader || message.replyTo) && 'mt-3',
         mentionsMe ? 'border-fg bg-surface' : 'border-transparent',
       )}
@@ -192,7 +195,8 @@ export function MessageItem({
     >
       {message.replyTo && <ReplyQuote reference={message.replyTo} guild={guild} />}
       {(showHeader || message.replyTo) && (
-        <div className="flex items-baseline gap-2">
+        <div className="relative flex items-baseline gap-2">
+          <Avatar name={author} picture={picture} size={32} className="absolute top-0.5 -left-11" />
           <span className="label-lg text-fg">{author}</span>
           <time className="label text-muted" dateTime={message.createdAt}>
             {timeFormat.format(new Date(message.createdAt))}

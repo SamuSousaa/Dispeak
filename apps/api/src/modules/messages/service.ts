@@ -36,10 +36,22 @@ const { messages, channels, users, attachments, messageReactions, readStates, gu
 
 type MessageRow = typeof messages.$inferSelect;
 type AttachmentRow = typeof attachments.$inferSelect;
-type AuthorRow = Pick<typeof users.$inferSelect, 'id' | 'username' | 'displayName'>;
+type AuthorRow = Pick<typeof users.$inferSelect, 'id' | 'username' | 'displayName' | 'avatarId'>;
 type MessageWithAuthor = { message: MessageRow; author: AuthorRow };
 
-const authorColumns = { id: users.id, username: users.username, displayName: users.displayName };
+const authorColumns = {
+  id: users.id,
+  username: users.username,
+  displayName: users.displayName,
+  avatarId: users.avatarId,
+};
+
+const toAuthor = (author: AuthorRow) => ({
+  id: author.id,
+  username: author.username,
+  displayName: author.displayName,
+  avatar: author.avatarId,
+});
 
 /** An upload must be used in a message within this time, or it is discarded. */
 const UNATTACHED_TTL_MS = 60 * 60 * 1000;
@@ -448,7 +460,7 @@ export class MessageService {
       id: message.id,
       channelId: message.channelId,
       guildId,
-      author: { id: author.id, username: author.username, displayName: author.displayName },
+      author: toAuthor(author),
       content: message.content,
       attachments: (attached.get(message.id) ?? []).map(toAttachment),
       reactions: reactions.get(message.id) ?? [],
@@ -498,7 +510,7 @@ export class MessageService {
     for (const { message, author } of rows) {
       byId.set(message.id, {
         id: message.id,
-        author: { id: author.id, username: author.username, displayName: author.displayName },
+        author: toAuthor(author),
         content: message.content.slice(0, REPLY_EXCERPT_LENGTH),
         attachments: attached.get(message.id)?.length ?? 0,
       });
@@ -557,7 +569,12 @@ export class MessageService {
   private authorOf(snapshot: GuildSnapshot, userId: string): AuthorRow {
     const member = snapshot.members.get(userId);
     if (!member) throw notFound('member');
-    return { id: member.userId, username: member.username, displayName: member.displayName };
+    return {
+      id: member.userId,
+      username: member.username,
+      displayName: member.displayName,
+      avatarId: member.avatarId,
+    };
   }
 }
 

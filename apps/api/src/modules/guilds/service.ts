@@ -28,6 +28,7 @@ import type { GatewayBus } from '../../gateway/bus';
 import { sniffAudio } from '../../lib/audio';
 import { cleanFilename } from '../../lib/filename';
 import { inviteCode, uuidv7 } from '../../lib/ids';
+import type { PictureStore } from '../users/pictures';
 import type { AttachmentFiles } from '../messages/attachment-files';
 import type { VoiceAccess } from '../voice/voice-access';
 import { buildGuildPayload, type LiveState } from './live';
@@ -63,6 +64,8 @@ export interface GuildServiceDeps {
   voice: VoiceAccess;
   /** Where the custom notification sounds of guilds are stored. */
   soundFiles: AttachmentFiles;
+  /** Server icons (shared with profile pictures). */
+  pictures: PictureStore;
 }
 
 /**
@@ -84,7 +87,7 @@ export class GuildService {
 
   async list(userId: string): Promise<GuildSummary[]> {
     return this.db
-      .select({ id: guilds.id, name: guilds.name, ownerId: guilds.ownerId })
+      .select({ id: guilds.id, name: guilds.name, icon: guilds.iconId, ownerId: guilds.ownerId })
       .from(guilds)
       .innerJoin(guildMembers, eq(guildMembers.guildId, guilds.id))
       .where(eq(guildMembers.userId, userId))
@@ -134,8 +137,21 @@ export class GuildService {
     const snapshot = await this.load(guildId);
     requirePermission(requireActor(snapshot, userId), Permissions.ManageGuild);
     await this.db.update(guilds).set({ name }).where(eq(guilds.id, guildId));
-    await this.bus.event(guildId, 'GUILD_UPDATE', { id: guildId, name });
-    return { id: guildId, name, ownerId: snapshot.guild.ownerId };
+    const icon = snapshot.guild.iconId;
+    await this.bus.event(guildId, 'GUILD_UPDATE', { id: guildId, name, icon });
+    return { id: guildId, name, icon, ownerId: snapshot.guild.ownerId };
+  }
+
+  /** Sets the server icon (MANAGE_GUILD), or removes it with `null`. */
+  async setIcon(userId: string, guildId: string, data: Buffer | null): Promise<GuildSummary> {
+    const snapshot = await this.load(guildId);
+    requirePermission(requireActor(snapshot, userId), Permissions.ManageGuild);
+    const icon = data ? await this.deps.pictures.store(data) : null;
+    await this.db.update(guilds).set({ iconId: icon }).where(eq(guilds.id, guildId));
+    await this.deps.pictures.discard(snapshot.guild.iconId);
+    const { name, ownerId } = snapshot.guild;
+    await this.bus.event(guildId, 'GUILD_UPDATE', { id: guildId, name, icon });
+    return { id: guildId, name, icon, ownerId };
   }
 
   async delete(userId: string, guildId: string): Promise<void> {
@@ -143,6 +159,7 @@ export class GuildService {
     if (!requireActor(snapshot, userId).isOwner) throw forbidden('only the owner can delete');
     await this.db.delete(guilds).where(eq(guilds.id, guildId));
     await this.deps.soundFiles.remove([...snapshot.sounds.values()].map((sound) => sound.id));
+    await this.deps.pictures.discard(snapshot.guild.iconId);
     await this.bus.publish({ kind: 'guild-delete', guildId });
     await Promise.all(
       [...snapshot.channels.values()]

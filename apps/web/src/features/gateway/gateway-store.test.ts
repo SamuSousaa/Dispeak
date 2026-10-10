@@ -9,7 +9,7 @@ const ALICE = '00000000-0000-4000-8000-00000000000a';
 const BRUNO = '00000000-0000-4000-8000-00000000000b';
 
 const member = (id: string, displayName: string): Member => ({
-  user: { id, username: displayName.toLowerCase(), displayName },
+  user: { id, username: displayName.toLowerCase(), displayName, avatar: null },
   nickname: null,
   roleIds: [],
   joinedAt: '2026-01-01T00:00:00.000Z',
@@ -29,6 +29,7 @@ const channel = (id: string, type: Channel['type'], position: number): Channel =
 const guild = (overrides: Partial<Guild> = {}): Guild => ({
   id: GUILD,
   name: 'Amigos',
+  icon: null,
   ownerId: ALICE,
   channels: [channel(TEXT, 'text', 0), channel(VOICE, 'voice', 1)],
   roles: [],
@@ -79,7 +80,9 @@ describe('gateway reducers', () => {
   });
 
   it('ignores events for guilds it does not know', () => {
-    expect(gatewayReducers.GUILD_UPDATE(initialGatewayState, { id: GUILD, name: 'X' })).toEqual({});
+    expect(
+      gatewayReducers.GUILD_UPDATE(initialGatewayState, { id: GUILD, name: 'X', icon: null }),
+    ).toEqual({});
     expect(gatewayReducers.VOICE_STATE_UPDATE(initialGatewayState, voice(ALICE, VOICE))).toEqual(
       {},
     );

@@ -11,6 +11,8 @@ import type { GifSearch } from './modules/embeds/gifs';
 import type { LinkPreviews } from './modules/embeds/link-preview';
 import type { GuildService } from './modules/guilds/service';
 import type { MessageService } from './modules/messages/service';
+import type { PictureStore } from './modules/users/pictures';
+import type { UserService } from './modules/users/service';
 import type { MediaLink } from './modules/voice/media-link';
 import type { VoiceAccess } from './modules/voice/voice-access';
 import type { VoiceStateStore } from './modules/voice/voice-state';
@@ -28,6 +30,8 @@ export interface AppContext {
   auth: AuthService;
   guilds: GuildService;
   messages: MessageService;
+  users: UserService;
+  pictures: PictureStore;
   linkPreviews: LinkPreviews;
   gifs: GifSearch;
   voice: VoiceAccess;

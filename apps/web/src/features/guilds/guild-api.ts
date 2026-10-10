@@ -24,6 +24,14 @@ export const guildApi = {
   create: (name: string) => api('POST', '/guilds', { body: { name }, schema: guildSchema }),
   rename: (guildId: string, name: string) =>
     api('PATCH', `/guilds/${guildId}`, { body: { name }, schema: guildSummarySchema }),
+  /** The image goes as raw bytes; the server recognises the format by itself. */
+  setIcon: (guildId: string, image: Blob) =>
+    api('PUT', `/guilds/${guildId}/icon`, {
+      body: new Blob([image], { type: 'application/octet-stream' }),
+      schema: guildSummarySchema,
+    }),
+  clearIcon: (guildId: string) =>
+    api('DELETE', `/guilds/${guildId}/icon`, { schema: guildSummarySchema }),
   delete: (guildId: string) => api('DELETE', `/guilds/${guildId}`),
   leave: (guildId: string) => api('DELETE', `/guilds/${guildId}/members/@me`),
 

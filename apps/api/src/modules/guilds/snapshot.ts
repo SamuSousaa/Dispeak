@@ -38,6 +38,7 @@ export interface MemberEntry {
   userId: string;
   username: string;
   displayName: string;
+  avatarId: string | null;
   nickname: string | null;
   joinedAt: Date;
   /** Roles besides @everyone. */
@@ -46,7 +47,7 @@ export interface MemberEntry {
 
 /** Everything needed to answer permission questions about one guild, loaded in one go. */
 export interface GuildSnapshot {
-  guild: { id: string; name: string; ownerId: string };
+  guild: { id: string; name: string; ownerId: string; iconId: string | null };
   roles: Map<string, RoleRow>;
   channels: Map<string, ChannelRow>;
   overwrites: Map<string, PermissionOverwrite[]>;
@@ -98,6 +99,7 @@ export async function loadGuildSnapshot(
       userId: user.id,
       username: user.username,
       displayName: user.displayName,
+      avatarId: user.avatarId,
       nickname: member.nickname,
       joinedAt: member.joinedAt,
       roleIds: [],
@@ -106,7 +108,7 @@ export async function loadGuildSnapshot(
   for (const row of memberRoleRows) members.get(row.userId)?.roleIds.push(row.roleId);
 
   return {
-    guild: { id: guild.id, name: guild.name, ownerId: guild.ownerId },
+    guild: { id: guild.id, name: guild.name, ownerId: guild.ownerId, iconId: guild.iconId },
     roles: new Map(roleRows.map((role) => [role.id, role])),
     channels: new Map(channelRows.map((channel) => [channel.id, channel])),
     overwrites,
@@ -216,7 +218,12 @@ export function toChannel(snapshot: GuildSnapshot, row: ChannelRow): Channel {
 
 export function toMember(entry: MemberEntry): Member {
   return {
-    user: { id: entry.userId, username: entry.username, displayName: entry.displayName },
+    user: {
+      id: entry.userId,
+      username: entry.username,
+      displayName: entry.displayName,
+      avatar: entry.avatarId,
+    },
     nickname: entry.nickname,
     roleIds: [...entry.roleIds],
     joinedAt: entry.joinedAt.toISOString(),
@@ -240,6 +247,7 @@ export function guildPayloadFor(
   return {
     id: snapshot.guild.id,
     name: snapshot.guild.name,
+    icon: snapshot.guild.iconId,
     ownerId: snapshot.guild.ownerId,
     channels: visible.map((channel) => toChannel(snapshot, channel)),
     roles: [...snapshot.roles.values()].sort((a, b) => b.position - a.position).map(toRole),

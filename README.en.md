@@ -25,7 +25,8 @@ The interface is in Brazilian Portuguese, and so are the documents linked from t
   once, focus mode, fullscreen and picture-in-picture.
 - **Watch on demand**: video is only forwarded to those who clicked to watch, and the simulcast
   layer is chosen from the size at which the stream is displayed on each viewer's screen.
-- **Servers, channels and categories**, invites with expiration and a usage limit.
+- **Servers, channels and categories**, invites with expiration and a usage limit; profile
+  pictures and server icons.
 - **Roles and permissions** as bitflags, with hierarchy and per-channel overrides, enforced on the
   server even during an ongoing call.
 - **Text chat** with editing, deletion, mentions, cursor pagination and "typing"; emoji and images

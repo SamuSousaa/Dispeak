@@ -1,5 +1,6 @@
 import { hasPermission, Permissions, type User } from '@frequencia/shared';
 import { NavLink } from 'react-router-dom';
+import { Avatar } from '../../components/Avatar';
 import { IconButton } from '../../components/IconButton';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { channelPermissions } from '../guilds/permissions';
@@ -133,6 +134,7 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
         </div>
       )}
       <div className="flex items-center gap-1.5 px-3 py-2">
+        <Avatar name={user.displayName} picture={user.avatar} size={32} />
         <div className="min-w-0 flex-1">
           <p className="label-lg truncate text-fg">{user.displayName}</p>
           <p className="label truncate text-muted">@{user.username}</p>

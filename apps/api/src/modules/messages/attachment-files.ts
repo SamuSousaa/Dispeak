@@ -1,5 +1,5 @@
 import { createReadStream, type ReadStream } from 'node:fs';
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -31,6 +31,11 @@ export class AttachmentFiles {
 
   open(id: string): ReadStream {
     return createReadStream(this.pathOf(id));
+  }
+
+  /** The whole file, or `null` when there is none. For small files only. */
+  async read(id: string): Promise<Buffer | null> {
+    return readFile(this.pathOf(id)).catch(() => null);
   }
 
   /** Best effort: a file that is already gone is not an error. */

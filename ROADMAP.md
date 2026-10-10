@@ -129,6 +129,8 @@ passar e de um commit ser feito.
 - [x] Transmissão em janela flutuante (picture-in-picture)
 - [x] Canal de texto ao lado da chamada
 - [x] Ícones de mudo e ensurdecido na lista de quem está em cada canal de voz
+- [x] Foto de perfil e ícone do servidor: a imagem é cortada em quadrado de 256 px no navegador e
+      servida em `/api/images/:id` (pública, com id aleatório que muda a cada envio)
 
 **Único serviço externo.** A busca de GIF depende da GIPHY e por isso é opcional: sem a chave o
 botão não aparece. Não é mídia nem tempo real, então não fere a regra de infraestrutura própria.

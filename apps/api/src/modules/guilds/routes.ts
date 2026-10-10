@@ -1,5 +1,6 @@
 import {
   GUILD_SOUND_MAX_BYTES,
+  PICTURE_MAX_BYTES,
   channelSchema,
   createChannelRequestSchema,
   createGuildRequestSchema,
@@ -124,6 +125,42 @@ export const guildRoutes: FastifyPluginAsyncZod = async (app) => {
     'application/octet-stream',
     { parseAs: 'buffer', bodyLimit: GUILD_SOUND_MAX_BYTES },
     (_request, body, done) => done(null, body),
+  );
+
+  app.put(
+    '/guilds/:guildId/icon',
+    {
+      bodyLimit: PICTURE_MAX_BYTES,
+      schema: {
+        tags: ['guilds'],
+        summary: 'Set the server icon (MANAGE_GUILD)',
+        description:
+          'The body is the raw image (PNG, JPEG, GIF or WebP, up to 1 MiB) sent as ' +
+          '`application/octet-stream`. It is served at `/images/:id`.',
+        security,
+        consumes: ['application/octet-stream'],
+        params: guildParams,
+        response: { 200: guildSummarySchema },
+      },
+    },
+    (request) => {
+      if (!Buffer.isBuffer(request.body)) throw badRequest('the body must be an image');
+      return guilds.setIcon(request.auth.userId, request.params.guildId, request.body);
+    },
+  );
+
+  app.delete(
+    '/guilds/:guildId/icon',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'Remove the server icon (MANAGE_GUILD)',
+        security,
+        params: guildParams,
+        response: { 200: guildSummarySchema },
+      },
+    },
+    (request) => guilds.setIcon(request.auth.userId, request.params.guildId, null),
   );
 
   app.put(

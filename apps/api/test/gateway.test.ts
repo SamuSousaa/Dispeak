@@ -168,7 +168,11 @@ describe('gateway', () => {
         token: owner.token,
         body: { name: 'Renomeado' },
       });
-      expect(await client.next('GUILD_UPDATE')).toEqual({ id: guild.id, name: 'Renomeado' });
+      expect(await client.next('GUILD_UPDATE')).toEqual({
+        id: guild.id,
+        name: 'Renomeado',
+        icon: null,
+      });
     });
 
     it('broadcasts channel changes only to members who can see the channel', async () => {
@@ -385,8 +389,8 @@ describe('gateway', () => {
         [5, 'RESUMED'],
       ]);
       expect(resumed.dispatches.slice(0, 2).map((entry) => entry.d)).toEqual([
-        { id: guild.id, name: 'Dois' },
-        { id: guild.id, name: 'Três' },
+        { id: guild.id, name: 'Dois', icon: null },
+        { id: guild.id, name: 'Três', icon: null },
       ]);
 
       // The resumed connection keeps receiving live events with consecutive sequence numbers.

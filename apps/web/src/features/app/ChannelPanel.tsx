@@ -1,6 +1,7 @@
 import { hasPermission, Permissions, type Channel, type Guild } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { Avatar } from '../../components/Avatar';
 import { contextMenu } from '../../components/ContextMenu';
 import { Icon, type IconName } from '../../components/Icon';
 import { cx } from '../../lib/cx';
@@ -350,13 +351,21 @@ export function ChannelPanel({
                           <li
                             key={voice.userId}
                             data-testid="voice-member"
-                            className="label flex items-center gap-2 py-0.5 pr-3 pl-9 transition-colors hover:bg-surface-2"
+                            className="label flex items-center gap-2 py-0.5 pr-3 pl-8 transition-colors hover:bg-surface-2"
                             {...contextMenu(memberName(guild, voice.userId), () =>
                               voice.userId === userId
                                 ? []
                                 : volumeMenuEntries(voice.userId, memberName(guild, voice.userId)),
                             )}
                           >
+                            <Avatar
+                              name={memberName(guild, voice.userId)}
+                              picture={
+                                guild.members.find((entry) => entry.user.id === voice.userId)?.user
+                                  .avatar
+                              }
+                              size={18}
+                            />
                             <span
                               className={cx(
                                 'truncate transition-colors',

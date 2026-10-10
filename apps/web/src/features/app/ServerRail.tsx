@@ -1,15 +1,9 @@
 import { NavLink } from 'react-router-dom';
+import { initials, pictureUrl } from '../../components/Avatar';
 import { contextMenu } from '../../components/ContextMenu';
 import { cx } from '../../lib/cx';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { markGuildRead, sumUnread, useUnreadStore } from '../unread/unread-store';
-
-function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const first = words[0] ?? '';
-  const second = words[1] ?? '';
-  return (second ? `${first[0] ?? ''}${second[0] ?? ''}` : first.slice(0, 2)).toUpperCase();
-}
 
 /** Leftmost rail: one square per server, plus the button to create or join one. */
 export function ServerRail({ onAdd }: { onAdd: () => void }) {
@@ -59,7 +53,17 @@ export function ServerRail({ onAdd }: { onAdd: () => void }) {
               )
             }
           >
-            {initials(guild.name)}
+            {guild.icon ? (
+              <img
+                src={pictureUrl(guild.icon)}
+                alt=""
+                draggable={false}
+                data-testid="guild-icon"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              initials(guild.name)
+            )}
             {pending.mentions > 0 ? (
               <span className="label absolute -right-1 -bottom-1 bg-fg px-1 text-bg">
                 {pending.mentions > 99 ? '99+' : pending.mentions}

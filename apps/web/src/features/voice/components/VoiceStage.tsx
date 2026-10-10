@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { contextMenu } from '../../../components/ContextMenu';
 import { cx } from '../../../lib/cx';
+import { useAuthStore } from '../../auth/auth-store';
+import { useAvatars } from '../../guilds/use-avatars';
 import { useSettingsStore } from '../../settings/settings-store';
 import { setCameraViewport, stopScreenShare, unwatchStream, watchStream } from '../voice-actions';
 import { isLive, SELF_STREAM, useVoiceStore } from '../voice-store';
@@ -37,6 +39,8 @@ export function VoiceStage({ selfName }: { selfName: string }) {
   const cameras = useVoiceStore((state) => state.cameras);
   const watching = useVoiceStore((state) => state.watching);
   const userVolumes = useSettingsStore((state) => state.userVolumes);
+  const selfAvatar = useAuthStore((state) => state.user?.avatar ?? null);
+  const avatarOf = useAvatars();
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
   const others = Object.values(peers).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
@@ -75,6 +79,7 @@ export function VoiceStage({ selfName }: { selfName: string }) {
           muted={muted}
           deafened={deafened}
           live={screen.status === 'live'}
+          picture={selfAvatar}
           video={camera.stream}
           compact={hasStreams}
         />
@@ -88,6 +93,7 @@ export function VoiceStage({ selfName }: { selfName: string }) {
             deafened={peer.deafened}
             live={isLive(peer)}
             watching={Boolean(watching[peer.id])}
+            picture={avatarOf(peer.userId)}
             video={cameras[peer.id] ?? null}
             onVideoViewport={(cssHeight) => setCameraViewport(peer.id, cssHeight)}
             onWatch={() => watchStream(peer.id)}
