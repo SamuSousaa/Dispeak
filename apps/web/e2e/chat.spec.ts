@@ -139,7 +139,8 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
   // --- reactions ------------------------------------------------------------------------------
   await messages(bruno.page).last().hover();
   await messages(bruno.page).last().getByRole('button', { name: 'Reagir à mensagem' }).click();
-  await bruno.page.getByTestId('context-menu').getByRole('button', { name: '🔥' }).click();
+  await bruno.page.getByTestId('context-menu').getByLabel('Buscar emoji').fill('fogo');
+  await bruno.page.getByTestId('context-menu').locator('[data-emoji="🔥"]').click();
   await expect(messages(alice.page).last().getByTestId('reaction')).toHaveText('🔥1');
   await expect(messages(alice.page).last().getByTestId('reaction')).toHaveAttribute(
     'aria-pressed',
@@ -195,10 +196,12 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
 
   // --- emoji and images -----------------------------------------------------------------------
   await alice.page.getByRole('button', { name: 'Emojis' }).click();
-  await alice.page
-    .getByRole('dialog', { name: 'Emojis' })
-    .getByRole('button', { name: '🔥' })
-    .click();
+  const picker = alice.page.getByRole('dialog', { name: 'Emojis e GIFs' });
+  // Search by name, in Portuguese and without minding accents.
+  await picker.getByLabel('Buscar emoji').fill('coracao vermelho');
+  await expect(picker.locator('[data-emoji="❤️"]')).toBeVisible();
+  await picker.getByLabel('Buscar emoji').fill('fogo');
+  await picker.locator('[data-emoji="🔥"]').click();
   await expect(composer(alice.page)).toHaveValue('🔥');
   await alice.page.keyboard.press('Escape');
   await alice.page.getByTestId('attachment-input').setInputFiles({

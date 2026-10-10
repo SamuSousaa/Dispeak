@@ -25,7 +25,7 @@ export type MenuEntry =
   | { type: 'custom'; key: string; render: (close: () => void) => ReactNode };
 
 interface MenuState {
-  open: { x: number; y: number; title: string; entries: MenuEntry[] } | null;
+  open: { x: number; y: number; title: string; entries: MenuEntry[]; wide: boolean } | null;
 }
 
 const useMenuStore = create<MenuState>(() => ({ open: null }));
@@ -35,6 +35,7 @@ export function openContextMenu(
   point: { x: number; y: number },
   title: string,
   entries: Array<MenuEntry | false | null | undefined>,
+  options: { /** Room for a panel instead of a list of actions. */ wide?: boolean } = {},
 ): void {
   const kept = entries.filter((entry): entry is MenuEntry => Boolean(entry));
   // No lone, leading, trailing or doubled separators.
@@ -45,7 +46,9 @@ export function openContextMenu(
   );
   while (tidy.at(-1)?.type === 'separator') tidy.pop();
   if (tidy.length === 0) return;
-  useMenuStore.setState({ open: { ...point, title, entries: tidy } });
+  useMenuStore.setState({
+    open: { ...point, title, entries: tidy, wide: options.wide ?? false },
+  });
 }
 
 export function closeContextMenu(): void {
@@ -176,7 +179,10 @@ export function ContextMenuHost() {
       aria-label={menu.title}
       data-testid="context-menu"
       style={position ?? { left: menu.x, top: menu.y, visibility: 'hidden' }}
-      className="anim-fade fixed z-50 max-h-[calc(100dvh-16px)] w-60 max-w-[calc(100vw-16px)] overflow-y-auto border border-line-strong bg-surface-2"
+      className={cx(
+        'anim-fade fixed z-50 max-h-[calc(100dvh-16px)] max-w-[calc(100vw-16px)] overflow-y-auto border border-line-strong bg-surface-2',
+        menu.wide ? 'w-[22rem]' : 'w-60',
+      )}
       onContextMenu={(event) => event.preventDefault()}
     >
       <p className="label truncate border-b border-line px-3 py-1.5 text-muted">{menu.title}</p>

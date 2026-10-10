@@ -11,8 +11,7 @@ import { IconButton } from '../../components/IconButton';
 import { cx } from '../../lib/cx';
 import { describeError } from '../../lib/http';
 import { memberName } from '../guilds/permissions';
-import { EmojiGrid } from './EmojiGrid';
-import { GifPicker } from './GifPicker';
+import { ExpressionPicker, type ExpressionTab } from './ExpressionPicker';
 import { mentionQueryAt, toWireContent } from './mentions';
 
 interface ComposerProps {
@@ -53,42 +52,6 @@ const MAX_SUGGESTIONS = 6;
 const ACCEPTED_TYPES: readonly string[] = ATTACHMENT_CONTENT_TYPES;
 const MAX_MEGABYTES = ATTACHMENT_MAX_BYTES / (1024 * 1024);
 
-function EmojiPicker({
-  onPick,
-  onClose,
-}: {
-  onPick: (emoji: string) => void;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) onClose();
-    };
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      ref={ref}
-      role="dialog"
-      aria-label="Emojis"
-      className="anim-pop absolute right-0 bottom-full z-10 mb-1 max-h-72 w-80 max-w-full overflow-y-auto border border-line-strong bg-surface-2"
-    >
-      <EmojiGrid onPick={onPick} />
-    </div>
-  );
-}
-
 /**
  * Message input: Enter sends, Shift+Enter breaks the line, `@` opens member suggestions.
  * Images can be attached with the button, pasted from the clipboard or dropped on the field.
@@ -117,15 +80,22 @@ export function Composer({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingFile[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const [gifOpen, setGifOpen] = useState(false);
+  /** Which tab of the emoji and GIF panel is open, if any. */
+  const [picker, setPicker] = useState<ExpressionTab | null>(null);
 
   // Grow with the content, up to a few lines.
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
+    // The field grows with the text up to a share of the window; past that it keeps its size
+    // and the text scrolls inside. `scrollHeight` leaves the borders out, and without them the
+    // field would always be a hair too short and show a scrollbar.
+    const borders = element.offsetHeight - element.clientHeight;
+    const limit = Math.max(120, Math.round(window.innerHeight * 0.4));
     element.style.height = 'auto';
-    element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
+    const wanted = element.scrollHeight + borders;
+    element.style.height = `${Math.min(wanted, limit)}px`;
+    element.style.overflowY = wanted > limit ? 'auto' : 'hidden';
   }, [text]);
 
   useEffect(() => {
@@ -248,7 +218,7 @@ export function Composer({
 
   /** A GIF goes out on its own, as its link; whatever is being typed stays in the field. */
   const sendGif = async (url: string) => {
-    setGifOpen(false);
+    setPicker(null);
     if (busy) return;
     setBusy(true);
     setError(null);
@@ -332,18 +302,18 @@ export function Composer({
           ))}
         </ul>
       )}
-      {emojiOpen && (
-        <EmojiPicker
-          onPick={(emoji) => {
+      {picker && (
+        <ExpressionPicker
+          tab={picker}
+          onTab={setPicker}
+          gifs={gifs}
+          onEmoji={(emoji) => {
             const position = ref.current?.selectionStart ?? caret;
             insert(emoji, position, ref.current?.selectionEnd ?? position);
           }}
-          onClose={() => setEmojiOpen(false)}
+          onGif={(gif) => void sendGif(gif.url)}
+          onClose={() => setPicker(null)}
         />
-      )}
-
-      {gifOpen && (
-        <GifPicker onPick={(gif) => void sendGif(gif.url)} onClose={() => setGifOpen(false)} />
       )}
 
       {pending.length > 0 && (
@@ -430,14 +400,14 @@ export function Composer({
             type="button"
             aria-label="Buscar GIF"
             title="Buscar GIF"
-            aria-expanded={gifOpen}
+            aria-expanded={picker === 'gif'}
             disabled={busy}
             // The picker closes itself on an outside press; do not let that press reopen it.
             onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => setGifOpen((value) => !value)}
+            onClick={() => setPicker((open) => (open === 'gif' ? null : 'gif'))}
             className={cx(
               'pressable label inline-flex h-9 shrink-0 items-center justify-center border px-2 disabled:opacity-40',
-              gifOpen
+              picker === 'gif'
                 ? 'border-accent text-accent'
                 : 'border-line-strong text-fg hover:border-accent hover:text-accent',
             )}
@@ -449,11 +419,11 @@ export function Composer({
           icon="smile"
           label="Emojis"
           className="h-9 w-9"
-          tone={emojiOpen ? 'active' : 'default'}
-          aria-expanded={emojiOpen}
+          tone={picker === 'emoji' ? 'active' : 'default'}
+          aria-expanded={picker === 'emoji'}
           // The picker closes itself on an outside press; do not let that press reopen it.
           onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => setEmojiOpen((value) => !value)}
+          onClick={() => setPicker((open) => (open === 'emoji' ? null : 'emoji'))}
         />
       </div>
       {busy && pending.length > 0 && (
