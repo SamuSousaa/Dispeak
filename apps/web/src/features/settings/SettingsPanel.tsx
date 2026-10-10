@@ -24,6 +24,11 @@ import { PasswordForm, ProfileTab } from './ProfileTab';
 
 const NOISE_OPTIONS: Array<{ value: NoiseSuppressionMode; label: string; hint: string }> = [
   {
+    value: 'gtcrn',
+    label: 'MÁXIMA',
+    hint: 'Rede neural mais nova (GTCRN): corta teclado, cliques e ruído de fundo com mais força.',
+  },
+  {
     value: 'rnnoise',
     label: 'AVANÇADA',
     hint: 'Rede neural (RNNoise) que isola a voz e corta teclado, ventilador e ruído de fundo.',
@@ -49,6 +54,7 @@ export type SettingsTab = 'profile' | 'voice' | 'video' | 'chat' | 'sounds' | 'k
 type Tab = SettingsTab;
 
 const NOISE_NAMES: Record<NoiseSuppressionMode, string> = {
+  gtcrn: 'GTCRN',
   rnnoise: 'RNNOISE',
   browser: 'NAVEGADOR',
   off: 'DESLIGADA',
@@ -382,7 +388,8 @@ export function SettingsPanel({
   const [capturing, setCapturing] = useState<KeybindAction | null>(null);
 
   const namesHidden = devices.inputs.length > 0 && devices.inputs.every((device) => !device.label);
-  const fellBack = settings.noiseSuppression === 'rnnoise' && activeNoise === 'browser';
+  const neural = settings.noiseSuppression === 'gtcrn' || settings.noiseSuppression === 'rnnoise';
+  const fellBack = neural && activeNoise !== null && activeNoise !== settings.noiseSuppression;
 
   useEffect(() => {
     if (!capturing) return;
@@ -512,7 +519,7 @@ export function SettingsPanel({
                   data-testid="noise-active"
                 >
                   {fellBack
-                    ? 'RNNOISE INDISPONÍVEL NESTE NAVEGADOR — USANDO O FILTRO PADRÃO'
+                    ? `INDISPONÍVEL NESTE NAVEGADOR — EM USO: ${NOISE_NAMES[activeNoise]}`
                     : `EM USO AGORA: ${NOISE_NAMES[activeNoise]}`}
                 </p>
               )}

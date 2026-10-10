@@ -12,10 +12,11 @@ import {
 } from './keybinds';
 
 /**
- * `browser` is the suppression built into the browser; `rnnoise` runs a neural network
+ * `browser` is the suppression built into the browser; `gtcrn` (the newer, stronger model) and
+ * `rnnoise` run a neural network
  * (RNNoise, WebAssembly) on the microphone before it is sent.
  */
-export const NOISE_SUPPRESSION_MODES = ['off', 'browser', 'rnnoise'] as const;
+export const NOISE_SUPPRESSION_MODES = ['off', 'browser', 'rnnoise', 'gtcrn'] as const;
 export type NoiseSuppressionMode = (typeof NOISE_SUPPRESSION_MODES)[number];
 
 /** `voice` keeps the microphone open; `pushToTalk` opens it only while a key is held. */
@@ -33,6 +34,10 @@ const settingsSchema = z.object({
   noiseSuppression: z.enum(NOISE_SUPPRESSION_MODES),
   echoCancellation: z.boolean(),
   autoGainControl: z.boolean(),
+  /** After a neural model, drop what is too quiet to be a voice (key presses between words). */
+  noiseGate: z.boolean(),
+  /** Level, in dB, the cleaned microphone must reach for the gate to open. */
+  noiseGateThreshold: z.number().min(-80).max(-20),
   inputMode: z.enum(INPUT_MODES),
   /** How loud each person sounds to this user, by user id (0 to 1); absent means full volume. */
   userVolumes: z.record(z.string(), z.number().min(0).max(1)),
@@ -72,9 +77,11 @@ export const defaultSettings: Settings = {
   inputDeviceId: null,
   outputDeviceId: null,
   cameraDeviceId: null,
-  noiseSuppression: 'rnnoise',
+  noiseSuppression: 'gtcrn',
   echoCancellation: true,
   autoGainControl: true,
+  noiseGate: true,
+  noiseGateThreshold: -50,
   inputMode: 'voice',
   userVolumes: {},
   showEmbeds: true,

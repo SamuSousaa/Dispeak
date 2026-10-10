@@ -1,9 +1,14 @@
 import type { NoiseSuppressionMode, Settings } from '../settings/settings-store';
-import { denoiseTrack } from './noise-suppression';
+import { denoiseTrack, type DenoiseModel } from './noise-suppression';
 
 export type MicrophoneSettings = Pick<
   Settings,
-  'inputDeviceId' | 'noiseSuppression' | 'echoCancellation' | 'autoGainControl'
+  | 'inputDeviceId'
+  | 'noiseSuppression'
+  | 'echoCancellation'
+  | 'autoGainControl'
+  | 'noiseGate'
+  | 'noiseGateThreshold'
 >;
 
 export interface Microphone {
@@ -18,12 +23,15 @@ const isMissingDevice = (error: unknown) =>
   error instanceof DOMException &&
   (error.name === 'OverconstrainedError' || error.name === 'NotFoundError');
 
+const isNeural = (mode: NoiseSuppressionMode): mode is DenoiseModel =>
+  mode === 'gtcrn' || mode === 'rnnoise';
+
 async function capture(settings: MicrophoneSettings): Promise<MediaStreamTrack> {
   const constraints = (deviceId: string | null): MediaStreamConstraints => ({
     audio: {
       echoCancellation: settings.echoCancellation,
       autoGainControl: settings.autoGainControl,
-      // RNNoise replaces the browser's suppressor; running both distorts the voice.
+      // A neural model replaces the browser's suppressor; running both distorts the voice.
       noiseSuppression: settings.noiseSuppression === 'browser',
       ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
     },
@@ -42,10 +50,14 @@ async function capture(settings: MicrophoneSettings): Promise<MediaStreamTrack> 
   return track;
 }
 
-/** Opens the microphone with the user's settings. Throws when no microphone can be opened. */
+/**
+ * Opens the microphone with the user's settings. A neural model that cannot run gives way to
+ * the next best thing: the other model, then the browser's own filter. Throws only when no
+ * microphone can be opened at all.
+ */
 export async function openMicrophone(settings: MicrophoneSettings): Promise<Microphone> {
   const source = await capture(settings);
-  if (settings.noiseSuppression !== 'rnnoise') {
+  if (!isNeural(settings.noiseSuppression)) {
     return {
       track: source,
       noiseSuppression: settings.noiseSuppression,
@@ -53,19 +65,24 @@ export async function openMicrophone(settings: MicrophoneSettings): Promise<Micr
     };
   }
 
-  try {
-    const denoised = await denoiseTrack(source);
-    return {
-      track: denoised.track,
-      noiseSuppression: 'rnnoise',
-      close: () => {
-        denoised.close();
-        source.stop();
-      },
-    };
-  } catch (error) {
-    console.warn('[voice] RNNoise unavailable, using the browser noise suppression', error);
-    await source.applyConstraints({ noiseSuppression: true }).catch(() => undefined);
-    return { track: source, noiseSuppression: 'browser', close: () => source.stop() };
+  const gateThresholdDb = settings.noiseGate ? settings.noiseGateThreshold : null;
+  const attempts: DenoiseModel[] =
+    settings.noiseSuppression === 'gtcrn' ? ['gtcrn', 'rnnoise'] : ['rnnoise'];
+  for (const model of attempts) {
+    try {
+      const denoised = await denoiseTrack(source, { model, gateThresholdDb });
+      return {
+        track: denoised.track,
+        noiseSuppression: model,
+        close: () => {
+          denoised.close();
+          source.stop();
+        },
+      };
+    } catch (error) {
+      console.warn(`[voice] ${model} unavailable`, error);
+    }
   }
+  await source.applyConstraints({ noiseSuppression: true }).catch(() => undefined);
+  return { track: source, noiseSuppression: 'browser', close: () => source.stop() };
 }

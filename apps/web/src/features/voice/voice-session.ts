@@ -759,7 +759,9 @@ export class VoiceSession {
       settings.inputDeviceId !== previous.inputDeviceId ||
       settings.noiseSuppression !== previous.noiseSuppression ||
       settings.echoCancellation !== previous.echoCancellation ||
-      settings.autoGainControl !== previous.autoGainControl
+      settings.autoGainControl !== previous.autoGainControl ||
+      settings.noiseGate !== previous.noiseGate ||
+      settings.noiseGateThreshold !== previous.noiseGateThreshold
     ) {
       this.micReload = this.micReload.then(() => this.reloadMicrophone());
     }
