@@ -10,6 +10,7 @@ import { Composer } from './Composer';
 import { Embeds, isImageLink } from './Embeds';
 import { openReactionPicker, QUICK_REACTIONS } from './EmojiGrid';
 import { parseContent, toEditableContent, type ContentPart } from './mentions';
+import { PollView } from './PollView';
 
 const timeFormat = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -105,6 +106,8 @@ interface MessageItemProps {
   canMentionEveryone: boolean;
   /** Starts an answer to this message; absent where the user cannot write. */
   onReply?: (message: Message) => void;
+  /** Opens a thread about this message; absent where threads cannot be opened. */
+  onCreateThread?: (message: Message) => void;
 }
 
 export function MessageItem({
@@ -115,6 +118,7 @@ export function MessageItem({
   canModerate,
   canMentionEveryone,
   onReply,
+  onCreateThread,
 }: MessageItemProps) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -171,6 +175,7 @@ export function MessageItem({
     },
     { type: 'separator' },
     onReply && { label: 'Responder', onSelect: () => onReply(message) },
+    onCreateThread && { label: 'Criar tópico', onSelect: () => onCreateThread(message) },
     Boolean(message.content) && {
       label: 'Copiar texto',
       onSelect: () =>
@@ -229,6 +234,7 @@ export function MessageItem({
       ) : (
         <Content message={message} parts={parts} />
       )}
+      <PollView message={message} userId={userId} />
       <Attachments attachments={message.attachments} />
       {!editing && <Embeds links={links} />}
 

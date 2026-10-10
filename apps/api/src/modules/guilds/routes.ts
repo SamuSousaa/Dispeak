@@ -7,6 +7,7 @@ import {
   createGuildRequestSchema,
   createInviteRequestSchema,
   createRoleRequestSchema,
+  createThreadRequestSchema,
   guildSchema,
   guildSoundEventSchema,
   guildSoundSchema,
@@ -195,6 +196,33 @@ export const guildRoutes: FastifyPluginAsyncZod = async (app) => {
       await guilds.unban(request.auth.userId, request.params.guildId, request.params.userId);
       return reply.code(204).send(null);
     },
+  );
+
+  app.post(
+    '/channels/:channelId/threads',
+    {
+      schema: {
+        tags: ['guilds'],
+        summary: 'Open a thread under a text channel (SEND_MESSAGES)',
+        description:
+          'A thread is a side conversation with the permissions of the channel it hangs from. ' +
+          'It is deleted with that channel.',
+        security,
+        params: channelParams,
+        body: createThreadRequestSchema,
+        response: { 201: channelSchema },
+      },
+    },
+    async (request, reply) =>
+      reply
+        .code(201)
+        .send(
+          await guilds.createThread(
+            request.auth.userId,
+            request.params.channelId,
+            request.body.name,
+          ),
+        ),
   );
 
   app.put(

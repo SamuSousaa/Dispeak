@@ -28,6 +28,7 @@ const message = (id: number, content = `m${id}`): Message => ({
   attachments: [],
   reactions: [],
   replyTo: null,
+  poll: null,
   mentions: [],
   mentionEveryone: false,
   createdAt: '2026-01-01T00:00:00.000Z',

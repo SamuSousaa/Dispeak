@@ -1,5 +1,5 @@
 import {
-  ATTACHMENT_CONTENT_TYPES,
+  IMAGE_CONTENT_TYPES,
   ATTACHMENT_MAX_BYTES,
   attachmentSchema,
   editMessageRequestSchema,
@@ -10,6 +10,7 @@ import {
   reactionEmojiSchema,
   sendMessageRequestSchema,
   unreadResponseSchema,
+  votePollRequestSchema,
   uploadAttachmentQuerySchema,
 } from '@frequencia/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -30,7 +31,8 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
 
   // Uploads arrive as the raw bytes of one image; these parsers exist only inside this plugin.
   app.addContentTypeParser(
-    [...ATTACHMENT_CONTENT_TYPES],
+    // The declared type is not trusted either way: images are recognised from their bytes.
+    [...IMAGE_CONTENT_TYPES, 'application/octet-stream'],
     { parseAs: 'buffer', bodyLimit: ATTACHMENT_MAX_BYTES },
     (_request, body, done) => done(null, body),
   );
@@ -82,6 +84,7 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
             request.body.content,
             request.body.attachmentIds,
             request.body.replyToId,
+            request.body.poll,
           ),
         ),
   );
@@ -93,20 +96,21 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
       config: perUser(config.RATE_LIMIT_UPLOADS_MAX),
       schema: {
         tags: ['messages'],
-        summary: 'Upload an image to attach to the next message (SEND_MESSAGES)',
+        summary: 'Upload a file to attach to the next message (SEND_MESSAGES, ATTACH_FILES)',
         description:
-          'The body is the raw file (PNG, JPEG, GIF or WebP, up to 8 MiB) with a matching ' +
-          '`Content-Type`. The type is verified from the bytes. An upload not used in a ' +
-          'message within an hour is discarded.',
+          'The body is the raw file, up to 25 MiB, sent as `application/octet-stream`. PNG, ' +
+          'JPEG, GIF and WebP are recognised from their bytes and shown as images; anything ' +
+          'else is only offered for download. An upload not used in a message within an hour ' +
+          'is discarded.',
         security,
-        consumes: [...ATTACHMENT_CONTENT_TYPES],
+        consumes: ['application/octet-stream', ...IMAGE_CONTENT_TYPES],
         params: channelParams,
         querystring: uploadAttachmentQuerySchema,
         response: { 201: attachmentSchema },
       },
     },
     async (request, reply) => {
-      if (!Buffer.isBuffer(request.body)) throw badRequest('the body must be an image');
+      if (!Buffer.isBuffer(request.body)) throw badRequest('the body must be a file');
       return reply
         .code(201)
         .send(
@@ -135,13 +139,15 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
         request.auth.userId,
         request.params.attachmentId,
       );
+      const isImage = (IMAGE_CONTENT_TYPES as readonly string[]).includes(attachment.contentType);
       return (
         reply
-          .header('content-type', attachment.contentType)
+          .header('content-type', isImage ? attachment.contentType : 'application/octet-stream')
           .header('content-length', attachment.size)
           .header(
             'content-disposition',
-            `inline; filename*=UTF-8''${encodeURIComponent(attachment.filename)}`,
+            // Only pictures are ever rendered by a browser; any other file is saved to disk.
+            `${isImage ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(attachment.filename)}`,
           )
           // The bytes behind an id never change, and they are only ever this user's to cache.
           .header('cache-control', 'private, max-age=31536000, immutable')
@@ -199,6 +205,24 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
       await messages.delete(request.auth.userId, request.params.messageId);
       return reply.code(204).send(null);
     },
+  );
+
+  app.put(
+    '/messages/:messageId/poll/votes',
+    {
+      config: perUser(config.RATE_LIMIT_MESSAGES_MAX),
+      schema: {
+        tags: ['messages'],
+        summary: 'Vote in the poll of a message (VIEW_CHANNEL)',
+        description: 'Replaces the previous vote of the user; an empty list takes it back.',
+        security,
+        params: messageParams,
+        body: votePollRequestSchema,
+        response: { 200: messageSchema },
+      },
+    },
+    (request) =>
+      messages.vote(request.auth.userId, request.params.messageId, request.body.optionIds),
   );
 
   app.put(

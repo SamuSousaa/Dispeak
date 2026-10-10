@@ -14,6 +14,7 @@ const message = (channelId: string, patch: Partial<Message> = {}): Message => ({
   attachments: [],
   reactions: [],
   replyTo: null,
+  poll: null,
   mentions: [],
   mentionEveryone: false,
   createdAt: '2026-01-01T00:00:00.000Z',

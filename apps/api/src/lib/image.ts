@@ -1,7 +1,7 @@
-import type { AttachmentContentType } from '@frequencia/shared';
+import type { ImageContentType } from '@frequencia/shared';
 
 export interface ImageInfo {
-  contentType: AttachmentContentType;
+  contentType: ImageContentType;
   /** `null` when the header does not carry a usable size. */
   width: number | null;
   height: number | null;
@@ -9,7 +9,7 @@ export interface ImageInfo {
 
 const MAX_DIMENSION = 65_535;
 
-const sized = (contentType: AttachmentContentType, width: number, height: number): ImageInfo => {
+const sized = (contentType: ImageContentType, width: number, height: number): ImageInfo => {
   const valid = width > 0 && height > 0 && width <= MAX_DIMENSION && height <= MAX_DIMENSION;
   return { contentType, width: valid ? width : null, height: valid ? height : null };
 };

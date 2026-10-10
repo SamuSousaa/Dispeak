@@ -420,7 +420,7 @@ export class GuildService {
   async createChannel(
     userId: string,
     guildId: string,
-    input: { name: string; type: ChannelType; parentId?: string | null },
+    input: { name: string; type: Exclude<ChannelType, 'thread'>; parentId?: string | null },
   ): Promise<Channel> {
     const snapshot = await this.load(guildId);
     requirePermission(requireActor(snapshot, userId), Permissions.ManageChannels);
@@ -446,6 +446,29 @@ export class GuildService {
     return created;
   }
 
+  /** Opens a thread under a text channel; anyone who can write there may (SEND_MESSAGES). */
+  async createThread(userId: string, parentId: string, name: string): Promise<Channel> {
+    const { snapshot, channel: parent } = await this.loadChannel(parentId);
+    this.requireChannelPermission(snapshot, userId, parentId, Permissions.SendMessages);
+    if (parent.type !== 'text') throw badRequest('threads hang from text channels');
+
+    const siblings = [...snapshot.channels.values()].filter(
+      (channel) => channel.type === 'thread' && channel.parentId === parentId,
+    );
+    const id = uuidv7();
+    await this.db.insert(channels).values({
+      id,
+      guildId: parent.guildId,
+      type: 'thread',
+      name,
+      parentId,
+      position: siblings.reduce((max, channel) => Math.max(max, channel.position + 1), 0),
+    });
+    const created = await this.channelPayload(parent.guildId, id);
+    await this.bus.event(parent.guildId, 'CHANNEL_CREATE', created, id);
+    return created;
+  }
+
   async updateChannel(
     userId: string,
     channelId: string,
@@ -453,6 +476,9 @@ export class GuildService {
   ): Promise<Channel> {
     const { snapshot, channel } = await this.loadChannel(channelId);
     this.requireChannelPermission(snapshot, userId, channelId, Permissions.ManageChannels);
+    if (channel.type === 'thread' && changes.parentId !== undefined) {
+      throw badRequest('a thread stays in its channel');
+    }
 
     const parentId =
       changes.parentId === undefined
@@ -481,11 +507,19 @@ export class GuildService {
     const viewers = [...snapshot.members.keys()].filter((memberId) =>
       canViewChannel(snapshot, memberId, channelId),
     );
-    await this.db.delete(channels).where(eq(channels.id, channelId));
-    await this.bus.eventTo(channel.guildId, viewers, 'CHANNEL_DELETE', {
-      id: channelId,
-      guildId: channel.guildId,
-    });
+    // Threads go with their channel; the same people could see them.
+    const threads = [...snapshot.channels.values()].filter(
+      (entry) => entry.type === 'thread' && entry.parentId === channelId,
+    );
+    await this.db
+      .delete(channels)
+      .where(inArray(channels.id, [channelId, ...threads.map((thread) => thread.id)]));
+    for (const id of [...threads.map((thread) => thread.id), channelId]) {
+      await this.bus.eventTo(channel.guildId, viewers, 'CHANNEL_DELETE', {
+        id,
+        guildId: channel.guildId,
+      });
+    }
 
     if (channel.type === 'voice') await this.deps.voice.closeChannel(channelId);
     // Children of a deleted category lose their inherited overwrites.
@@ -507,6 +541,7 @@ export class GuildService {
     for (const item of order) {
       const channel = snapshot.channels.get(item.id);
       if (!channel || seen.has(item.id)) throw badRequest('unknown or duplicated channel');
+      if (channel.type === 'thread') throw badRequest('threads are not reordered');
       seen.add(item.id);
       const parentId = this.validateParent(snapshot, channel.type, item.parentId);
       // Categories and regular channels are ordered independently.

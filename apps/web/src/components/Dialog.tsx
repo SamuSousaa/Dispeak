@@ -26,6 +26,8 @@ export function Dialog({
   side = false,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  /** Whether the press that may become a click started on the backdrop. */
+  const pressedOutside = useRef(false);
 
   useEffect(() => {
     // No cleanup on purpose: unmounting removes the element, and closing it here would fire
@@ -40,9 +42,15 @@ export function Dialog({
       aria-label={title}
       data-side={side || undefined}
       onClose={onClose}
-      // A click on the backdrop lands on the dialog element itself.
+      // A click on the backdrop lands on the dialog element itself. So does the end of a drag
+      // that started inside (selecting text and letting go outside): only a press that began
+      // on the backdrop closes the dialog.
+      onMouseDown={(event) => {
+        pressedOutside.current = event.target === ref.current;
+      }}
       onClick={(event) => {
-        if (event.target === ref.current) onClose();
+        if (event.target === ref.current && pressedOutside.current) onClose();
+        pressedOutside.current = false;
       }}
       className={cx(
         'border-line-strong bg-surface p-0 text-fg backdrop:bg-black/70',

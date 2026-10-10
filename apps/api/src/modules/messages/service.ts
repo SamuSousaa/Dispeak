@@ -7,8 +7,9 @@ import {
   hasPermission,
   Permissions,
   type Attachment,
-  type AttachmentContentType,
   REACTION_MAX_PER_MESSAGE,
+  type CreatePoll,
+  type Poll,
   REPLY_EXCERPT_LENGTH,
   type Message,
   type MessagePage,
@@ -31,8 +32,18 @@ import {
 } from '../guilds/snapshot';
 import type { AttachmentFiles } from './attachment-files';
 
-const { messages, channels, users, attachments, messageReactions, readStates, guildMembers } =
-  schema;
+const {
+  messages,
+  channels,
+  users,
+  attachments,
+  messageReactions,
+  readStates,
+  guildMembers,
+  polls,
+  pollOptions,
+  pollVotes,
+} = schema;
 
 type MessageRow = typeof messages.$inferSelect;
 type AttachmentRow = typeof attachments.$inferSelect;
@@ -101,6 +112,7 @@ export class MessageService {
     content: string,
     attachmentIds: string[] = [],
     replyToId: string | null = null,
+    poll: CreatePoll | null = null,
   ): Promise<Message> {
     const { snapshot, permissions } = await this.access(
       userId,
@@ -142,6 +154,21 @@ export class MessageService {
           .returning();
         if (!attachment) throw badRequest('unknown or already used attachment');
       }
+      if (poll) {
+        await tx.insert(polls).values({
+          messageId: inserted.id,
+          question: poll.question,
+          multiple: poll.multiple ?? false,
+        });
+        await tx.insert(pollOptions).values(
+          poll.options.map((text, position) => ({
+            id: uuidv7(),
+            messageId: inserted.id,
+            position,
+            text,
+          })),
+        );
+      }
       return inserted;
     });
 
@@ -163,7 +190,9 @@ export class MessageService {
     );
     if (existing.authorId !== userId) throw forbidden('only the author can edit a message');
     const attached = (await this.attachmentsOf([messageId])).get(messageId) ?? [];
-    if (!content && attached.length === 0) throw badRequest('a message needs text');
+    if (!content && attached.length === 0 && !(await this.pollsOf([messageId])).has(messageId)) {
+      throw badRequest('a message needs text');
+    }
 
     const repliedAuthorId = existing.replyToId
       ? await this.authorOfReply(existing.replyToId, existing.channelId)
@@ -223,6 +252,37 @@ export class MessageService {
       { guildId: snapshot.guild.id, channelId, userId },
       channelId,
     );
+  }
+
+  // --- polls --------------------------------------------------------------------------------
+
+  /** Replaces the user's vote in a poll with the given options (none takes it back). */
+  async vote(userId: string, messageId: string, optionIds: string[]): Promise<Message> {
+    const existing = await this.find(messageId);
+    const { snapshot } = await this.access(userId, existing.channelId, Permissions.ViewChannel);
+    const [poll] = await this.db.select().from(polls).where(eq(polls.messageId, messageId));
+    if (!poll) throw notFound('poll');
+    const options = await this.db
+      .select({ id: pollOptions.id })
+      .from(pollOptions)
+      .where(eq(pollOptions.messageId, messageId));
+    const wanted = [...new Set(optionIds)];
+    if (wanted.some((id) => !options.some((option) => option.id === id))) {
+      throw badRequest('unknown option');
+    }
+    if (!poll.multiple && wanted.length > 1) throw badRequest('this poll takes one answer');
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(pollVotes)
+        .where(and(eq(pollVotes.messageId, messageId), eq(pollVotes.userId, userId)));
+      if (wanted.length > 0) {
+        await tx
+          .insert(pollVotes)
+          .values(wanted.map((optionId) => ({ optionId, userId, messageId })));
+      }
+    });
+    return this.reactionsChanged(existing, snapshot.guild.id, true);
   }
 
   // --- reactions ----------------------------------------------------------------------------
@@ -358,8 +418,9 @@ export class MessageService {
     if (data.length === 0 || data.length > ATTACHMENT_MAX_BYTES) {
       throw badRequest('attachment is empty or too large');
     }
+    // An image is shown in the conversation; anything else is just a file to download, and
+    // is stored and served as opaque bytes whatever its name claims.
     const image = sniffImage(data);
-    if (!image) throw badRequest('only PNG, JPEG, GIF and WebP images are accepted');
 
     const id = randomUUID();
     await this.files.write(id, data);
@@ -370,11 +431,11 @@ export class MessageService {
           id,
           channelId,
           uploaderId: userId,
-          filename: cleanFilename(filename, 'imagem'),
-          contentType: image.contentType,
+          filename: cleanFilename(filename, image ? 'imagem' : 'arquivo'),
+          contentType: image?.contentType ?? 'application/octet-stream',
           size: data.length,
-          width: image.width,
-          height: image.height,
+          width: image?.width ?? null,
+          height: image?.height ?? null,
         })
         .returning();
       if (!row) throw new Error('attachment insert returned nothing');
@@ -463,10 +524,11 @@ export class MessageService {
   private async present(rows: MessageWithAuthor[], guildId: string): Promise<Message[]> {
     const ids = rows.map((row) => row.message.id);
     const replyIds = rows.flatMap((row) => (row.message.replyToId ? [row.message.replyToId] : []));
-    const [attached, reactions, references] = await Promise.all([
+    const [attached, reactions, references, pollsById] = await Promise.all([
       this.attachmentsOf(ids),
       this.reactionsOf(ids),
       this.referencesOf(replyIds),
+      this.pollsOf(ids),
     ]);
     return rows.map(({ message, author }) => ({
       id: message.id,
@@ -477,6 +539,7 @@ export class MessageService {
       attachments: (attached.get(message.id) ?? []).map(toAttachment),
       reactions: reactions.get(message.id) ?? [],
       replyTo: (message.replyToId && references.get(message.replyToId)) || null,
+      poll: pollsById.get(message.id) ?? null,
       mentions: message.mentions,
       mentionEveryone: message.mentionEveryone,
       createdAt: message.createdAt.toISOString(),
@@ -488,6 +551,42 @@ export class MessageService {
     const [message] = await this.present([row], guildId);
     if (!message) throw notFound('message');
     return message;
+  }
+
+  private async pollsOf(messageIds: string[]): Promise<Map<string, Poll>> {
+    const byMessage = new Map<string, Poll>();
+    if (messageIds.length === 0) return byMessage;
+    const found = await this.db.select().from(polls).where(inArray(polls.messageId, messageIds));
+    if (found.length === 0) return byMessage;
+    const withPoll = found.map((poll) => poll.messageId);
+    const [options, votes] = await Promise.all([
+      this.db
+        .select()
+        .from(pollOptions)
+        .where(inArray(pollOptions.messageId, withPoll))
+        .orderBy(asc(pollOptions.position)),
+      this.db
+        .select()
+        .from(pollVotes)
+        .where(inArray(pollVotes.messageId, withPoll))
+        .orderBy(asc(pollVotes.createdAt)),
+    ]);
+    for (const poll of found) {
+      byMessage.set(poll.messageId, {
+        question: poll.question,
+        multiple: poll.multiple,
+        options: options
+          .filter((option) => option.messageId === poll.messageId)
+          .map((option) => ({
+            id: option.id,
+            text: option.text,
+            voterIds: votes
+              .filter((vote) => vote.optionId === option.id)
+              .map((vote) => vote.userId),
+          })),
+      });
+    }
+    return byMessage;
   }
 
   private async reactionsOf(messageIds: string[]): Promise<Map<string, Reaction[]>> {
@@ -594,8 +693,7 @@ function toAttachment(row: AttachmentRow): Attachment {
   return {
     id: row.id,
     filename: row.filename,
-    // Only sniffed types are ever stored.
-    contentType: row.contentType as AttachmentContentType,
+    contentType: row.contentType,
     size: row.size,
     width: row.width,
     height: row.height,

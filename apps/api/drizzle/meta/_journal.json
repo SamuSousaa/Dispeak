@@ -50,6 +50,13 @@
       "when": 1791661748548,
       "tag": "0006_moderation_and_role_colors",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791664458811,
+      "tag": "0007_threads_and_polls",
+      "breakpoints": true
     }
   ]
 }

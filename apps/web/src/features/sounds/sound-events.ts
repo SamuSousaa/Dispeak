@@ -9,6 +9,8 @@ export const SOUND_LABELS: Record<SoundEvent, string> = {
   leave: 'Alguém sai da chamada',
   streamStart: 'Uma transmissão começa',
   streamStop: 'Uma transmissão termina',
+  watchStart: 'Você começa a assistir a uma transmissão',
+  watchStop: 'Você para de assistir a uma transmissão',
 };
 
 /** The part of the voice state the notification sounds depend on. */
@@ -18,6 +20,8 @@ export interface SoundSnapshot {
   status: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
   peers: Record<string, VoicePeer>;
   screen: { status: 'off' | 'starting' | 'live' };
+  /** Streams the local user is watching, by the streamer's session id. */
+  watching?: Record<string, unknown>;
 }
 
 const inCall = (status: SoundSnapshot['status']) =>
@@ -27,7 +31,8 @@ const isStreaming = (peer: VoicePeer) =>
 
 /**
  * Sounds a change of voice state calls for. The local user and the other participants are
- * treated alike: joining, leaving, starting and stopping a screen share. A reconnection is
+ * treated alike: joining, leaving, starting and stopping a screen share. Watching a stream and
+ * leaving it are announced to the user who does it. A reconnection is
  * silent, and so is finding people already in the channel when joining it.
  */
 export function soundEventsFor(previous: SoundSnapshot, next: SoundSnapshot): SoundEvent[] {
@@ -50,5 +55,15 @@ export function soundEventsFor(previous: SoundSnapshot, next: SoundSnapshot): So
   for (const id of Object.keys(previous.peers)) {
     if (!next.peers[id]) events.add('leave');
   }
+
+  const before = previous.watching ?? {};
+  const after = next.watching ?? {};
+  if (Object.keys(after).some((id) => !(id in before))) events.add('watchStart');
+  // A stream that ended already has its own sound; this one is for choosing to stop watching.
+  const stillLive = (id: string) => {
+    const peer = next.peers[id];
+    return peer !== undefined && isStreaming(peer);
+  };
+  if (Object.keys(before).some((id) => !(id in after) && stillLive(id))) events.add('watchStop');
   return [...events];
 }

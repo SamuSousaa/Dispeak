@@ -63,7 +63,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   app.setErrorHandler(errorHandler);
 
   // --- infrastructure -----------------------------------------------------------------------
-  const database = connectDatabase(config.DATABASE_URL);
+  const database = connectDatabase(config.DATABASE_URL, config.DATABASE_POOL_SIZE);
   if (config.RUN_MIGRATIONS) await runMigrations(database.db);
   const { redis, subscriber, close: closeRedis } = connectRedis(config.REDIS_URL);
 

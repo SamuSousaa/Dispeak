@@ -1,4 +1,7 @@
 import type { ChannelType, Guild } from '@frequencia/shared';
+
+/** What this dialog creates; threads are opened from inside their channel. */
+type CreatableType = Exclude<ChannelType, 'thread'>;
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/Button';
@@ -7,7 +10,7 @@ import { cx } from '../../../lib/cx';
 import { describeError } from '../../../lib/http';
 import { guildApi } from '../guild-api';
 
-const TYPES: Array<{ value: ChannelType; label: string; hint: string }> = [
+const TYPES: Array<{ value: CreatableType; label: string; hint: string }> = [
   { value: 'text', label: 'TEXTO', hint: 'Mensagens' },
   { value: 'voice', label: 'VOZ', hint: 'Conversa e transmissão de tela' },
   { value: 'category', label: 'CATEGORIA', hint: 'Agrupa canais' },
@@ -23,7 +26,7 @@ export function CreateChannelDialog({
   onClose: () => void;
 }) {
   const navigate = useNavigate();
-  const [type, setType] = useState<ChannelType>('text');
+  const [type, setType] = useState<CreatableType>('text');
   const [name, setName] = useState('');
   const [parent, setParent] = useState(parentId ?? '');
   const [error, setError] = useState<string | null>(null);

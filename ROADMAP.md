@@ -145,6 +145,13 @@ passar e de um commit ser feito.
 - [x] Cargos com cor do nome; novas permissões: anexar imagens, reagir, mutar, desconectar e banir
 - [x] Lista de membros agrupada pelo cargo mais alto de quem está online
 - [x] Correção: quem ficava sozinho num canal de voz era reconectado a cada 30 segundos
+- [x] Painel único de emojis e GIFs, com o conjunto completo de emojis e busca por nome
+- [x] Caixa de mensagem que cresce com o texto até 40% da janela
+- [x] Menu "+" do chat: enviar qualquer arquivo (até 25 MB; só imagens são exibidas, o resto é
+      oferecido para download), criar tópico e criar enquete
+- [x] Tópicos: conversas à parte penduradas num canal de texto, com as permissões dele
+- [x] Enquetes: uma ou várias respostas, votos ao vivo
+- [x] Sons ao começar e ao parar de assistir a uma transmissão
 
 **Único serviço externo.** A busca de GIF depende da GIPHY e por isso é opcional: sem a chave o
 botão não aparece. Não é mídia nem tempo real, então não fere a regra de infraestrutura própria.

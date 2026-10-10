@@ -152,10 +152,41 @@ describe('attachments', () => {
       width: 3,
       height: 2,
     });
+    // What is not a picture is kept as an opaque file, whatever it claims to be.
     const html = Buffer.from('<!doctype html><script>alert(1)</script>');
-    expect((await upload(owner, channelId, html, 'image/png')).statusCode).toBe(400);
+    const page = await upload(owner, channelId, html, 'image/png', 'pagina.html');
+    expect(page.statusCode).toBe(201);
+    expect(page.json<Attachment>()).toMatchObject({
+      filename: 'pagina.html',
+      contentType: 'application/octet-stream',
+      width: null,
+      height: null,
+    });
+    expect((await upload(owner, channelId, PNG, 'application/octet-stream')).statusCode).toBe(201);
     expect((await upload(owner, channelId, PNG, 'image/svg+xml')).statusCode).toBe(415);
-    expect((await upload(owner, channelId, PNG, 'application/octet-stream')).statusCode).toBe(415);
+    expect(
+      (await upload(owner, channelId, Buffer.alloc(0), 'application/octet-stream')).statusCode,
+    ).toBe(400);
+  });
+
+  it('offers files that are not pictures for download only', async () => {
+    const { channelId } = await scenario();
+    const html = Buffer.from('<!doctype html><script>alert(1)</script>');
+    const attachment = (
+      await upload(owner, channelId, html, 'application/octet-stream', 'página.html')
+    ).json<Attachment>();
+    const message = (
+      await send(owner, channelId, { attachmentIds: [attachment.id] })
+    ).json<Message>();
+    expect(message.attachments).toEqual([attachment]);
+
+    const file = await download(member, attachment.id);
+    expect(file.statusCode).toBe(200);
+    // Never served as something a browser would run or render.
+    expect(file.headers['content-type']).toBe('application/octet-stream');
+    expect(file.headers['content-disposition']).toMatch(/^attachment; /);
+    expect(file.headers['x-content-type-options']).toBe('nosniff');
+    expect(file.rawPayload.equals(html)).toBe(true);
   });
 
   it('enforces the size limit and the channel permissions', async () => {

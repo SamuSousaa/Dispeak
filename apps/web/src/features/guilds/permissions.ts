@@ -42,6 +42,11 @@ export function actorIn(guild: Guild, userId: string): HierarchyActor {
 }
 
 export function channelPermissions(guild: Guild, channel: Channel, userId: string): bigint {
+  if (channel.type === 'thread') {
+    // A thread has no rules of its own: it answers with those of the channel it hangs from.
+    const origin = guild.channels.find((entry) => entry.id === channel.parentId);
+    return origin && origin.type !== 'thread' ? channelPermissions(guild, origin, userId) : 0n;
+  }
   const member = guild.members.find((entry) => entry.user.id === userId);
   const parent = channel.parentId
     ? guild.channels.find((entry) => entry.id === channel.parentId)
@@ -83,19 +88,25 @@ export function memberColor(guild: Guild, userId: string): string | undefined {
 
 export interface ChannelGroup {
   category: Channel | null;
-  channels: Array<{ channel: Channel; number: string }>;
+  channels: Array<{ channel: Channel; number: string; threads: Channel[] }>;
 }
 
 /**
  * Channels grouped under their categories in display order, each with its running number
- * (`01`, `02`, ...) used across the UI.
+ * (`01`, `02`, ...) used across the UI, and the threads that hang from it.
  */
 export function groupChannels(guild: Guild): ChannelGroup[] {
   const byPosition = (a: Channel, b: Channel) => a.position - b.position;
   const categories = guild.channels
     .filter((channel) => channel.type === 'category')
     .sort(byPosition);
-  const regular = guild.channels.filter((channel) => channel.type !== 'category');
+  const regular = guild.channels.filter(
+    (channel) => channel.type !== 'category' && channel.type !== 'thread',
+  );
+  const threadsOf = (channel: Channel) =>
+    guild.channels
+      .filter((entry) => entry.type === 'thread' && entry.parentId === channel.id)
+      .sort(byPosition);
   const known = new Set(categories.map((category) => category.id));
 
   let counter = 0;
@@ -103,6 +114,7 @@ export function groupChannels(guild: Guild): ChannelGroup[] {
     channels.sort(byPosition).map((channel) => ({
       channel,
       number: String(++counter).padStart(2, '0'),
+      threads: threadsOf(channel),
     }));
 
   const groups: ChannelGroup[] = [];

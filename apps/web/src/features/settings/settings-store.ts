@@ -58,8 +58,14 @@ const settingsSchema = z.object({
 
 export type Settings = z.infer<typeof settingsSchema>;
 
+// Stored data may predate a shortcut or a sound that exists now: those groups are read
+// key by key and completed with the defaults.
 const storedSchema = settingsSchema
-  .extend({ keybinds: settingsSchema.shape.keybinds.partial() })
+  .extend({
+    keybinds: settingsSchema.shape.keybinds.partial(),
+    soundEvents: settingsSchema.shape.soundEvents.partial(),
+    customSounds: settingsSchema.shape.customSounds.partial(),
+  })
   .partial();
 
 export const defaultSettings: Settings = {
@@ -76,8 +82,22 @@ export const defaultSettings: Settings = {
   sharePreset: '1080p30',
   soundsEnabled: true,
   soundVolume: 0.5,
-  soundEvents: { join: true, leave: true, streamStart: true, streamStop: true },
-  customSounds: { join: null, leave: null, streamStart: null, streamStop: null },
+  soundEvents: {
+    join: true,
+    leave: true,
+    streamStart: true,
+    streamStop: true,
+    watchStart: true,
+    watchStop: true,
+  },
+  customSounds: {
+    join: null,
+    leave: null,
+    streamStart: null,
+    streamStop: null,
+    watchStart: null,
+    watchStop: null,
+  },
   keybinds: DEFAULT_KEYBINDS,
 };
 
@@ -95,6 +115,8 @@ export const useSettingsStore = create<Settings>()(
         ...current,
         ...parsed.data,
         keybinds: { ...current.keybinds, ...parsed.data.keybinds },
+        soundEvents: { ...current.soundEvents, ...parsed.data.soundEvents },
+        customSounds: { ...current.customSounds, ...parsed.data.customSounds },
       };
     },
   }),

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PICTURE_MAX_BYTES, type AttachmentContentType } from '@frequencia/shared';
+import { PICTURE_MAX_BYTES, type ImageContentType } from '@frequencia/shared';
 import { badRequest } from '../../errors';
 import { sniffImage } from '../../lib/image';
 import type { AttachmentFiles } from '../messages/attachment-files';
@@ -28,7 +28,7 @@ export class PictureStore {
     if (id) await this.files.remove([id]);
   }
 
-  async read(id: string): Promise<{ data: Buffer; contentType: AttachmentContentType } | null> {
+  async read(id: string): Promise<{ data: Buffer; contentType: ImageContentType } | null> {
     const data = await this.files.read(id);
     const image = data && sniffImage(data);
     return data && image ? { data, contentType: image.contentType } : null;

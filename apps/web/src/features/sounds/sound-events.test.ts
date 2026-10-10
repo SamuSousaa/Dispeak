@@ -78,4 +78,15 @@ describe('soundEventsFor', () => {
       soundEventsFor(state('connected', [], 'starting'), state('connected', [], 'off')),
     ).toEqual([]);
   });
+
+  it('announces watching a stream and choosing to stop', () => {
+    const live = state('connected', [peer('a', true)]);
+    const watching = { ...live, watching: { a: {} } };
+    expect(soundEventsFor(live, watching)).toEqual(['watchStart']);
+    expect(soundEventsFor(watching, live)).toEqual(['watchStop']);
+    // The stream ending is its own event: no second sound for the viewer.
+    expect(soundEventsFor(watching, state('connected', [peer('a', false)]))).toEqual([
+      'streamStop',
+    ]);
+  });
 });

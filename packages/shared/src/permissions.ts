@@ -160,7 +160,7 @@ export function applyOverwrites(
 export interface ChannelPermissionInput extends OverwriteContext {
   /** Result of `computeBasePermissions`. */
   basePermissions: bigint;
-  channelType: 'text' | 'voice' | 'category';
+  channelType: 'text' | 'voice' | 'category' | 'thread';
   /** Overwrites of the parent category, applied before the channel's own. */
   categoryOverwrites?: readonly PermissionOverwrite[];
   channelOverwrites: readonly PermissionOverwrite[];

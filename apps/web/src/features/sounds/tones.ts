@@ -29,6 +29,14 @@ const TONES: Record<SoundEvent, Note[]> = {
     { frequency: 659.25, duration: 0.07 },
     { frequency: 440, duration: 0.14 },
   ],
+  watchStart: [
+    { frequency: 587.33, duration: 0.06 },
+    { frequency: 880, duration: 0.12 },
+  ],
+  watchStop: [
+    { frequency: 880, duration: 0.06 },
+    { frequency: 587.33, duration: 0.12 },
+  ],
 };
 
 /** Mono 16-bit samples of a sequence of sine notes, each with a soft attack and decay. */

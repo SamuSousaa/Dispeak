@@ -214,7 +214,7 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
     ),
   });
   await expect(
-    alice.page.getByRole('list', { name: 'Imagens a enviar' }).getByRole('img'),
+    alice.page.getByRole('list', { name: 'Arquivos a enviar' }).getByRole('img'),
   ).toHaveCount(1);
   await composer(alice.page).press('Enter');
   for (const { page } of [alice, bruno]) {
@@ -222,14 +222,73 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
     await expect(messages(page).last()).toContainText('🔥');
     await expect.poll(() => image.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(1);
   }
-  await expect(alice.page.getByRole('list', { name: 'Imagens a enviar' })).toHaveCount(0);
-  // A file that is not an image is refused before anything is sent.
+  await expect(alice.page.getByRole('list', { name: 'Arquivos a enviar' })).toHaveCount(0);
+  // --- any file, from the + menu ---------------------------------------------------------------
+  await alice.page.getByRole('button', { name: 'Anexar ou criar' }).click();
+  await expect(alice.page.getByRole('menuitem', { name: 'Criar enquete' })).toBeVisible();
+  await alice.page.keyboard.press('Escape');
   await alice.page.getByTestId('attachment-input').setInputFiles({
-    name: 'virus.exe',
-    mimeType: 'application/octet-stream',
-    buffer: Buffer.from('MZ'),
+    name: 'regras do campeonato.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('1. Não vale chorar.'),
   });
-  await expect(alice.page.getByRole('alert')).toHaveText('SÓ IMAGENS PNG, JPEG, GIF OU WEBP.');
+  await expect(alice.page.getByRole('list', { name: 'Arquivos a enviar' })).toContainText(
+    'regras do campeonato.txt',
+  );
+  await composer(alice.page).press('Enter');
+  const fileCard = messages(bruno.page).last().getByTestId('attachment-file');
+  await expect(fileCard).toContainText('regras do campeonato.txt');
+  await expect(fileCard).toContainText('20 B');
+  const download = bruno.page.waitForEvent('download');
+  await fileCard.getByRole('button', { name: /^Baixar/ }).click();
+  expect((await download).suggestedFilename()).toBe('regras do campeonato.txt');
+
+  // --- a poll -------------------------------------------------------------------------------
+  await alice.page.getByRole('button', { name: 'Anexar ou criar' }).click();
+  await alice.page.getByRole('menuitem', { name: 'Criar enquete' }).click();
+  const pollDialog = alice.page.getByRole('dialog', { name: 'Criar enquete' });
+  await pollDialog.getByLabel('PERGUNTA').fill('Que horas hoje?');
+  await pollDialog.getByLabel('Opção 1').fill('20h');
+  await pollDialog.getByLabel('Opção 2').fill('22h');
+  await pollDialog.getByRole('button', { name: 'PUBLICAR ENQUETE' }).click();
+  const brunoPoll = messages(bruno.page).last().getByTestId('poll');
+  await expect(brunoPoll).toContainText('Que horas hoje?');
+  await brunoPoll.getByTestId('poll-option').filter({ hasText: '22h' }).click();
+  const alicePoll = messages(alice.page).last().getByTestId('poll');
+  await expect(alicePoll.getByTestId('poll-option').filter({ hasText: '22h' })).toContainText(
+    '1 VOTO',
+  );
+  await expect(alicePoll).toContainText('1 PESSOA VOTOU');
+  // Changing one's mind moves the vote.
+  await brunoPoll.getByTestId('poll-option').filter({ hasText: '20h' }).click();
+  await expect(alicePoll.getByTestId('poll-option').filter({ hasText: '22h' })).toContainText(
+    '0 VOTOS',
+  );
+  await expect(alicePoll.getByTestId('poll-option').filter({ hasText: '20h' })).toContainText(
+    '1 VOTO',
+  );
+
+  // --- a thread -----------------------------------------------------------------------------
+  await alice.page.getByRole('button', { name: 'Anexar ou criar' }).click();
+  await alice.page.getByRole('menuitem', { name: 'Criar tópico' }).click();
+  const threadDialog = alice.page.getByRole('dialog', { name: 'Criar tópico' });
+  await threadDialog.getByLabel('NOME DO TÓPICO').fill('campeonato');
+  await threadDialog.getByRole('button', { name: 'CRIAR TÓPICO' }).click();
+  await expect(alice.page.getByTestId('channel-title')).toHaveText('campeonato');
+  await expect(messages(alice.page)).toHaveCount(0);
+  const threadBox = alice.page.getByRole('textbox', { name: 'Mensagem em campeonato' });
+  await threadBox.fill('quem entra?');
+  await threadBox.press('Enter');
+  // Bruno sees the thread under the channel, with something to read in it.
+  const threadRow = bruno.page.getByTestId('thread-row').filter({ hasText: 'campeonato' });
+  await expect(threadRow).toHaveAttribute('data-unread', 'true');
+  await threadRow.getByRole('link').click();
+  await expect(messages(bruno.page)).toHaveText([/quem entra\?/]);
+  await expect(threadRow).toHaveAttribute('data-unread', 'false');
+  for (const { page } of [alice, bruno]) {
+    await page.goto(`/app/${guild.id}/${channelId}`);
+    await expect(page.getByTestId('gateway-status')).toHaveText('CONECTADO');
+  }
 
   // --- read-only channel ----------------------------------------------------------------------
   await alice.context.request.put(`/api/channels/${channelId}/overwrites/${guild.id}`, {

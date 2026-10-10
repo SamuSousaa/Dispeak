@@ -23,6 +23,8 @@ const envSchema = z.object({
   CORS_ORIGINS: csv.default(['http://localhost:5173']),
 
   DATABASE_URL: z.string().default('postgres://frequencia:frequencia@localhost:5432/frequencia'),
+  /** Connections this instance keeps open to Postgres, at most. */
+  DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   /** Apply pending SQL migrations on startup. */
   RUN_MIGRATIONS: flag.default(true),

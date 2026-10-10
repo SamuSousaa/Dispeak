@@ -1,5 +1,4 @@
 import {
-  ATTACHMENT_CONTENT_TYPES,
   ATTACHMENT_MAX_BYTES,
   ATTACHMENT_MAX_PER_MESSAGE,
   EVERYONE_MENTION,
@@ -7,10 +6,12 @@ import {
   type Guild,
 } from '@frequencia/shared';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { openContextMenu } from '../../components/ContextMenu';
 import { IconButton } from '../../components/IconButton';
 import { cx } from '../../lib/cx';
 import { describeError } from '../../lib/http';
 import { memberName } from '../guilds/permissions';
+import { formatBytes } from './Attachments';
 import { ExpressionPicker, type ExpressionTab } from './ExpressionPicker';
 import { mentionQueryAt, toWireContent } from './mentions';
 
@@ -25,8 +26,12 @@ interface ComposerProps {
   onCancel?: () => void;
   onTyping?: () => void;
   autoFocus?: boolean;
-  /** Offers attaching images (button, paste and drop). */
+  /** Offers attaching files (the + button, paste and drop). */
   attachments?: boolean;
+  /** Adds "create a poll" to the + menu. */
+  onCreatePoll?: () => void;
+  /** Adds "create a thread" to the + menu. */
+  onCreateThread?: () => void;
   /** Accepts an empty text: editing a message that keeps its images. */
   allowEmpty?: boolean;
   /** Offers the GIF search. */
@@ -44,17 +49,16 @@ interface Suggestion {
 interface PendingFile {
   key: string;
   file: File;
-  /** Local preview. */
-  url: string;
+  /** Local preview, for pictures. */
+  url: string | null;
 }
 
 const MAX_SUGGESTIONS = 6;
-const ACCEPTED_TYPES: readonly string[] = ATTACHMENT_CONTENT_TYPES;
 const MAX_MEGABYTES = ATTACHMENT_MAX_BYTES / (1024 * 1024);
 
 /**
  * Message input: Enter sends, Shift+Enter breaks the line, `@` opens member suggestions.
- * Images can be attached with the button, pasted from the clipboard or dropped on the field.
+ * Files can be attached with the + button, pasted from the clipboard or dropped on the field.
  */
 export function Composer({
   guild,
@@ -66,6 +70,8 @@ export function Composer({
   onTyping,
   autoFocus = false,
   attachments = false,
+  onCreatePoll,
+  onCreateThread,
   allowEmpty = false,
   gifs = false,
   focusKey,
@@ -116,7 +122,7 @@ export function Composer({
   });
   useEffect(
     () => () => {
-      for (const entry of pendingRef.current) URL.revokeObjectURL(entry.url);
+      for (const entry of pendingRef.current) if (entry.url) URL.revokeObjectURL(entry.url);
     },
     [],
   );
@@ -166,14 +172,18 @@ export function Composer({
     const accepted: PendingFile[] = [];
     let problem: string | null = null;
     for (const file of files) {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        problem = 'SÓ IMAGENS PNG, JPEG, GIF OU WEBP.';
+      if (file.size === 0) {
+        problem = 'ESSE ARQUIVO ESTÁ VAZIO.';
       } else if (file.size > ATTACHMENT_MAX_BYTES) {
-        problem = `CADA IMAGEM PODE TER ATÉ ${MAX_MEGABYTES} MB.`;
+        problem = `CADA ARQUIVO PODE TER ATÉ ${MAX_MEGABYTES} MB.`;
       } else if (pending.length + accepted.length >= ATTACHMENT_MAX_PER_MESSAGE) {
-        problem = `ATÉ ${ATTACHMENT_MAX_PER_MESSAGE} IMAGENS POR MENSAGEM.`;
+        problem = `ATÉ ${ATTACHMENT_MAX_PER_MESSAGE} ARQUIVOS POR MENSAGEM.`;
       } else {
-        accepted.push({ key: crypto.randomUUID(), file, url: URL.createObjectURL(file) });
+        accepted.push({
+          key: crypto.randomUUID(),
+          file,
+          url: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+        });
       }
     }
     setError(problem);
@@ -187,7 +197,7 @@ export function Composer({
   const removeFile = (key: string) => {
     setPending((current) => {
       const gone = current.find((entry) => entry.key === key);
-      if (gone) URL.revokeObjectURL(gone.url);
+      if (gone?.url) URL.revokeObjectURL(gone.url);
       return current.filter((entry) => entry.key !== key);
     });
   };
@@ -202,7 +212,7 @@ export function Composer({
         content,
         pending.map((entry) => entry.file),
       );
-      for (const entry of pending) URL.revokeObjectURL(entry.url);
+      for (const entry of pending) if (entry.url) URL.revokeObjectURL(entry.url);
       setPending([]);
       setText('');
       setCaret(0);
@@ -317,13 +327,25 @@ export function Composer({
       )}
 
       {pending.length > 0 && (
-        <ul aria-label="Imagens a enviar" className="mb-2 flex flex-wrap gap-2">
+        <ul aria-label="Arquivos a enviar" className="mb-2 flex flex-wrap gap-2">
           {pending.map((entry) => (
             <li
               key={entry.key}
-              className="anim-rise relative h-20 w-20 border border-line-strong bg-bg"
+              className={cx(
+                'anim-rise relative h-20 border border-line-strong bg-bg',
+                entry.url ? 'w-20' : 'flex w-44 flex-col justify-center gap-1 px-2 pr-7',
+              )}
             >
-              <img src={entry.url} alt={entry.file.name} className="h-full w-full object-cover" />
+              {entry.url ? (
+                <img src={entry.url} alt={entry.file.name} className="h-full w-full object-cover" />
+              ) : (
+                <>
+                  <span className="truncate text-xs text-fg" title={entry.file.name}>
+                    {entry.file.name}
+                  </span>
+                  <span className="label text-muted">{formatBytes(entry.file.size)}</span>
+                </>
+              )}
               <button
                 type="button"
                 aria-label={`Remover ${entry.file.name}`}
@@ -344,7 +366,6 @@ export function Composer({
             <input
               ref={fileInput}
               type="file"
-              accept={ATTACHMENT_CONTENT_TYPES.join(',')}
               multiple
               hidden
               data-testid="attachment-input"
@@ -355,12 +376,25 @@ export function Composer({
               }}
             />
             <IconButton
-              icon="image"
-              label="Anexar imagem"
-              title="Anexar imagem ou GIF (também dá para colar ou arrastar)"
+              icon="plus"
+              label="Anexar ou criar"
+              title="Enviar um arquivo, criar um tópico ou uma enquete (também dá para colar ou arrastar arquivos)"
               className="h-9 w-9"
-              disabled={busy || pending.length >= ATTACHMENT_MAX_PER_MESSAGE}
-              onClick={() => fileInput.current?.click()}
+              disabled={busy}
+              onClick={(event) => {
+                const box = event.currentTarget.getBoundingClientRect();
+                // The host keeps the menu on screen; asking for a point above the button makes it
+                // open upwards, away from the field.
+                openContextMenu({ x: box.left, y: box.top - 140 }, 'ADICIONAR', [
+                  {
+                    label: 'Enviar um arquivo',
+                    disabled: pending.length >= ATTACHMENT_MAX_PER_MESSAGE,
+                    onSelect: () => fileInput.current?.click(),
+                  },
+                  onCreateThread && { label: 'Criar tópico', onSelect: onCreateThread },
+                  onCreatePoll && { label: 'Criar enquete', onSelect: onCreatePoll },
+                ]);
+              }}
             />
           </>
         )}
@@ -374,7 +408,7 @@ export function Composer({
           rows={1}
           value={text}
           maxLength={MESSAGE_MAX_LENGTH}
-          placeholder={dragging ? 'Solte a imagem aqui' : placeholder}
+          placeholder={dragging ? 'Solte o arquivo aqui' : placeholder}
           aria-label={placeholder}
           aria-invalid={Boolean(error)}
           aria-busy={busy}
@@ -390,7 +424,7 @@ export function Composer({
           onPaste={(event) => {
             const files = [...event.clipboardData.files];
             if (!attachments || files.length === 0) return;
-            // A copied image: attach it instead of pasting its name.
+            // A copied picture or file: attach it instead of pasting its name.
             event.preventDefault();
             addFiles(files);
           }}
@@ -428,7 +462,7 @@ export function Composer({
       </div>
       {busy && pending.length > 0 && (
         <p role="status" className="label mt-1 text-muted">
-          ENVIANDO {pending.length === 1 ? 'IMAGEM' : `${pending.length} IMAGENS`}…
+          ENVIANDO {pending.length === 1 ? 'ARQUIVO' : `${pending.length} ARQUIVOS`}…
         </p>
       )}
       {error && (

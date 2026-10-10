@@ -92,7 +92,17 @@ export function AppPage() {
   const guild = guildId ? guilds[guildId] : undefined;
   const groups = guild ? groupChannels(guild) : [];
   const numbered = groups.flatMap((group) => group.channels);
-  const current = numbered.find((entry) => entry.channel.id === channelId);
+  // A thread is reached through its channel: it shows that channel's number.
+  const current = numbered
+    .flatMap((entry) => [
+      { channel: entry.channel, number: entry.number, origin: null as string | null },
+      ...entry.threads.map((thread) => ({
+        channel: thread,
+        number: entry.number,
+        origin: entry.channel.name as string | null,
+      })),
+    ])
+    .find((entry) => entry.channel.id === channelId);
   const hasLoaded = status === 'ready' || order.length > 0;
 
   // Keep the URL pointing at something that exists (guilds and channels come and go).
@@ -138,7 +148,7 @@ export function AppPage() {
 
         <aside
           className={cx(
-            'absolute inset-y-0 left-0 z-20 flex w-[19rem] max-w-[90vw] bg-surface transition-transform md:static md:z-0 md:w-auto md:translate-x-0',
+            'absolute inset-y-0 left-0 z-20 flex w-[19rem] max-w-[90vw] bg-surface transition-transform md:static md:z-30 md:w-auto md:translate-x-0',
             drawer === 'channels' ? 'translate-x-0' : '-translate-x-full',
           )}
         >
@@ -176,6 +186,9 @@ export function AppPage() {
             {current ? (
               <h1 className="label-lg flex min-w-0 items-baseline gap-2">
                 <span className="text-muted">{current.number}.</span>
+                {current.origin && (
+                  <span className="hidden truncate text-muted sm:inline">{current.origin} ›</span>
+                )}
                 <span className="truncate text-fg" data-testid="channel-title">
                   {current.channel.name}
                 </span>

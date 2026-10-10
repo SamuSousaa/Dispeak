@@ -30,8 +30,8 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
   servidor inclusive durante uma chamada em andamento.
 - **Chat de texto** com edição, exclusão, menções, paginação por cursor e "digitando"; emojis e
   imagens (PNG, JPEG, GIF, WebP) anexadas pelo botão, coladas ou arrastadas, guardadas em disco e
-  servidas com as permissões do canal; reações, respostas, prévias de links, mensagens não lidas
-  por canal e, opcionalmente, busca de GIF. O chat também abre ao lado de uma chamada.
+  servidas com as permissões do canal; reações, respostas, enquetes, tópicos, arquivos de qualquer tipo para download, prévias de
+  links, mensagens não lidas por canal e, opcionalmente, busca de GIF. O chat também abre ao lado de uma chamada.
 - **Menus de contexto** (clique direito ou toque longo) em canais, pessoas e mensagens.
 - **Gateway em tempo real** no estilo Discord: heartbeat, números de sequência e `resume`.
 - **Observabilidade**: métricas Prometheus e um painel de estatísticas reais (`getStats`) na

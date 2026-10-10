@@ -64,6 +64,8 @@ export const guildApi = {
   deleteChannel: (channelId: string) => api('DELETE', `/channels/${channelId}`),
   reorderChannels: (guildId: string, channels: Array<{ id: string; parentId: string | null }>) =>
     api('PUT', `/guilds/${guildId}/channels/order`, { body: { channels } }),
+  createThread: (channelId: string, name: string) =>
+    api('POST', `/channels/${channelId}/threads`, { body: { name }, schema: channelSchema }),
   putOverwrite: (channelId: string, targetId: string, body: PutOverwriteRequest) =>
     api('PUT', `/channels/${channelId}/overwrites/${targetId}`, { body, schema: channelSchema }),
   deleteOverwrite: (channelId: string, targetId: string) =>

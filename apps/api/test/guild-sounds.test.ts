@@ -90,7 +90,14 @@ describe('guild notification sounds', () => {
 
   it('starts with no custom sounds', async () => {
     const guild = await scenario();
-    expect(guild.sounds).toEqual({ join: null, leave: null, streamStart: null, streamStop: null });
+    expect(guild.sounds).toEqual({
+      join: null,
+      leave: null,
+      streamStart: null,
+      streamStop: null,
+      watchStart: null,
+      watchStop: null,
+    });
     expect((await get(owner, guild.id, 'join')).statusCode).toBe(404);
   });
 
@@ -112,6 +119,8 @@ describe('guild notification sounds', () => {
       leave: null,
       streamStart: null,
       streamStop: null,
+      watchStart: null,
+      watchStop: null,
     });
     expect((await guildOf(member, guild.id)).sounds.join).toEqual(sound);
 

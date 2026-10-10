@@ -15,8 +15,8 @@ export interface DatabaseHandle {
   close: () => Promise<void>;
 }
 
-export function connectDatabase(url: string): DatabaseHandle {
-  const client = postgres(url, { max: 10, onnotice: () => undefined });
+export function connectDatabase(url: string, poolSize = 10): DatabaseHandle {
+  const client = postgres(url, { max: poolSize, onnotice: () => undefined });
   return {
     db: drizzle(client, { schema }),
     close: () => client.end({ timeout: 5 }),

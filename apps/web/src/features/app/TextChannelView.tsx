@@ -7,11 +7,14 @@ import {
 } from '@frequencia/shared';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/Button';
+import { CreatePollDialog, CreateThreadDialog } from '../chat/ChatDialogs';
 import { chatApi, flattenMessages, messagesKey, useTypingStore } from '../chat/chat-store';
 import { Composer } from '../chat/Composer';
 import { useFeatures } from '../chat/Embeds';
 import { MessageItem } from '../chat/MessageItem';
+import { applyGatewayEvent } from '../gateway/gateway-store';
 import { channelPermissions, memberName } from '../guilds/permissions';
 import { useViewingChannel } from '../unread/unread-store';
 
@@ -79,6 +82,10 @@ export function TextChannelView({
   const lastTyping = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [pollOpen, setPollOpen] = useState(false);
+  /** `null` is closed; a string is the name suggested for the new thread. */
+  const [threadName, setThreadName] = useState<string | null>(null);
+  const navigate = useNavigate();
   const features = useFeatures();
   useViewingChannel(channel.id);
 
@@ -86,6 +93,9 @@ export function TextChannelView({
   const canSend = hasPermission(permissions, Permissions.SendMessages);
   const canModerate = hasPermission(permissions, Permissions.ManageMessages);
   const canMentionEveryone = hasPermission(permissions, Permissions.MentionEveryone);
+  const canAttach = hasPermission(permissions, Permissions.AttachFiles);
+  // Threads hang from text channels only: not from a voice channel's chat, not from a thread.
+  const canOpenThreads = canSend && channel.type === 'text';
 
   const history = useInfiniteQuery({
     queryKey: messagesKey(channel.id),
@@ -201,6 +211,12 @@ export function TextChannelView({
                     canModerate={canModerate}
                     canMentionEveryone={canMentionEveryone}
                     onReply={canSend ? setReplyTo : undefined}
+                    onCreateThread={
+                      canOpenThreads
+                        ? (message) =>
+                            setThreadName(message.content.replace(/\s+/g, ' ').trim().slice(0, 48))
+                        : undefined
+                    }
                   />
                 </Fragment>
               );
@@ -236,7 +252,9 @@ export function TextChannelView({
             placeholder={`Mensagem em ${channel.name}`}
             canMentionEveryone={canMentionEveryone}
             onTyping={notifyTyping}
-            attachments
+            attachments={canAttach}
+            onCreatePoll={() => setPollOpen(true)}
+            onCreateThread={canOpenThreads ? () => setThreadName('') : undefined}
             gifs={features?.gifs ?? false}
             focusKey={replyTo?.id}
             onCancel={replyTo ? () => setReplyTo(null) : undefined}
@@ -251,6 +269,19 @@ export function TextChannelView({
         )}
         <TypingIndicator guild={guild} channelId={channel.id} userId={userId} />
       </div>
+      {pollOpen && <CreatePollDialog channelId={channel.id} onClose={() => setPollOpen(false)} />}
+      {threadName !== null && (
+        <CreateThreadDialog
+          channel={channel}
+          suggestedName={threadName}
+          onCreated={(thread) => {
+            // The gateway announces it too, a moment later; the shell needs it to exist now.
+            applyGatewayEvent('CHANNEL_CREATE', thread);
+            navigate(`/app/${guild.id}/${thread.id}`);
+          }}
+          onClose={() => setThreadName(null)}
+        />
+      )}
     </div>
   );
 }

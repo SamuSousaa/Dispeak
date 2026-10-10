@@ -137,7 +137,7 @@ export const guildBans = pgTable(
   (table) => [primaryKey({ columns: [table.guildId, table.userId] })],
 );
 
-export const channelType = pgEnum('channel_type', ['text', 'voice', 'category']);
+export const channelType = pgEnum('channel_type', ['text', 'voice', 'category', 'thread']);
 
 export const channels = pgTable(
   'channels',
@@ -151,7 +151,7 @@ export const channels = pgTable(
     topic: text('topic'),
     /** Order among the siblings of the same parent. */
     position: integer('position').notNull(),
-    /** Category this channel sits in. */
+    /** Category this channel sits in; for a thread, the text channel it hangs from. */
     parentId: uuid('parent_id'),
     createdAt: createdAt(),
   },
@@ -241,6 +241,48 @@ export const messageReactions = pgTable(
     createdAt: createdAt(),
   },
   (table) => [primaryKey({ columns: [table.messageId, table.userId, table.emoji] })],
+);
+
+/** A poll carried by a message. */
+export const polls = pgTable('polls', {
+  messageId: uuid('message_id')
+    .primaryKey()
+    .references(() => messages.id, { onDelete: 'cascade' }),
+  question: text('question').notNull(),
+  multiple: boolean('multiple').notNull().default(false),
+});
+
+export const pollOptions = pgTable(
+  'poll_options',
+  {
+    id: uuid('id').primaryKey(),
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    text: text('text').notNull(),
+  },
+  (table) => [index('poll_options_message_idx').on(table.messageId)],
+);
+
+export const pollVotes = pgTable(
+  'poll_votes',
+  {
+    optionId: uuid('option_id')
+      .notNull()
+      .references(() => pollOptions.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.optionId, table.userId] }),
+    index('poll_votes_message_idx').on(table.messageId),
+  ],
 );
 
 /** How far each user has read each text channel. */

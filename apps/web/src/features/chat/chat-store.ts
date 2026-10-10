@@ -6,6 +6,7 @@ import {
   messagePageSchema,
   messageSchema,
   unreadResponseSchema,
+  type CreatePoll,
   type GatewayEventData,
   type Message,
   type MessagePage,
@@ -24,20 +25,22 @@ export const chatApi = {
     content: string,
     attachmentIds: string[] = [],
     replyToId: string | null = null,
+    poll: CreatePoll | null = null,
   ) =>
     api('POST', `/channels/${channelId}/messages`, {
-      body: { content, attachmentIds, replyToId },
+      body: { content, attachmentIds, replyToId, poll },
       schema: messageSchema,
     }),
-  /** Stores an image on the server; its id goes into the next `send`. */
+  /** Stores a file on the server; its id goes into the next `send`. */
   upload: (channelId: string, file: File) =>
     api(
       'POST',
-      `/channels/${channelId}/attachments?filename=${encodeURIComponent(file.name || 'imagem')}`,
-      { body: file, schema: attachmentSchema },
+      `/channels/${channelId}/attachments?filename=${encodeURIComponent(file.name || 'arquivo')}`,
+      // Sent as opaque bytes: the server decides what it is from the content.
+      { body: new Blob([file], { type: 'application/octet-stream' }), schema: attachmentSchema },
     ),
   attachmentBlob: (attachmentId: string) => apiBlob(`/attachments/${attachmentId}`),
-  /** Uploads the images one by one, then sends the message that carries them. */
+  /** Uploads the files one by one, then sends the message that carries them. */
   sendWithFiles: async (
     channelId: string,
     content: string,
@@ -52,6 +55,11 @@ export const chatApi = {
     api('PATCH', `/messages/${messageId}`, { body: { content }, schema: messageSchema }),
   delete: (messageId: string) => api('DELETE', `/messages/${messageId}`),
   typing: (channelId: string) => api('POST', `/channels/${channelId}/typing`),
+  vote: (messageId: string, optionIds: string[]) =>
+    api('PUT', `/messages/${messageId}/poll/votes`, {
+      body: { optionIds },
+      schema: messageSchema,
+    }),
   react: (messageId: string, emoji: string) =>
     api('PUT', `/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
       schema: messageSchema,

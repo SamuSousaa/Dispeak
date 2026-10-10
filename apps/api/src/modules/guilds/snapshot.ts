@@ -169,6 +169,13 @@ export function channelPermissionsOf(
   const actor = actorOf(snapshot, userId);
   const channel = snapshot.channels.get(channelId);
   if (!actor || !channel) return 0n;
+  if (channel.type === 'thread') {
+    // A thread has no rules of its own: whoever can do something in the channel can do it here.
+    const parent = channel.parentId ? snapshot.channels.get(channel.parentId) : undefined;
+    return parent && parent.type !== 'thread'
+      ? channelPermissionsOf(snapshot, userId, parent.id)
+      : 0n;
+  }
   return computeChannelPermissions({
     userId,
     everyoneRoleId: snapshot.guild.id,

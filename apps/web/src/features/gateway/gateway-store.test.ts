@@ -37,7 +37,14 @@ const guild = (overrides: Partial<Guild> = {}): Guild => ({
   members: [member(ALICE, 'Alice'), member(BRUNO, 'Bruno')],
   onlineUserIds: [ALICE],
   voiceStates: [],
-  sounds: { join: null, leave: null, streamStart: null, streamStop: null },
+  sounds: {
+    join: null,
+    leave: null,
+    streamStart: null,
+    streamStop: null,
+    watchStart: null,
+    watchStop: null,
+  },
   ...overrides,
 });
 

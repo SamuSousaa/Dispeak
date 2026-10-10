@@ -41,7 +41,9 @@ export function ChannelSettingsDialog({
 }) {
   const permissions = channelPermissions(guild, channel, userId);
   const canEdit = hasPermission(permissions, Permissions.ManageChannels);
-  const canEditPermissions = hasPermission(permissions, Permissions.ManageRoles);
+  const isThread = channel.type === 'thread';
+  // A thread follows its channel: there is nothing to configure about who gets in.
+  const canEditPermissions = !isThread && hasPermission(permissions, Permissions.ManageRoles);
 
   const [name, setName] = useState(channel.name);
   const [topic, setTopic] = useState(channel.topic ?? '');
@@ -66,7 +68,11 @@ export function ChannelSettingsDialog({
   const save = (event: FormEvent) => {
     event.preventDefault();
     void run(
-      () => guildApi.updateChannel(channel.id, { name: name.trim(), topic: topic.trim() || null }),
+      () =>
+        guildApi.updateChannel(
+          channel.id,
+          isThread ? { name: name.trim() } : { name: name.trim(), topic: topic.trim() || null },
+        ),
       true,
     );
   };
@@ -91,7 +97,7 @@ export function ChannelSettingsDialog({
     );
   };
 
-  const kind = channel.type === 'category' ? 'categoria' : 'canal';
+  const kind = channel.type === 'category' ? 'categoria' : isThread ? 'tópico' : 'canal';
   const hidden = isPrivate(guild, channel);
 
   return (
@@ -113,8 +119,8 @@ export function ChannelSettingsDialog({
                 required
               />
             </Field>
-            {channel.type !== 'category' && (
-              <Field label="TÓPICO">
+            {channel.type !== 'category' && !isThread && (
+              <Field label="ASSUNTO">
                 <input
                   className="field"
                   value={topic}

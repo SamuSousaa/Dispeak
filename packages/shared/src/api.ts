@@ -55,7 +55,8 @@ export type AuthResponse = z.infer<typeof authResponseSchema>;
 
 // --- guild structure ------------------------------------------------------------------------
 
-export const channelTypeSchema = z.enum(['text', 'voice', 'category']);
+/** A `thread` is a side conversation hanging from a text channel, under the same permissions. */
+export const channelTypeSchema = z.enum(['text', 'voice', 'category', 'thread']);
 export type ChannelType = z.infer<typeof channelTypeSchema>;
 
 export const overwriteSchema = z.object({
@@ -76,7 +77,7 @@ export const channelSchema = z.object({
   name: z.string(),
   topic: z.string().nullable(),
   position: z.number().int(),
-  /** Category the channel belongs to. */
+  /** Category the channel belongs to; for a thread, the text channel it hangs from. */
   parentId: idSchema.nullable(),
   overwrites: z.array(overwriteSchema),
 });
@@ -123,7 +124,15 @@ export const voiceStateSchema = z.object({
 export type VoiceState = z.infer<typeof voiceStateSchema>;
 
 /** Moments of a voice channel announced with a sound. */
-export const GUILD_SOUND_EVENTS = ['join', 'leave', 'streamStart', 'streamStop'] as const;
+export const GUILD_SOUND_EVENTS = [
+  'join',
+  'leave',
+  'streamStart',
+  'streamStop',
+  /** The local user starts or stops watching someone's stream. */
+  'watchStart',
+  'watchStop',
+] as const;
 export const guildSoundEventSchema = z.enum(GUILD_SOUND_EVENTS);
 export type GuildSoundEvent = z.infer<typeof guildSoundEventSchema>;
 
@@ -169,6 +178,8 @@ export const guildSchema = z.object({
     leave: guildSoundSchema.nullable(),
     streamStart: guildSoundSchema.nullable(),
     streamStop: guildSoundSchema.nullable(),
+    watchStart: guildSoundSchema.nullable(),
+    watchStop: guildSoundSchema.nullable(),
   }),
 });
 export type Guild = z.infer<typeof guildSchema>;
@@ -187,10 +198,14 @@ export const updateGuildRequestSchema = z.object({ name: guildNameSchema });
 
 export const createChannelRequestSchema = z.object({
   name: channelNameSchema,
-  type: channelTypeSchema,
+  // Threads are created from their channel, with `createThreadRequestSchema`.
+  type: channelTypeSchema.exclude(['thread']),
   parentId: idSchema.nullable().optional(),
 });
 export type CreateChannelRequest = z.input<typeof createChannelRequestSchema>;
+
+export const createThreadRequestSchema = z.object({ name: channelNameSchema });
+export type CreateThreadRequest = z.input<typeof createThreadRequestSchema>;
 
 export const updateChannelRequestSchema = z
   .object({
@@ -306,21 +321,20 @@ export function extractMentions(content: string): string[] {
 
 export const messageContentSchema = z.string().trim().min(1).max(MESSAGE_MAX_LENGTH);
 
-export const ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024;
+export const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
 export const ATTACHMENT_MAX_PER_MESSAGE = 4;
-/** Images only, identified by their bytes on the server. SVG is left out on purpose. */
-export const ATTACHMENT_CONTENT_TYPES = [
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-] as const;
-export type AttachmentContentType = (typeof ATTACHMENT_CONTENT_TYPES)[number];
+/**
+ * Images are shown in the conversation; they are identified by their bytes on the server (SVG
+ * is left out on purpose). Any other file is kept as it came and only ever offered for download.
+ */
+export const IMAGE_CONTENT_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+export type ImageContentType = (typeof IMAGE_CONTENT_TYPES)[number];
 
 export const attachmentSchema = z.object({
   id: idSchema,
   filename: z.string(),
-  contentType: z.enum(ATTACHMENT_CONTENT_TYPES),
+  /** One of `IMAGE_CONTENT_TYPES`, or `application/octet-stream` for everything else. */
+  contentType: z.string(),
   /** Bytes. */
   size: z.number().int(),
   /** Pixels, when the file header says so; lets clients reserve the space before loading. */
@@ -331,6 +345,37 @@ export type Attachment = z.infer<typeof attachmentSchema>;
 
 export const uploadAttachmentQuerySchema = z.object({
   filename: z.string().trim().min(1).max(255),
+});
+
+// --- polls ----------------------------------------------------------------------------------
+
+export const POLL_MAX_OPTIONS = 10;
+
+export const pollSchema = z.object({
+  question: z.string(),
+  /** Whether a voter may pick more than one option. */
+  multiple: z.boolean(),
+  options: z.array(
+    z.object({
+      id: idSchema,
+      text: z.string(),
+      /** Who voted for it, oldest first. */
+      voterIds: z.array(idSchema),
+    }),
+  ),
+});
+export type Poll = z.infer<typeof pollSchema>;
+
+export const createPollSchema = z.object({
+  question: z.string().trim().min(1).max(300),
+  options: z.array(z.string().trim().min(1).max(100)).min(2).max(POLL_MAX_OPTIONS),
+  multiple: z.boolean().default(false),
+});
+export type CreatePoll = z.input<typeof createPollSchema>;
+
+/** The options the user stands for now; an empty list takes the vote back. */
+export const votePollRequestSchema = z.object({
+  optionIds: z.array(idSchema).max(POLL_MAX_OPTIONS),
 });
 
 /** Different emojis one message can collect. */
@@ -382,6 +427,7 @@ export const messageSchema = z.object({
   reactions: z.array(reactionSchema),
   /** `null` when the message is not a reply, or the original is gone. */
   replyTo: messageReferenceSchema.nullable(),
+  poll: pollSchema.nullable(),
   /** Members mentioned with `<@id>` who can see the channel. */
   mentions: z.array(idSchema),
   mentionEveryone: z.boolean(),
@@ -399,9 +445,10 @@ export const sendMessageRequestSchema = z
     attachmentIds: z.array(idSchema).max(ATTACHMENT_MAX_PER_MESSAGE).default([]),
     /** A message of the same channel this one answers; its author is notified like a mention. */
     replyToId: idSchema.nullable().default(null),
+    poll: createPollSchema.nullable().default(null),
   })
-  .refine((value) => value.content.length > 0 || value.attachmentIds.length > 0, {
-    message: 'a message needs text or an attachment',
+  .refine((value) => value.content.length > 0 || value.attachmentIds.length > 0 || value.poll, {
+    message: 'a message needs text, an attachment or a poll',
     path: ['content'],
   });
 export type SendMessageRequest = z.input<typeof sendMessageRequestSchema>;

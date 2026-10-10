@@ -7,13 +7,7 @@ import { attempt } from '../../components/Toast';
 import { Icon, type IconName } from '../../components/Icon';
 import { cx } from '../../lib/cx';
 import { isPrivate, setPrivate } from '../guilds/channel-privacy';
-import {
-  actorIn,
-  channelPermissions,
-  groupChannels,
-  memberColor,
-  memberName,
-} from '../guilds/permissions';
+import { actorIn, channelPermissions, groupChannels, memberName } from '../guilds/permissions';
 import { userMenu } from '../guilds/user-menu';
 import { markRead, useUnreadStore } from '../unread/unread-store';
 import { useVoiceStore } from '../voice/voice-store';
@@ -235,7 +229,10 @@ export function ChannelPanel({
           // A folded category still shows where the user is and what is waiting for them.
           const shown = folded
             ? group.channels.filter(
-                ({ channel }) =>
+                ({ channel, threads }) =>
+                  threads.some(
+                    (thread) => thread.id === openChannelId || Boolean(unread[thread.id]),
+                  ) ||
                   channel.id === openChannelId ||
                   channel.id === connectedChannelId ||
                   Boolean(unread[channel.id]),
@@ -292,7 +289,7 @@ export function ChannelPanel({
                 </div>
               )}
               <ul>
-                {shown.map(({ channel, number }) => {
+                {shown.map(({ channel, number, threads }) => {
                   const voices = guild.voiceStates.filter(
                     (state) => state.channelId === channel.id,
                   );
@@ -427,11 +424,6 @@ export function ChannelPanel({
                                   'truncate transition-colors',
                                   speaking.has(voice.userId) ? 'text-accent' : 'text-muted',
                                 )}
-                                style={
-                                  speaking.has(voice.userId)
-                                    ? undefined
-                                    : { color: memberColor(guild, voice.userId) }
-                                }
                               >
                                 {memberName(guild, voice.userId)}
                               </span>
@@ -461,6 +453,66 @@ export function ChannelPanel({
                               </span>
                             </li>
                           ))}
+                        </ul>
+                      )}
+                      {threads.length > 0 && (
+                        <ul className="pb-1" aria-label={`Tópicos de ${channel.name}`}>
+                          {threads.map((thread) => {
+                            const waiting = unread[thread.id];
+                            return (
+                              <li
+                                key={thread.id}
+                                data-testid="thread-row"
+                                data-unread={Boolean(waiting)}
+                                {...contextMenu(thread.name, () => [
+                                  waiting && {
+                                    label: 'Marcar como lido',
+                                    onSelect: () => markRead(thread.id),
+                                  },
+                                  {
+                                    label: 'Copiar link do tópico',
+                                    onSelect: () => copyLink(thread),
+                                  },
+                                  canConfigure(thread) && {
+                                    label: 'Renomear ou excluir tópico',
+                                    onSelect: () => onChannelSettings(thread),
+                                  },
+                                ])}
+                              >
+                                <NavLink
+                                  to={`/app/${guild.id}/${thread.id}`}
+                                  onClick={onNavigate}
+                                  className={({ isActive }) =>
+                                    cx(
+                                      'label flex items-center gap-1.5 border-l-2 py-1 pr-3 pl-8 transition-colors',
+                                      isActive
+                                        ? 'border-accent bg-surface-2 text-accent'
+                                        : 'border-transparent text-muted hover:bg-surface-2 hover:text-accent',
+                                    )
+                                  }
+                                >
+                                  <span aria-hidden="true">↳</span>
+                                  <span
+                                    className={cx('truncate', waiting && 'font-semibold text-fg')}
+                                  >
+                                    {thread.name}
+                                  </span>
+                                  {waiting &&
+                                    (waiting.mentions > 0 ? (
+                                      <span className="label ml-auto shrink-0 bg-fg px-1 text-bg">
+                                        {waiting.mentions > 99 ? '99+' : waiting.mentions}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="ml-auto h-1.5 w-1.5 shrink-0 bg-fg"
+                                        role="img"
+                                        aria-label="Mensagens não lidas"
+                                      />
+                                    ))}
+                                </NavLink>
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                     </li>

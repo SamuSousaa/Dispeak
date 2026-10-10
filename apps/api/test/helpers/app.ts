@@ -52,6 +52,9 @@ export async function createTestApp(env: Record<string, string> = {}): Promise<T
     NODE_ENV: 'test',
     UPLOADS_DIR: uploads,
     DATABASE_URL: inject('databaseUrl'),
+    // Every test file starts its own app, all against one Postgres: with the default pool the
+    // files running in parallel can ask for more connections than the server accepts.
+    DATABASE_POOL_SIZE: '4',
     REDIS_URL: inject('redisUrl'),
     RUN_MIGRATIONS: 'false',
     // Nothing listens here: the media link just keeps retrying in the background.
