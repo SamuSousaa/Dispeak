@@ -46,7 +46,7 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
   return (
     <div className="shrink-0 border-t border-line bg-surface">
       {inVoice && (
-        <div className="border-b border-line" data-testid="voice-panel">
+        <div className="anim-pop border-b border-line" data-testid="voice-panel">
           <div className="flex items-center gap-2 px-3 pt-2">
             <div className="min-w-0 flex-1">
               <p className="label flex items-baseline gap-2">

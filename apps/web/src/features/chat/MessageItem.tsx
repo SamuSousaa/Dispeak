@@ -82,7 +82,7 @@ export function MessageItem({
       data-testid="message"
       data-mentions-me={mentionsMe}
       className={cx(
-        'group relative border-l-2 px-4 py-0.5 transition-colors hover:bg-surface',
+        'anim-fade group relative border-l-2 px-4 py-0.5 transition-colors hover:bg-surface',
         showHeader && 'mt-3',
         mentionsMe ? 'border-fg bg-surface' : 'border-transparent',
       )}

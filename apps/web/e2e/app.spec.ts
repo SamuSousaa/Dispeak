@@ -12,6 +12,16 @@ async function registerAt(page: Page, username: string, displayName: string): Pr
 
 async function newUser(browser: Browser, displayName: string) {
   const context = await browser.newContext({ viewport: { width: 1360, height: 820 } });
+  // Notification sounds are the only audio played from a URL (voices use srcObject): count them.
+  await context.addInitScript(() => {
+    const played: string[] = [];
+    (window as unknown as { playedSounds: string[] }).playedSounds = played;
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      if (this.src) played.push(this.src);
+      return play.call(this);
+    };
+  });
   const page = await context.newPage();
   const username = unique(displayName.toLowerCase());
   return { page, context, username, displayName };
@@ -84,6 +94,11 @@ test('account → server → invite → voice channel → stream, with permissio
   // Bruno has not joined yet, but already sees Alice connected in the channel list.
   await expect(voiceMembers(bruno.page)).toHaveText(['Alice']);
   await joinVoice(bruno.page);
+  // One sound for Bruno joining; Alice hears him arrive.
+  const sounds = (page: Page) =>
+    page.evaluate(() => (window as unknown as { playedSounds: string[] }).playedSounds.length);
+  await expect.poll(() => sounds(bruno.page)).toBe(1);
+  await expect.poll(() => sounds(alice.page)).toBe(2);
 
   for (const page of [alice.page, bruno.page]) {
     await expect(page.getByTestId('participant')).toHaveCount(2);
@@ -107,6 +122,18 @@ test('account → server → invite → voice channel → stream, with permissio
   await expect(dialog(bruno.page).getByRole('button', { name: /^Atalho de Mutar/ })).toHaveText(
     'K',
   );
+  // A file from the computer replaces the built-in sound, and is played once to confirm.
+  await dialog(bruno.page)
+    .getByTestId('sound-input-join')
+    .setInputFiles({
+      name: 'entrada.wav',
+      mimeType: 'audio/wav',
+      buffer: Buffer.from('UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=', 'base64'),
+    });
+  await expect(dialog(bruno.page).getByTestId('sound-file-join')).toHaveText(
+    'ARQUIVO: entrada.wav',
+  );
+  await expect.poll(() => sounds(bruno.page)).toBe(2);
   await dialog(bruno.page).getByRole('button', { name: 'Fechar' }).click();
   await bruno.page.keyboard.press('m');
   await bruno.page.keyboard.press('k');

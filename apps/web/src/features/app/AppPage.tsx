@@ -15,6 +15,7 @@ import { GuildSettingsDialog } from '../guilds/dialogs/GuildSettingsDialog';
 import { InviteDialog } from '../guilds/dialogs/InviteDialog';
 import { groupChannels } from '../guilds/permissions';
 import { SettingsPanel } from '../settings/SettingsPanel';
+import { startVoiceSounds } from '../sounds/sound-player';
 import { useVoiceShortcuts } from '../voice/use-voice-shortcuts';
 import { leaveVoice } from '../voice/voice-actions';
 import { ChannelPanel } from './ChannelPanel';
@@ -51,6 +52,7 @@ export function AppPage() {
   const [drawer, setDrawer] = useState<Drawer>(null);
 
   useVoiceShortcuts();
+  useEffect(() => startVoiceSounds(), []);
 
   const queryClient = useQueryClient();
   useEffect(() => {

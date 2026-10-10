@@ -31,7 +31,7 @@ export function Button({
       type={type}
       className={cx(
         'label inline-flex h-8 items-center justify-center gap-1 border px-2.5 whitespace-nowrap',
-        'transition-colors disabled:opacity-40 disabled:hover:border-line-strong',
+        'pressable disabled:opacity-40 disabled:hover:border-line-strong',
         variants[variant],
         className,
       )}

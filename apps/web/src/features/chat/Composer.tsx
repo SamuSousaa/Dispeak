@@ -77,7 +77,7 @@ function EmojiPicker({
       ref={ref}
       role="dialog"
       aria-label="Emojis"
-      className="absolute right-0 bottom-full z-10 mb-1 max-h-72 w-80 max-w-full overflow-y-auto border border-line-strong bg-surface-2"
+      className="anim-pop absolute right-0 bottom-full z-10 mb-1 max-h-72 w-80 max-w-full overflow-y-auto border border-line-strong bg-surface-2"
     >
       {EMOJI_GROUPS.map((group) => (
         <section key={group.label}>
@@ -304,7 +304,7 @@ export function Composer({
         <ul
           role="listbox"
           aria-label="Mencionar"
-          className="absolute bottom-full left-0 z-10 mb-1 w-72 max-w-full border border-line-strong bg-surface-2"
+          className="anim-pop absolute bottom-full left-0 z-10 mb-1 w-72 max-w-full border border-line-strong bg-surface-2"
         >
           {suggestions.map((suggestion, index) => (
             <li key={suggestion.key} role="option" aria-selected={index === active}>
@@ -338,7 +338,10 @@ export function Composer({
       {pending.length > 0 && (
         <ul aria-label="Imagens a enviar" className="mb-2 flex flex-wrap gap-2">
           {pending.map((entry) => (
-            <li key={entry.key} className="relative h-20 w-20 border border-line-strong bg-bg">
+            <li
+              key={entry.key}
+              className="anim-rise relative h-20 w-20 border border-line-strong bg-bg"
+            >
               <img src={entry.url} alt={entry.file.name} className="h-full w-full object-cover" />
               <button
                 type="button"

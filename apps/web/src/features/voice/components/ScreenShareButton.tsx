@@ -68,7 +68,7 @@ export function ScreenShareButton({ allowed = true }: { allowed?: boolean }) {
         <ul
           role="menu"
           aria-label="Qualidade da transmissão"
-          className="absolute bottom-full left-0 z-10 mb-2 w-72 border border-line-strong bg-surface-2"
+          className="anim-pop absolute bottom-full left-0 z-10 mb-2 w-72 border border-line-strong bg-surface-2"
         >
           {SCREEN_PRESET_LIST.map((preset) => (
             <li key={preset.id} role="none" className="border-b border-line last:border-b-0">

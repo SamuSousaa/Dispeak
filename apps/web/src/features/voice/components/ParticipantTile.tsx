@@ -80,7 +80,7 @@ export function ParticipantTile({
       data-deafened={deafened}
       data-live={live}
       className={cx(
-        'relative flex flex-col border bg-surface transition-colors',
+        'anim-rise relative flex flex-col border bg-surface transition-colors',
         compact ? 'h-full w-44 shrink-0' : 'aspect-video',
         speaking ? 'border-accent' : 'border-line',
       )}

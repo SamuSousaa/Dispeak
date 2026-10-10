@@ -144,7 +144,7 @@ export function StreamTile({
       data-testid="stream-tile"
       data-stream={isSelf ? 'self' : name}
       className={cx(
-        'group relative h-full min-h-0 w-full overflow-hidden border bg-bg',
+        'anim-rise group relative h-full min-h-0 w-full overflow-hidden border bg-bg',
         focused ? 'border-accent' : 'border-line',
       )}
     >

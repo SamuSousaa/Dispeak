@@ -25,7 +25,9 @@ export function VoiceChannelView({
   const permissions = channelPermissions(guild, channel, userId);
   const canConnect = hasPermission(permissions, Permissions.Connect);
   const here = connectedChannelId === channel.id;
-  const live = here && (status === 'connected' || status === 'reconnecting');
+  // The stage shows from the first moment of the connection, so joining has no in-between screen.
+  const live =
+    here && (status === 'connecting' || status === 'connected' || status === 'reconnecting');
 
   if (live) {
     return (
@@ -46,7 +48,7 @@ export function VoiceChannelView({
 
   return (
     <div className="grid-bg flex h-full items-center justify-center p-4">
-      <section className="w-full max-w-sm border border-line bg-surface">
+      <section className="anim-rise w-full max-w-sm border border-line bg-surface">
         <header className="border-b border-line px-4 py-4">
           <p className="label text-muted">CANAL DE VOZ</p>
           <h2 className="display mt-1 truncate text-xl text-fg">{channel.name}</h2>

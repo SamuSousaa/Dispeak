@@ -108,6 +108,8 @@ passar e de um commit ser feito.
 - [x] Emojis e imagens no chat (upload em disco, tipo conferido pelos bytes, permissões do canal)
 - [x] Banco embutido de desenvolvimento criado em UTF-8 (no Windows nascia em WIN1252 e recusava
       emoji)
+- [x] Sons de notificação (entrar, sair, transmissão começa e termina), com arquivos do usuário
+- [x] Animações de entrada em menus, painéis, mensagens e quadros de participantes
 - [ ] Aplicativo instalável (atalhos globais, fora do navegador) — adiado
 
 **Sem teste em aparelho real:** RNNoise e câmera no iPhone, troca de microfone/saída/câmera com

@@ -105,7 +105,88 @@
   }
 }
 
+@layer base {
+  /* Dialogs rise into place; the side panel slides in from its edge. */
+  dialog[open] {
+    animation: rise-in 200ms var(--ease);
+  }
+
+  dialog[open][data-side] {
+    animation: slide-in 220ms var(--ease);
+  }
+
+  dialog[open]::backdrop {
+    animation: fade-in 200ms var(--ease);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
 @layer components {
+  /* Entrance animations, 150-250ms. The reduced-motion rule above switches them all off. */
+  .anim-fade {
+    animation: fade-in var(--duration) var(--ease);
+  }
+
+  .anim-rise {
+    animation: rise-in 200ms var(--ease);
+  }
+
+  /* Menus that open upwards, and menus that drop down. */
+  .anim-pop {
+    animation: pop-in var(--duration) var(--ease);
+  }
+
+  .anim-drop {
+    animation: drop-in var(--duration) var(--ease);
+  }
+
+  /* Buttons give a little under the pointer. */
+  .pressable {
+    transition:
+      color var(--duration) var(--ease),
+      background-color var(--duration) var(--ease),
+      border-color var(--duration) var(--ease),
+      opacity var(--duration) var(--ease),
+      transform 120ms var(--ease);
+  }
+
+  .pressable:active:not(:disabled) {
+    transform: translateY(1px) scale(0.97);
+  }
+
   /* Labels, navigation, buttons and metadata: mono, uppercase, tracked. */
   .label {
     font-family: var(--font-mono);

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { SOUND_EVENTS, type SoundEvent } from '../sounds/sound-events';
 import { SCREEN_PRESET_IDS } from '../voice/screen-presets';
 import {
   assignKeybind,
@@ -17,6 +18,9 @@ import {
 export const NOISE_SUPPRESSION_MODES = ['off', 'browser', 'rnnoise'] as const;
 export type NoiseSuppressionMode = (typeof NOISE_SUPPRESSION_MODES)[number];
 
+const perSound = <T extends z.ZodType>(schema: T) =>
+  Object.fromEntries(SOUND_EVENTS.map((event) => [event, schema])) as Record<SoundEvent, T>;
+
 const settingsSchema = z.object({
   /** `null` follows the system default device. */
   inputDeviceId: z.string().nullable(),
@@ -27,6 +31,12 @@ const settingsSchema = z.object({
   autoGainControl: z.boolean(),
   /** Last quality picked for a screen share; the share shortcut starts with it. */
   sharePreset: z.enum(SCREEN_PRESET_IDS),
+  /** Notification sounds: joining, leaving, a stream starting or ending. */
+  soundsEnabled: z.boolean(),
+  soundVolume: z.number().min(0).max(1),
+  soundEvents: z.object(perSound(z.boolean())),
+  /** Name of the user's own file for an event; the file itself lives in IndexedDB. */
+  customSounds: z.object(perSound(z.string().nullable())),
   keybinds: z.object(
     Object.fromEntries(KEYBIND_ACTIONS.map((action) => [action, z.string().nullable()])) as Record<
       KeybindAction,
@@ -49,6 +59,10 @@ export const defaultSettings: Settings = {
   echoCancellation: true,
   autoGainControl: true,
   sharePreset: '1080p30',
+  soundsEnabled: true,
+  soundVolume: 0.5,
+  soundEvents: { join: true, leave: true, streamStart: true, streamStop: true },
+  customSounds: { join: null, leave: null, streamStart: null, streamStop: null },
   keybinds: DEFAULT_KEYBINDS,
 };
 

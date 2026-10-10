@@ -118,7 +118,7 @@ function ServerHeader({
         <ul
           role="menu"
           aria-label={`Ações de ${guild.name}`}
-          className="absolute top-full right-0 left-0 z-10 border-b border-line-strong bg-surface-2"
+          className="anim-drop absolute top-full right-0 left-0 z-10 border-b border-line-strong bg-surface-2"
         >
           {actions.map((action) => (
             <li key={action.label} role="none" className="border-b border-line last:border-b-0">

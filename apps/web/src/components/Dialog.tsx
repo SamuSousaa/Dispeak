@@ -38,6 +38,7 @@ export function Dialog({
     <dialog
       ref={ref}
       aria-label={title}
+      data-side={side || undefined}
       onClose={onClose}
       // A click on the backdrop lands on the dialog element itself.
       onClick={(event) => {

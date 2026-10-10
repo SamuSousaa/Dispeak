@@ -1,8 +1,15 @@
 import type { User } from '@frequencia/shared';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '../../components/Button';
 import { Dialog, Field } from '../../components/Dialog';
 import { cx } from '../../lib/cx';
+import { SOUND_EVENTS, SOUND_LABELS, type SoundEvent } from '../sounds/sound-events';
+import {
+  clearCustomSound,
+  CUSTOM_SOUND_MAX_BYTES,
+  playSound,
+  setCustomSound,
+} from '../sounds/sound-player';
 import { useVoiceStore } from '../voice/voice-store';
 import { bindingFromEvent, KEYBIND_ACTIONS, KEYBIND_LABELS, type KeybindAction } from './keybinds';
 import {
@@ -198,6 +205,91 @@ function KeybindRow({
   );
 }
 
+function SoundRow({ event }: { event: SoundEvent }) {
+  const enabled = useSettingsStore((state) => state.soundEvents[event]);
+  const fileName = useSettingsStore((state) => state.customSounds[event]);
+  const input = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const choose = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('audio/')) {
+      setError('ESCOLHA UM ARQUIVO DE ÁUDIO (MP3, WAV, OGG).');
+    } else if (file.size > CUSTOM_SOUND_MAX_BYTES) {
+      setError('O ARQUIVO PODE TER ATÉ 2 MB.');
+    } else {
+      setError(null);
+      await setCustomSound(event, file).catch(() =>
+        setError('NÃO FOI POSSÍVEL GUARDAR O ARQUIVO.'),
+      );
+      void playSound(event);
+    }
+  };
+
+  return (
+    <li className="flex flex-col gap-1.5 border-b border-line pb-3 last:border-b-0 last:pb-0">
+      <label className="flex cursor-pointer items-center gap-3">
+        <input
+          type="checkbox"
+          className="h-4 w-4 shrink-0 accent-(--accent)"
+          checked={enabled}
+          onChange={(change) =>
+            updateSettings({
+              soundEvents: {
+                ...useSettingsStore.getState().soundEvents,
+                [event]: change.target.checked,
+              },
+            })
+          }
+        />
+        <span className="min-w-0 text-sm text-fg">{SOUND_LABELS[event]}</span>
+      </label>
+      <p className="label truncate pl-7 text-muted" data-testid={`sound-file-${event}`}>
+        {fileName ? `ARQUIVO: ${fileName}` : 'SOM PADRÃO'}
+      </p>
+      <div className="flex flex-wrap gap-1.5 pl-7">
+        <input
+          ref={input}
+          type="file"
+          accept="audio/*"
+          hidden
+          data-testid={`sound-input-${event}`}
+          onChange={(change) => {
+            void choose(change.target.files?.[0]);
+            change.target.value = '';
+          }}
+        />
+        <Button
+          aria-label={`Testar som: ${SOUND_LABELS[event]}`}
+          onClick={() => void playSound(event)}
+        >
+          TESTAR
+        </Button>
+        <Button
+          aria-label={`Escolher arquivo para: ${SOUND_LABELS[event]}`}
+          onClick={() => input.current?.click()}
+        >
+          ESCOLHER ARQUIVO
+        </Button>
+        {fileName && (
+          <Button
+            variant="danger"
+            aria-label={`Voltar ao som padrão: ${SOUND_LABELS[event]}`}
+            onClick={() => void clearCustomSound(event)}
+          >
+            PADRÃO
+          </Button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="label pl-7 text-danger">
+          {error}
+        </p>
+      )}
+    </li>
+  );
+}
+
 /** Quick settings docked to the right: audio devices, noise suppression, shortcuts, account. */
 export function SettingsPanel({
   user,
@@ -340,7 +432,36 @@ export function SettingsPanel({
         />
       </Section>
 
-      <Section number="04" title="ATALHOS DE TECLADO">
+      <Section number="04" title="SONS DE NOTIFICAÇÃO">
+        <Toggle
+          label="TOCAR SONS"
+          hint="Avisos sonoros do canal de voz em que você está."
+          checked={settings.soundsEnabled}
+          onChange={(soundsEnabled) => updateSettings({ soundsEnabled })}
+        />
+        <Field label={`VOLUME — ${Math.round(settings.soundVolume * 100)}%`}>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            className="w-full accent-(--accent)"
+            value={settings.soundVolume}
+            onChange={(change) => updateSettings({ soundVolume: Number(change.target.value) })}
+          />
+        </Field>
+        <ul className="flex flex-col gap-3">
+          {SOUND_EVENTS.map((event) => (
+            <SoundRow key={event} event={event} />
+          ))}
+        </ul>
+        <p className="text-xs text-muted">
+          Os arquivos escolhidos ficam guardados só neste navegador. Sons não tocam enquanto você
+          está ensurdecido.
+        </p>
+      </Section>
+
+      <Section number="05" title="ATALHOS DE TECLADO">
         {touchOnly ? (
           <p className="text-sm text-muted">
             Atalhos precisam de um teclado. Neste aparelho, use os botões de microfone e fone.
@@ -375,7 +496,7 @@ export function SettingsPanel({
         )}
       </Section>
 
-      <Section number="05" title="CONTA">
+      <Section number="06" title="CONTA">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="label-lg truncate text-fg">{user.displayName}</p>
