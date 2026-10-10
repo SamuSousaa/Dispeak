@@ -88,6 +88,9 @@ visible keyboard focus; AA contrast (`--muted` is the darkest text color allowed
 - Without Docker, `scripts/lib/infra.mjs` starts an embedded Postgres (data in `.dev/postgres`) and
   an embedded Redis; the API test setup does the same on random ports. CI uses service containers
   (`TEST_DATABASE_URL`, `TEST_REDIS_URL`).
+- The embedded Postgres is initialised as UTF-8 (`initdbFlags`). A `.dev/postgres` created on
+  Windows before that defaults to WIN1252 and answers 500 to any message with emoji: delete the
+  directory (losing local data) or convert the database.
 - pnpm blocks install scripts by default; allowed ones are listed in `pnpm-workspace.yaml`
   (`allowBuilds`).
 - TypeScript is pinned to 6.0.x until `typescript-eslint` supports 7.

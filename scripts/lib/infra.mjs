@@ -73,6 +73,9 @@ async function startEmbeddedPostgres(cleanup) {
     user: 'frequencia',
     password: 'frequencia',
     persistent: true,
+    // Without this, initdb on Windows picks the system code page (WIN1252), which cannot
+    // store emoji. Only applies to a new cluster: an old one must be deleted or converted.
+    initdbFlags: ['--encoding=UTF8', '--locale=C'],
     onLog: () => undefined,
     onError: () => undefined,
   });

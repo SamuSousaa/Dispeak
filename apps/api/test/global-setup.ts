@@ -42,6 +42,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
       user: 'frequencia',
       password: 'frequencia',
       persistent: false,
+      // Same encoding as production; the Windows default (WIN1252) cannot store emoji.
+      initdbFlags: ['--encoding=UTF8', '--locale=C'],
       onLog: () => undefined,
       onError: () => undefined,
     });

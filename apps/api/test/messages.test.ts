@@ -332,6 +332,29 @@ describe('messages', () => {
   });
 });
 
+describe('message content', () => {
+  it('stores emoji and accented text as written', async () => {
+    const t = await createTestApp();
+    try {
+      const owner = await t.account('Dona');
+      const guild = await t.createGuild(owner);
+      const channelId = guild.channels.find((channel) => channel.type === 'text')?.id;
+      const content = 'coração 🔥👍🏽 👨‍👩‍👧 日本語';
+      const sent = await t.request('POST', `/channels/${channelId}/messages`, {
+        token: owner.token,
+        body: { content },
+      });
+      expect(sent.statusCode).toBe(201);
+      const page = (
+        await t.request('GET', `/channels/${channelId}/messages`, { token: owner.token })
+      ).json<MessagePage>();
+      expect(page.messages.at(-1)?.content).toBe(content);
+    } finally {
+      await t.close();
+    }
+  });
+});
+
 describe('message rate limiting', () => {
   it('limits each user separately, even from the same address', async () => {
     const limited = await createTestApp({ RATE_LIMIT_MESSAGES_MAX: '3' });
