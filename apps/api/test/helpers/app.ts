@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import type { AuthResponse, Guild, Invite, Role, User } from '@frequencia/shared';
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
@@ -44,8 +47,10 @@ export function refreshCookieOf(response: LightMyRequestResponse): string {
 }
 
 export async function createTestApp(env: Record<string, string> = {}): Promise<TestApp> {
+  const uploads = await mkdtemp(path.join(tmpdir(), 'frequencia-uploads-'));
   const config = loadConfig({
     NODE_ENV: 'test',
+    UPLOADS_DIR: uploads,
     DATABASE_URL: inject('databaseUrl'),
     REDIS_URL: inject('redisUrl'),
     RUN_MIGRATIONS: 'false',
@@ -139,7 +144,10 @@ export async function createTestApp(env: Record<string, string> = {}): Promise<T
   return {
     app,
     wsUrl: `ws://127.0.0.1:${port}`,
-    close: () => app.close(),
+    close: async () => {
+      await app.close();
+      await rm(uploads, { recursive: true, force: true });
+    },
     request,
     account,
     createGuild,

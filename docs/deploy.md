@@ -219,6 +219,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
   pg_dump -U frequencia frequencia | gzip > backup-$(date +%F).sql.gz
 
+# Backup das imagens do chat (volume uploads-data)
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api \
+  tar -czf - -C /data uploads > uploads-$(date +%F).tar.gz
+
 # Parar (os volumes ficam)
 docker compose -f docker-compose.prod.yml --env-file .env.prod down
 ```

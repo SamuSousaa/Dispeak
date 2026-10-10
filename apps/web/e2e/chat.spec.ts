@@ -134,6 +134,41 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
   await expect(messages(bruno.page)).toHaveCount(total - 1);
   await expect(bruno.page.getByText('psiu @Bruno corrigido')).toHaveCount(0);
 
+  // --- emoji and images -----------------------------------------------------------------------
+  await alice.page.getByRole('button', { name: 'Emojis' }).click();
+  await alice.page
+    .getByRole('dialog', { name: 'Emojis' })
+    .getByRole('button', { name: '🔥' })
+    .click();
+  await expect(composer(alice.page)).toHaveValue('🔥');
+  await alice.page.keyboard.press('Escape');
+  await alice.page.getByTestId('attachment-input').setInputFiles({
+    name: 'meme.png',
+    mimeType: 'image/png',
+    // A valid 1x1 PNG.
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64',
+    ),
+  });
+  await expect(
+    alice.page.getByRole('list', { name: 'Imagens a enviar' }).getByRole('img'),
+  ).toHaveCount(1);
+  await composer(alice.page).press('Enter');
+  for (const { page } of [alice, bruno]) {
+    const image = messages(page).last().getByTestId('attachment').getByRole('img');
+    await expect(messages(page).last()).toContainText('🔥');
+    await expect.poll(() => image.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(1);
+  }
+  await expect(alice.page.getByRole('list', { name: 'Imagens a enviar' })).toHaveCount(0);
+  // A file that is not an image is refused before anything is sent.
+  await alice.page.getByTestId('attachment-input').setInputFiles({
+    name: 'virus.exe',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from('MZ'),
+  });
+  await expect(alice.page.getByRole('alert')).toHaveText('SÓ IMAGENS PNG, JPEG, GIF OU WEBP.');
+
   // --- read-only channel ----------------------------------------------------------------------
   await alice.context.request.put(`/api/channels/${channelId}/overwrites/${guild.id}`, {
     headers: { authorization: `Bearer ${alice.token}` },

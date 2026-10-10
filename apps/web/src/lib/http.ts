@@ -6,21 +6,34 @@ export { ApiError };
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-async function send(method: Method, path: string, body: unknown, token: string | null) {
+/** JSON by default; a `Blob` is sent as it is, with its own content type. */
+function send(method: Method, path: string, body: unknown, token: string | null) {
+  const raw = body instanceof Blob;
   return fetch(`${API_PREFIX}${path}`, {
     method,
     credentials: 'include',
     headers: {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(body === undefined ? {} : { 'content-type': raw ? body.type : 'application/json' }),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
   });
 }
 
+/** One authenticated request; a 401 triggers one token refresh and a retry. */
+async function request(method: Method, path: string, body?: unknown): Promise<Response> {
+  let response = await send(method, path, body, await getAccessToken());
+  if (response.status === 401) {
+    const token = await refreshSession();
+    if (token) response = await send(method, path, body, token);
+  }
+  if (!response.ok) throw await toApiError(response);
+  return response;
+}
+
 /**
- * Authenticated request to the API. A 401 triggers one token refresh and a retry; responses
- * are validated against `schema` so the rest of the app can trust their shape.
+ * Authenticated request to the API. Responses are validated against `schema` so the rest of
+ * the app can trust their shape.
  */
 export async function api<S extends z.ZodType>(
   method: Method,
@@ -37,14 +50,14 @@ export async function api(
   path: string,
   options: { body?: unknown; schema?: z.ZodType } = {},
 ): Promise<unknown> {
-  let response = await send(method, path, options.body, await getAccessToken());
-  if (response.status === 401) {
-    const token = await refreshSession();
-    if (token) response = await send(method, path, options.body, token);
-  }
-  if (!response.ok) throw await toApiError(response);
+  const response = await request(method, path, options.body);
   if (!options.schema || response.status === 204) return undefined;
   return options.schema.parse(await response.json());
+}
+
+/** Authenticated download of a binary resource (an `<img>` cannot send the access token). */
+export async function apiBlob(path: string): Promise<Blob> {
+  return (await request('GET', path)).blob();
 }
 
 /** User-facing text for an error thrown by `api`. */
@@ -53,6 +66,7 @@ export function describeError(
   fallback = 'Algo deu errado. Tente de novo.',
 ): string {
   if (!(error instanceof ApiError)) return fallback;
+  if (error.status === 413) return 'O arquivo é grande demais.';
   switch (error.code) {
     case 'invalid_credentials':
       return 'Usuário ou senha incorretos.';

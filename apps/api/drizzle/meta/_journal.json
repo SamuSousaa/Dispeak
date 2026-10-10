@@ -15,6 +15,13 @@
       "when": 1791533244077,
       "tag": "0001_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791646694676,
+      "tag": "0002_attachments",
+      "breakpoints": true
     }
   ]
 }

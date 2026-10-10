@@ -32,6 +32,8 @@ COPY --from=prod-deps /repo/apps/api/node_modules ./node_modules
 COPY --from=build /repo/apps/api/dist ./dist
 COPY apps/api/drizzle ./drizzle
 COPY apps/api/package.json ./
+# Chat attachments live here; the volume mounted on it inherits this ownership.
+RUN mkdir -p /data/uploads && chown node:node /data/uploads
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \

@@ -52,6 +52,10 @@ const envSchema = z.object({
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().min(1).default(20),
   /** Messages per minute a single user may send. */
   RATE_LIMIT_MESSAGES_MAX: z.coerce.number().int().min(1).default(60),
+  /** Attachments per minute a single user may upload. */
+  RATE_LIMIT_UPLOADS_MAX: z.coerce.number().int().min(1).default(30),
+  /** Directory where chat attachments are stored. Must survive restarts (a volume in Docker). */
+  UPLOADS_DIR: z.string().default('.dev/uploads'),
 
   GATEWAY_HEARTBEAT_MS: z.coerce.number().int().min(50).default(30_000),
   /** How long a dropped gateway session can still be resumed. */

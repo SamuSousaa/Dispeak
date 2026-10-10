@@ -10,6 +10,8 @@ export type IconName =
   | 'screen'
   | 'camera'
   | 'camera-off'
+  | 'image'
+  | 'smile'
   | 'invite'
   | 'plus'
   | 'chevron-down';
@@ -70,6 +72,19 @@ const paths: Record<IconName, ReactNode> = {
       <rect x="2" y="6" width="13" height="12" />
       <path d="M15 10l7-3v10l-7-3" />
       {slash}
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3" y="4" width="18" height="16" />
+      <rect x="7" y="8" width="3" height="3" />
+      <path d="M3 17l5-4 4 3 4-5 5 5" />
+    </>
+  ),
+  smile: (
+    <>
+      <rect x="3" y="3" width="18" height="18" />
+      <path d="M8 9v1M16 9v1M8 14c1 2 2.5 3 4 3s3-1 4-3" />
     </>
   ),
   invite: (

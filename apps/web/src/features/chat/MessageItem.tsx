@@ -1,6 +1,7 @@
 import type { Guild, Message } from '@frequencia/shared';
 import { useState } from 'react';
 import { cx } from '../../lib/cx';
+import { Attachments } from './Attachments';
 import { memberName } from '../guilds/permissions';
 import { chatApi } from './chat-store';
 import { Composer } from './Composer';
@@ -9,6 +10,10 @@ import { parseContent, toEditableContent } from './mentions';
 const timeFormat = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 function Content({ message, guild }: { message: Message; guild: Guild }) {
+  // An image sent on its own has no text line.
+  if (!message.content) {
+    return message.editedAt ? <p className="label text-muted">(EDITADA)</p> : null;
+  }
   return (
     <p className="text-sm leading-5 break-words whitespace-pre-wrap text-fg">
       {parseContent(message.content, guild, message.mentionEveryone).map((part, index) => {
@@ -99,6 +104,7 @@ export function MessageItem({
             initialText={toEditableContent(message.content, guild)}
             canMentionEveryone={canMentionEveryone}
             autoFocus
+            allowEmpty={message.attachments.length > 0}
             onCancel={() => setEditing(false)}
             onSubmit={async (content) => {
               if (content !== message.content) await chatApi.edit(message.id, content);
@@ -110,6 +116,7 @@ export function MessageItem({
       ) : (
         <Content message={message} guild={guild} />
       )}
+      <Attachments attachments={message.attachments} />
 
       {!editing && (isMine || canModerate) && (
         <div

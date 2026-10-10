@@ -1,3 +1,4 @@
+import path from 'node:path';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
@@ -24,6 +25,7 @@ import { authRoutes } from './modules/auth/routes';
 import { AuthService } from './modules/auth/service';
 import { guildRoutes } from './modules/guilds/routes';
 import { GuildService } from './modules/guilds/service';
+import { AttachmentFiles } from './modules/messages/attachment-files';
 import { messageRoutes } from './modules/messages/routes';
 import { MessageService } from './modules/messages/service';
 import { MediaLink } from './modules/voice/media-link';
@@ -33,6 +35,7 @@ import { VoiceStateStore } from './modules/voice/voice-state';
 import { connectRedis } from './redis';
 
 const WS_MAX_PAYLOAD_BYTES = 256 * 1024;
+const ATTACHMENT_SWEEP_MS = 30 * 60 * 1000;
 
 export async function buildApp(config: Config): Promise<FastifyInstance> {
   const app = Fastify({
@@ -86,7 +89,19 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   });
   voice.attach(media);
   const guilds = new GuildService({ db: database.db, bus, live, voice });
-  const messages = new MessageService(database.db, bus);
+  const messages = new MessageService(
+    database.db,
+    bus,
+    new AttachmentFiles(path.resolve(config.UPLOADS_DIR)),
+  );
+  // Uploads that never made it into a message, and files whose message is gone.
+  const sweepAttachments = () =>
+    messages.sweepAttachments().catch((error: unknown) => {
+      app.log.warn({ err: error }, 'attachment sweep failed');
+    });
+  const sweepTimer = setInterval(() => void sweepAttachments(), ATTACHMENT_SWEEP_MS);
+  sweepTimer.unref();
+  void sweepAttachments();
   const hub = new GatewayHub({ db: database.db, bus, auth, live, config, log: app.log });
   hub.start();
   media.start();
@@ -116,6 +131,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   });
 
   app.addHook('onClose', async () => {
+    clearInterval(sweepTimer);
     media.stop();
     await hub.close();
     await closeRedis();

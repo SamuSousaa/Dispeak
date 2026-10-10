@@ -104,6 +104,10 @@ passar e de um commit ser feito.
 - [x] Ações do servidor agrupadas no menu do nome do servidor
 - [x] Presets 1440p60 e resolução original (até 4K); teto de 20 Mbps por transmissor no SFU
 - [x] Câmera em simulcast, recebida por todos e exibida no quadro do participante
+- [x] Clicar num canal de voz já entra nele
+- [x] Emojis e imagens no chat (upload em disco, tipo conferido pelos bytes, permissões do canal)
+- [x] Banco embutido de desenvolvimento criado em UTF-8 (no Windows nascia em WIN1252 e recusava
+      emoji)
 - [ ] Aplicativo instalável (atalhos globais, fora do navegador) — adiado
 
 **Sem teste em aparelho real:** RNNoise e câmera no iPhone, troca de microfone/saída/câmera com

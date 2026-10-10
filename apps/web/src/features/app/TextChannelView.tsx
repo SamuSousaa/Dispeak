@@ -198,9 +198,10 @@ export function TextChannelView({
             placeholder={`Mensagem em ${channel.name}`}
             canMentionEveryone={canMentionEveryone}
             onTyping={notifyTyping}
-            onSubmit={async (content) => {
+            attachments
+            onSubmit={async (content, files) => {
               stickToBottom.current = true;
-              await chatApi.send(channel.id, content);
+              await chatApi.sendWithFiles(channel.id, content, files);
             }}
           />
         ) : (

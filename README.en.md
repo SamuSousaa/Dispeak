@@ -28,7 +28,9 @@ The interface is in Brazilian Portuguese, and so are the documents linked from t
 - **Servers, channels and categories**, invites with expiration and a usage limit.
 - **Roles and permissions** as bitflags, with hierarchy and per-channel overrides, enforced on the
   server even during an ongoing call.
-- **Text chat** with editing, deletion, mentions, cursor pagination and "typing".
+- **Text chat** with editing, deletion, mentions, cursor pagination and "typing"; emoji and images
+  (PNG, JPEG, GIF, WebP) attached with a button, pasted or dropped, stored on disk and served under
+  the channel's permissions.
 - **Realtime gateway** in the style of Discord: heartbeat, sequence numbers and `resume`.
 - **Observability**: Prometheus metrics and a panel of real statistics (`getStats`) in the
   interface.

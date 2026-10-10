@@ -198,3 +198,28 @@ export const messages = pgTable(
   // One index serves "latest messages of a channel" and "older than cursor".
   (table) => [index('messages_channel_idx').on(table.channelId, table.id.desc())],
 );
+
+export const attachments = pgTable(
+  'attachments',
+  {
+    /** Random UUID; also the name of the file on disk. */
+    id: uuid('id').primaryKey(),
+    /** `null` between the upload and the message that uses it. */
+    messageId: uuid('message_id').references(() => messages.id, { onDelete: 'cascade' }),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    uploaderId: uuid('uploader_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Order inside the message. */
+    position: integer('position').notNull().default(0),
+    filename: text('filename').notNull(),
+    contentType: text('content_type').notNull(),
+    size: integer('size').notNull(),
+    width: integer('width'),
+    height: integer('height'),
+    createdAt: createdAt(),
+  },
+  (table) => [index('attachments_message_idx').on(table.messageId)],
+);

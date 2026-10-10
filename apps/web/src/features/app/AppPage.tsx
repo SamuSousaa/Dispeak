@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { cx } from '../../lib/cx';
 import { logout, useAuthStore } from '../auth/auth-store';
+import { releaseAttachmentUrls } from '../chat/Attachments';
 import { applyChatEvent } from '../chat/chat-store';
 import { gateway } from '../gateway/gateway-client';
 import { useGatewayStore } from '../gateway/gateway-store';
@@ -55,9 +56,11 @@ export function AppPage() {
   useEffect(() => {
     // Chat history lives in the query cache; gateway events keep it current.
     const unsubscribe = gateway.subscribe((t, data) => applyChatEvent(queryClient, t, data));
+    const releaseAttachments = releaseAttachmentUrls(queryClient);
     gateway.start();
     return () => {
       unsubscribe();
+      releaseAttachments();
       leaveVoice();
       gateway.stop();
     };

@@ -1,4 +1,5 @@
 import {
+  attachmentSchema,
   messagePageSchema,
   messageSchema,
   type GatewayEventData,
@@ -7,15 +8,32 @@ import {
 } from '@frequencia/shared';
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
-import { api } from '../../lib/http';
+import { api, apiBlob } from '../../lib/http';
 
 export const chatApi = {
   list: (channelId: string, before?: string) =>
     api('GET', `/channels/${channelId}/messages${before ? `?before=${before}` : ''}`, {
       schema: messagePageSchema,
     }),
-  send: (channelId: string, content: string) =>
-    api('POST', `/channels/${channelId}/messages`, { body: { content }, schema: messageSchema }),
+  send: (channelId: string, content: string, attachmentIds: string[] = []) =>
+    api('POST', `/channels/${channelId}/messages`, {
+      body: { content, attachmentIds },
+      schema: messageSchema,
+    }),
+  /** Stores an image on the server; its id goes into the next `send`. */
+  upload: (channelId: string, file: File) =>
+    api(
+      'POST',
+      `/channels/${channelId}/attachments?filename=${encodeURIComponent(file.name || 'imagem')}`,
+      { body: file, schema: attachmentSchema },
+    ),
+  attachmentBlob: (attachmentId: string) => apiBlob(`/attachments/${attachmentId}`),
+  /** Uploads the images one by one, then sends the message that carries them. */
+  sendWithFiles: async (channelId: string, content: string, files: File[]) => {
+    const attachmentIds: string[] = [];
+    for (const file of files) attachmentIds.push((await chatApi.upload(channelId, file)).id);
+    return chatApi.send(channelId, content, attachmentIds);
+  },
   edit: (messageId: string, content: string) =>
     api('PATCH', `/messages/${messageId}`, { body: { content }, schema: messageSchema }),
   delete: (messageId: string) => api('DELETE', `/messages/${messageId}`),

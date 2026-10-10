@@ -26,7 +26,9 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
 - **Servidores, canais e categorias**, convites com expiração e limite de usos.
 - **Cargos e permissões** em bitflags, com hierarquia e sobrescritas por canal, aplicadas no
   servidor inclusive durante uma chamada em andamento.
-- **Chat de texto** com edição, exclusão, menções, paginação por cursor e "digitando".
+- **Chat de texto** com edição, exclusão, menções, paginação por cursor e "digitando"; emojis e
+  imagens (PNG, JPEG, GIF, WebP) anexadas pelo botão, coladas ou arrastadas, guardadas em disco e
+  servidas com as permissões do canal.
 - **Gateway em tempo real** no estilo Discord: heartbeat, números de sequência e `resume`.
 - **Observabilidade**: métricas Prometheus e um painel de estatísticas reais (`getStats`) na
   interface.

@@ -233,13 +233,42 @@ export function extractMentions(content: string): string[] {
 
 export const messageContentSchema = z.string().trim().min(1).max(MESSAGE_MAX_LENGTH);
 
+export const ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024;
+export const ATTACHMENT_MAX_PER_MESSAGE = 4;
+/** Images only, identified by their bytes on the server. SVG is left out on purpose. */
+export const ATTACHMENT_CONTENT_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+] as const;
+export type AttachmentContentType = (typeof ATTACHMENT_CONTENT_TYPES)[number];
+
+export const attachmentSchema = z.object({
+  id: idSchema,
+  filename: z.string(),
+  contentType: z.enum(ATTACHMENT_CONTENT_TYPES),
+  /** Bytes. */
+  size: z.number().int(),
+  /** Pixels, when the file header says so; lets clients reserve the space before loading. */
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+});
+export type Attachment = z.infer<typeof attachmentSchema>;
+
+export const uploadAttachmentQuerySchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+});
+
 export const messageSchema = z.object({
   /** Time-ordered id; also the pagination cursor. */
   id: idSchema,
   channelId: idSchema,
   guildId: idSchema,
   author: userSchema,
+  /** May be empty when the message has attachments. */
   content: z.string(),
+  attachments: z.array(attachmentSchema),
   /** Members mentioned with `<@id>` who can see the channel. */
   mentions: z.array(idSchema),
   mentionEveryone: z.boolean(),
@@ -248,8 +277,22 @@ export const messageSchema = z.object({
 });
 export type Message = z.infer<typeof messageSchema>;
 
-export const sendMessageRequestSchema = z.object({ content: messageContentSchema });
-export const editMessageRequestSchema = sendMessageRequestSchema;
+const optionalContentSchema = z.string().trim().max(MESSAGE_MAX_LENGTH);
+
+export const sendMessageRequestSchema = z
+  .object({
+    content: optionalContentSchema.default(''),
+    /** Ids returned by the upload endpoint, in display order. */
+    attachmentIds: z.array(idSchema).max(ATTACHMENT_MAX_PER_MESSAGE).default([]),
+  })
+  .refine((value) => value.content.length > 0 || value.attachmentIds.length > 0, {
+    message: 'a message needs text or an attachment',
+    path: ['content'],
+  });
+export type SendMessageRequest = z.input<typeof sendMessageRequestSchema>;
+
+/** The text may only be emptied when the message keeps its attachments. */
+export const editMessageRequestSchema = z.object({ content: optionalContentSchema });
 
 export const listMessagesQuerySchema = z.object({
   /** Return messages older than this id. */
