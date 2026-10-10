@@ -1,7 +1,11 @@
 import {
   attachmentSchema,
+  featuresSchema,
+  gifPageSchema,
+  linkPreviewSchema,
   messagePageSchema,
   messageSchema,
+  unreadResponseSchema,
   type GatewayEventData,
   type Message,
   type MessagePage,
@@ -15,9 +19,14 @@ export const chatApi = {
     api('GET', `/channels/${channelId}/messages${before ? `?before=${before}` : ''}`, {
       schema: messagePageSchema,
     }),
-  send: (channelId: string, content: string, attachmentIds: string[] = []) =>
+  send: (
+    channelId: string,
+    content: string,
+    attachmentIds: string[] = [],
+    replyToId: string | null = null,
+  ) =>
     api('POST', `/channels/${channelId}/messages`, {
-      body: { content, attachmentIds },
+      body: { content, attachmentIds, replyToId },
       schema: messageSchema,
     }),
   /** Stores an image on the server; its id goes into the next `send`. */
@@ -29,15 +38,35 @@ export const chatApi = {
     ),
   attachmentBlob: (attachmentId: string) => apiBlob(`/attachments/${attachmentId}`),
   /** Uploads the images one by one, then sends the message that carries them. */
-  sendWithFiles: async (channelId: string, content: string, files: File[]) => {
+  sendWithFiles: async (
+    channelId: string,
+    content: string,
+    files: File[],
+    replyToId: string | null = null,
+  ) => {
     const attachmentIds: string[] = [];
     for (const file of files) attachmentIds.push((await chatApi.upload(channelId, file)).id);
-    return chatApi.send(channelId, content, attachmentIds);
+    return chatApi.send(channelId, content, attachmentIds, replyToId);
   },
   edit: (messageId: string, content: string) =>
     api('PATCH', `/messages/${messageId}`, { body: { content }, schema: messageSchema }),
   delete: (messageId: string) => api('DELETE', `/messages/${messageId}`),
   typing: (channelId: string) => api('POST', `/channels/${channelId}/typing`),
+  react: (messageId: string, emoji: string) =>
+    api('PUT', `/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
+      schema: messageSchema,
+    }),
+  unreact: (messageId: string, emoji: string) =>
+    api('DELETE', `/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
+      schema: messageSchema,
+    }),
+  unread: () => api('GET', '/users/@me/unread', { schema: unreadResponseSchema }),
+  ack: (channelId: string) => api('POST', `/channels/${channelId}/ack`),
+  features: () => api('GET', '/features', { schema: featuresSchema }),
+  unfurl: (url: string) =>
+    api('GET', `/unfurl?url=${encodeURIComponent(url)}`, { schema: linkPreviewSchema.nullable() }),
+  gifs: (query: string) =>
+    api('GET', `/gifs?q=${encodeURIComponent(query)}`, { schema: gifPageSchema }),
 };
 
 export const messagesKey = (channelId: string) => ['messages', channelId] as const;

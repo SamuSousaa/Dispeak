@@ -22,6 +22,9 @@ import { PresenceService } from './gateway/presence';
 import { labRoutes } from './lab/routes';
 import { registerMetrics } from './metrics';
 import { authRoutes } from './modules/auth/routes';
+import { GifSearch } from './modules/embeds/gifs';
+import { LinkPreviews } from './modules/embeds/link-preview';
+import { embedRoutes } from './modules/embeds/routes';
 import { AuthService } from './modules/auth/service';
 import { guildRoutes } from './modules/guilds/routes';
 import { GuildService } from './modules/guilds/service';
@@ -101,6 +104,8 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     bus,
     new AttachmentFiles(path.resolve(config.UPLOADS_DIR)),
   );
+  const linkPreviews = new LinkPreviews({ allowPrivate: config.LINK_PREVIEW_ALLOW_PRIVATE });
+  const gifs = new GifSearch({ apiKey: config.GIPHY_API_KEY, baseUrl: config.GIPHY_API_URL });
   // Uploads that never made it into a message, and files whose message is gone.
   const sweepAttachments = () =>
     messages.sweepAttachments().catch((error: unknown) => {
@@ -124,6 +129,8 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     auth,
     guilds,
     messages,
+    linkPreviews,
+    gifs,
     voice,
     media,
     hub,
@@ -191,6 +198,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       await api.register(authRoutes);
       await api.register(guildRoutes);
       await api.register(messageRoutes);
+      await api.register(embedRoutes);
       await api.register(voiceRoutes);
       if (config.LAB_ENABLED) await api.register(labRoutes);
     },

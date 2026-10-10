@@ -14,13 +14,14 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
 ## O que tem
 
 - **Canais de voz** roteados por um SFU próprio: mutar, ensurdecer, indicador de quem está falando,
-  reconexão automática, atalhos de teclado configuráveis.
+  reconexão automática, atalhos de teclado configuráveis, apertar para falar e volume individual
+  por pessoa.
 - **Supressão de ruído** com RNNoise rodando no navegador (WebAssembly), escolha de microfone,
   saída e câmera.
 - **Câmera** em simulcast VP8, exibida no quadro de cada participante.
 - **Transmissão de tela** com simulcast VP8 em 3 camadas, presets (720p30, 1080p30, 1080p60,
   1440p60 e resolução original até 4K), áudio do sistema quando o navegador entrega, várias
-  transmissões ao mesmo tempo, modo foco e tela cheia.
+  transmissões ao mesmo tempo, modo foco, tela cheia e janela flutuante (picture-in-picture).
 - **Assistir sob demanda**: o vídeo só é encaminhado para quem clicou em assistir, e a camada de
   simulcast é escolhida pelo tamanho em que a transmissão aparece na tela de cada espectador.
 - **Servidores, canais e categorias**, convites com expiração e limite de usos.
@@ -28,7 +29,9 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
   servidor inclusive durante uma chamada em andamento.
 - **Chat de texto** com edição, exclusão, menções, paginação por cursor e "digitando"; emojis e
   imagens (PNG, JPEG, GIF, WebP) anexadas pelo botão, coladas ou arrastadas, guardadas em disco e
-  servidas com as permissões do canal.
+  servidas com as permissões do canal; reações, respostas, prévias de links, mensagens não lidas
+  por canal e, opcionalmente, busca de GIF. O chat também abre ao lado de uma chamada.
+- **Menus de contexto** (clique direito ou toque longo) em canais, pessoas e mensagens.
 - **Gateway em tempo real** no estilo Discord: heartbeat, números de sequência e `resume`.
 - **Observabilidade**: métricas Prometheus e um painel de estatísticas reais (`getStats`) na
   interface.

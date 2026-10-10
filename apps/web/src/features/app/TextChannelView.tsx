@@ -10,8 +10,10 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '../../components/Button';
 import { chatApi, flattenMessages, messagesKey, useTypingStore } from '../chat/chat-store';
 import { Composer } from '../chat/Composer';
+import { useFeatures } from '../chat/Embeds';
 import { MessageItem } from '../chat/MessageItem';
 import { channelPermissions, memberName } from '../guilds/permissions';
+import { useViewingChannel } from '../unread/unread-store';
 
 const dayFormat = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
@@ -75,6 +77,10 @@ export function TextChannelView({
   const stickToBottom = useRef(true);
   const heightBeforeOlder = useRef<number | null>(null);
   const lastTyping = useRef(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const features = useFeatures();
+  useViewingChannel(channel.id);
 
   const permissions = channelPermissions(guild, channel, userId);
   const canSend = hasPermission(permissions, Permissions.SendMessages);
@@ -97,6 +103,18 @@ export function TextChannelView({
     const element = scrollRef.current;
     if (element && stickToBottom.current) element.scrollTop = element.scrollHeight;
   }, [newestId]);
+
+  // Pictures and link previews load after their message: stay at the bottom as they grow.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content) return;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottom.current) scroller.scrollTop = scroller.scrollHeight;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   // Older page prepended: keep the message the user was looking at in place.
   useLayoutEffect(() => {
@@ -138,7 +156,7 @@ export function TextChannelView({
         role="log"
         aria-label={`Mensagens de ${channel.name}`}
       >
-        <div className="flex min-h-full flex-col justify-end py-3">
+        <div ref={contentRef} className="flex min-h-full flex-col justify-end py-3">
           {history.isPending && <p className="label px-4 text-muted">CARREGANDO MENSAGENS</p>}
           {history.isError && (
             <p role="alert" className="label px-4 text-danger">
@@ -182,6 +200,7 @@ export function TextChannelView({
                     showHeader={showHeader}
                     canModerate={canModerate}
                     canMentionEveryone={canMentionEveryone}
+                    onReply={canSend ? setReplyTo : undefined}
                   />
                 </Fragment>
               );
@@ -191,6 +210,25 @@ export function TextChannelView({
       </div>
 
       <div className="shrink-0 border-t border-line bg-surface px-3 pt-2 pb-1">
+        {canSend && replyTo && (
+          <div
+            className="anim-pop mb-1.5 flex items-center gap-2 border border-line-strong bg-surface-2 px-2 py-1"
+            data-testid="replying-to"
+          >
+            <p className="label min-w-0 flex-1 truncate text-muted">
+              RESPONDENDO A <span className="text-fg">{memberName(guild, replyTo.author.id)}</span>
+              <span className="normal-case"> — {replyTo.content || 'imagem'}</span>
+            </p>
+            <button
+              type="button"
+              aria-label="Cancelar resposta"
+              className="label shrink-0 text-muted transition-colors hover:text-accent"
+              onClick={() => setReplyTo(null)}
+            >
+              [ X ]
+            </button>
+          </div>
+        )}
         {canSend ? (
           <Composer
             key={channel.id}
@@ -199,9 +237,13 @@ export function TextChannelView({
             canMentionEveryone={canMentionEveryone}
             onTyping={notifyTyping}
             attachments
+            gifs={features?.gifs ?? false}
+            focusKey={replyTo?.id}
+            onCancel={replyTo ? () => setReplyTo(null) : undefined}
             onSubmit={async (content, files) => {
               stickToBottom.current = true;
-              await chatApi.sendWithFiles(channel.id, content, files);
+              await chatApi.sendWithFiles(channel.id, content, files, replyTo?.id ?? null);
+              setReplyTo(null);
             }}
           />
         ) : (

@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { contextMenu } from '../../../components/ContextMenu';
 import { cx } from '../../../lib/cx';
+import { useSettingsStore } from '../../settings/settings-store';
 import { setCameraViewport, stopScreenShare, unwatchStream, watchStream } from '../voice-actions';
 import { isLive, SELF_STREAM, useVoiceStore } from '../voice-store';
 import { ParticipantTile } from './ParticipantTile';
 import { StreamTile } from './StreamTile';
+import { volumeLabel, volumeMenuEntries } from './VolumeControl';
 
 interface StageStream {
   id: string;
@@ -33,6 +36,7 @@ export function VoiceStage({ selfName }: { selfName: string }) {
   const camera = useVoiceStore((state) => state.camera);
   const cameras = useVoiceStore((state) => state.cameras);
   const watching = useVoiceStore((state) => state.watching);
+  const userVolumes = useSettingsStore((state) => state.userVolumes);
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
   const others = Object.values(peers).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
@@ -89,6 +93,15 @@ export function VoiceStage({ selfName }: { selfName: string }) {
             onWatch={() => watchStream(peer.id)}
             onUnwatch={() => unwatchStream(peer.id)}
             compact={hasStreams}
+            volumeNote={volumeLabel(userVolumes[peer.userId] ?? 1)}
+            menu={contextMenu(peer.name, () => [
+              ...volumeMenuEntries(peer.userId, peer.name),
+              { type: 'separator' },
+              isLive(peer) &&
+                (watching[peer.id]
+                  ? { label: 'Parar de assistir', onSelect: () => unwatchStream(peer.id) }
+                  : { label: 'Assistir transmissão', onSelect: () => watchStream(peer.id) }),
+            ])}
           />
         </li>
       ))}

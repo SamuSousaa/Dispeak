@@ -210,9 +210,12 @@ describe('attachments', () => {
 
     const first = await uploaded(owner, channelId);
     const second = await uploaded(owner, channelId, GIF);
-    const message = (
-      await send(owner, channelId, { content: 'dois', attachmentIds: [second.id, first.id] })
-    ).json<Message>();
+    const sent = await send(owner, channelId, {
+      content: 'dois',
+      attachmentIds: [second.id, first.id],
+    });
+    expect(sent.statusCode, sent.body).toBe(201);
+    const message = sent.json<Message>();
     expect(message.attachments.map((attachment) => attachment.id)).toEqual([second.id, first.id]);
 
     // The text of a message with attachments can be removed; of a plain one it cannot.

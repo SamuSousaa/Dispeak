@@ -72,7 +72,7 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
   await expect(bruno.page.getByText('INÍCIO DE geral')).toBeVisible();
   await expect(bruno.page.getByRole('button', { name: 'CARREGAR ANTERIORES' })).toHaveCount(0);
   // Loading older messages does not yank the reader away from where they were.
-  await expect(messages(bruno.page).filter({ hasText: /histórico 11$/ })).toBeInViewport();
+  await expect(messages(bruno.page).filter({ hasText: /histórico 11(?!\d)/ })).toBeInViewport();
 
   // --- typing indicator -----------------------------------------------------------------------
   await composer(alice.page).pressSequentially('olá');
@@ -124,7 +124,9 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
 
   // Bruno cannot edit or delete Alice's message.
   await messages(bruno.page).last().hover();
-  await expect(messages(bruno.page).last().getByRole('button')).toHaveCount(0);
+  for (const name of ['Editar mensagem', 'Excluir mensagem']) {
+    await expect(messages(bruno.page).last().getByRole('button', { name })).toHaveCount(0);
+  }
 
   // --- delete ---------------------------------------------------------------------------------
   const total = await messages(bruno.page).count();
@@ -133,6 +135,63 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
   await messages(alice.page).last().getByRole('button', { name: 'CONFIRMAR' }).click();
   await expect(messages(bruno.page)).toHaveCount(total - 1);
   await expect(bruno.page.getByText('psiu @Bruno corrigido')).toHaveCount(0);
+
+  // --- reactions ------------------------------------------------------------------------------
+  await messages(bruno.page).last().hover();
+  await messages(bruno.page).last().getByRole('button', { name: 'Reagir à mensagem' }).click();
+  await bruno.page.getByTestId('context-menu').getByRole('button', { name: '🔥' }).click();
+  await expect(messages(alice.page).last().getByTestId('reaction')).toHaveText('🔥1');
+  await expect(messages(alice.page).last().getByTestId('reaction')).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  // Clicking someone's reaction joins it; clicking again takes it back.
+  await messages(alice.page).last().getByTestId('reaction').click();
+  await expect(messages(bruno.page).last().getByTestId('reaction')).toHaveText('🔥2');
+  await messages(alice.page).last().getByTestId('reaction').click();
+  await expect(messages(bruno.page).last().getByTestId('reaction')).toHaveText('🔥1');
+
+  // --- reply, from the right-click menu -------------------------------------------------------
+  // The last message is Bruno's; Alice answers it.
+  await messages(alice.page).last().click({ button: 'right' });
+  await alice.page.getByRole('menuitem', { name: 'Responder' }).click();
+  await expect(alice.page.getByTestId('replying-to')).toContainText('RESPONDENDO A Bruno');
+  await expect(composer(alice.page)).toBeFocused();
+  await composer(alice.page).fill('respondido');
+  await composer(alice.page).press('Enter');
+  await expect(alice.page.getByTestId('replying-to')).toHaveCount(0);
+  const reply = messages(bruno.page).last();
+  await expect(reply).toContainText('respondido');
+  await expect(reply.getByTestId('reply-quote')).toContainText('Bruno');
+  await expect(reply.getByTestId('reply-quote')).toContainText('linha um');
+  // Being answered counts as being mentioned.
+  await expect(reply).toHaveAttribute('data-mentions-me', 'true');
+  await expect(messages(alice.page).last()).toHaveAttribute('data-mentions-me', 'false');
+
+  // --- unread channels --------------------------------------------------------------------------
+  const memes = (await alice.post(`/guilds/${guild.id}/channels`, {
+    name: 'memes',
+    type: 'text',
+  })) as { id: string };
+  const memesRow = alice.page.getByTestId('channel-row').filter({ hasText: 'memes' });
+  await expect(memesRow).toHaveAttribute('data-unread', 'false');
+  await bruno.post(`/channels/${memes.id}/messages`, { content: 'olha esse' });
+  await expect(memesRow.getByTestId('unread-dot')).toBeVisible();
+  await expect(alice.page).toHaveTitle('• Frequência');
+  await bruno.post(`/channels/${memes.id}/messages`, { content: `<@${alice.userId}> vem ver` });
+  await expect(memesRow.getByTestId('mention-badge')).toHaveText('1');
+  await expect(alice.page).toHaveTitle('(1) Frequência');
+  // It survives a reload (the server keeps the read marks), and opening the channel clears it.
+  await alice.page.reload();
+  await expect(memesRow.getByTestId('mention-badge')).toHaveText('1');
+  await memesRow.getByRole('link').click();
+  await expect(memesRow).toHaveAttribute('data-unread', 'false');
+  await expect(alice.page).toHaveTitle('Frequência');
+  await alice.page.reload();
+  await expect(alice.page.getByTestId('gateway-status')).toHaveText('CONECTADO');
+  await expect(memesRow).toHaveAttribute('data-unread', 'false');
+  await alice.page.goto(`/app/${guild.id}/${channelId}`);
+  await expect(alice.page.getByTestId('gateway-status')).toHaveText('CONECTADO');
 
   // --- emoji and images -----------------------------------------------------------------------
   await alice.page.getByRole('button', { name: 'Emojis' }).click();

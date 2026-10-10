@@ -112,9 +112,30 @@ test('account → server → invite → voice channel → stream, with permissio
   await bruno.page.keyboard.press('m');
   await expect(voiceMembers(alice.page).filter({ hasText: 'Bruno' })).not.toContainText('MUDO');
 
+  // --- Right click on a person: their volume, for this user only ---------------------------
+  const brunoTile = alice.page.getByTestId('participant').filter({ hasText: 'Bruno' });
+  await voiceMembers(alice.page).filter({ hasText: 'Bruno' }).click({ button: 'right' });
+  await expect(alice.page.getByTestId('context-menu')).toContainText('VOLUME PARA MIM — 100%');
+  await alice.page.getByRole('menuitem', { name: 'Silenciar para mim' }).click();
+  await expect(brunoTile.getByTestId('volume-note')).toHaveText('SILENCIADO');
+  await brunoTile.click({ button: 'right' });
+  await alice.page.getByRole('menuitem', { name: 'Voltar a ouvir' }).click();
+  await expect(brunoTile.getByTestId('volume-note')).toHaveCount(0);
+
+  // --- A text channel next to the call ------------------------------------------------------
+  await alice.page.getByRole('button', { name: '[ CHAT ]' }).click();
+  const sideChat = alice.page.getByTestId('side-chat');
+  await sideChat.getByRole('textbox', { name: /^Mensagem em/ }).fill('do lado da chamada');
+  await sideChat.getByRole('textbox', { name: /^Mensagem em/ }).press('Enter');
+  await expect(sideChat.getByTestId('message').last()).toContainText('do lado da chamada');
+  await expect(alice.page.getByTestId('participant')).toHaveCount(2);
+  await sideChat.getByRole('button', { name: 'Fechar chat' }).click();
+  await expect(sideChat).toHaveCount(0);
+
   // --- Quick settings: RNNoise is really running, and shortcuts can be rebound ---------------
   await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
   await expect(dialog(bruno.page).getByTestId('noise-active')).toHaveText('EM USO AGORA: RNNOISE');
+  await dialog(bruno.page).getByRole('tab', { name: 'ATALHOS' }).click();
   await dialog(bruno.page)
     .getByRole('button', { name: /^Atalho de Mutar/ })
     .click();
@@ -122,7 +143,25 @@ test('account → server → invite → voice channel → stream, with permissio
   await expect(dialog(bruno.page).getByRole('button', { name: /^Atalho de Mutar/ })).toHaveText(
     'K',
   );
+  // Push-to-talk: the microphone only opens while the chosen key is held.
+  await dialog(bruno.page).getByRole('tab', { name: 'VOZ' }).click();
+  await dialog(bruno.page).getByText('APERTAR PARA FALAR', { exact: true }).click();
+  await expect(dialog(bruno.page).getByRole('radio', { name: /APERTAR PARA FALAR/ })).toBeChecked();
+  await dialog(bruno.page)
+    .getByRole('button', { name: /^Atalho de Apertar para falar/ })
+    .click();
+  await bruno.page.keyboard.press('v');
+  await dialog(bruno.page).getByRole('button', { name: 'Fechar' }).click();
+  await expect(bruno.page.getByTestId('ptt-status')).toHaveText('SEGURE V PARA FALAR');
+  await bruno.page.keyboard.down('v');
+  await expect(bruno.page.getByTestId('ptt-status')).toHaveText('TRANSMITINDO');
+  await bruno.page.keyboard.up('v');
+  await expect(bruno.page.getByTestId('ptt-status')).toHaveText('SEGURE V PARA FALAR');
+  await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await dialog(bruno.page).getByText('MICROFONE ABERTO', { exact: true }).click();
+  await expect(bruno.page.getByTestId('ptt-status')).toHaveCount(0);
   // A file from the computer replaces the built-in sound, and is played once to confirm.
+  await dialog(bruno.page).getByRole('tab', { name: 'SONS' }).click();
   await dialog(bruno.page)
     .getByTestId('sound-input-join')
     .setInputFiles({
@@ -201,6 +240,7 @@ test('account → server → invite → voice channel → stream, with permissio
   await bruno.page.keyboard.press('f');
   await expect.poll(isFullscreen).toBe(false);
   await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await dialog(bruno.page).getByRole('tab', { name: 'ATALHOS' }).click();
   await dialog(bruno.page)
     .getByRole('button', { name: /^Atalho de Assistir transmissão em tela cheia/ })
     .click();
@@ -264,6 +304,7 @@ test('account → server → invite → voice channel → stream, with permissio
   await bruno.page.reload();
   await expect(bruno.page.getByRole('heading', { name: 'Amigos do e2e' })).toBeVisible();
   await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await dialog(bruno.page).getByRole('tab', { name: 'CONTA' }).click();
   await dialog(bruno.page).getByRole('button', { name: 'SAIR DA CONTA' }).click();
   await expect(bruno.page).toHaveURL(/\/login/);
   await expect(

@@ -73,6 +73,8 @@ export interface VoiceState {
   selfId: string | null;
   muted: boolean;
   deafened: boolean;
+  /** Push-to-talk: the key is being held, so the microphone is open. */
+  pttHeld: boolean;
   /** False when no microphone could be opened; the user is then listen-only. */
   micAvailable: boolean;
   /** What is cleaning the microphone right now; `null` while there is no microphone. */
@@ -118,6 +120,7 @@ export const initialVoiceState: VoiceState = {
   selfId: null,
   muted: false,
   deafened: false,
+  pttHeld: false,
   micAvailable: true,
   noiseSuppression: null,
   peers: {},

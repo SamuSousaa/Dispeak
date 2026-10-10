@@ -192,11 +192,47 @@ export const messages = pgTable(
       .notNull()
       .default(sql`'{}'::uuid[]`),
     mentionEveryone: boolean('mention_everyone').notNull().default(false),
+    /** The message this one answers; cleared when that message is deleted. */
+    replyToId: uuid('reply_to_id'),
     editedAt: timestamp('edited_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  // One index serves "latest messages of a channel" and "older than cursor".
-  (table) => [index('messages_channel_idx').on(table.channelId, table.id.desc())],
+  (table) => [
+    // One index serves "latest messages of a channel" and "older than cursor".
+    index('messages_channel_idx').on(table.channelId, table.id.desc()),
+    foreignKey({ columns: [table.replyToId], foreignColumns: [table.id] }).onDelete('set null'),
+  ],
+);
+
+export const messageReactions = pgTable(
+  'message_reactions',
+  {
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    emoji: text('emoji').notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.messageId, table.userId, table.emoji] })],
+);
+
+/** How far each user has read each text channel. */
+export const readStates = pgTable(
+  'read_states',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    /** A UUIDv7 cursor: every message with a greater id is unread. */
+    lastReadId: uuid('last_read_id').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.channelId] })],
 );
 
 export const attachments = pgTable(

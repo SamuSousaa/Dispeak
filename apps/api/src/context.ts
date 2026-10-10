@@ -7,6 +7,8 @@ import type { GatewayHub } from './gateway/hub';
 import type { PresenceService } from './gateway/presence';
 import type { AuthService } from './modules/auth/service';
 import type { AccessClaims } from './modules/auth/tokens';
+import type { GifSearch } from './modules/embeds/gifs';
+import type { LinkPreviews } from './modules/embeds/link-preview';
 import type { GuildService } from './modules/guilds/service';
 import type { MessageService } from './modules/messages/service';
 import type { MediaLink } from './modules/voice/media-link';
@@ -26,6 +28,8 @@ export interface AppContext {
   auth: AuthService;
   guilds: GuildService;
   messages: MessageService;
+  linkPreviews: LinkPreviews;
+  gifs: GifSearch;
   voice: VoiceAccess;
   media: MediaLink;
   hub: GatewayHub;

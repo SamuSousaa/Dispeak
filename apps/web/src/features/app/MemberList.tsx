@@ -1,27 +1,68 @@
-import type { Guild, Member } from '@frequencia/shared';
+import { hasPermission, Permissions, type Guild, type Member } from '@frequencia/shared';
+import { contextMenu, openContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { cx } from '../../lib/cx';
+import { actorIn } from '../guilds/permissions';
+import { volumeMenuEntries } from '../voice/components/VolumeControl';
 
-function Row({ guild, member, online }: { guild: Guild; member: Member; online: boolean }) {
+interface RowProps {
+  guild: Guild;
+  member: Member;
+  online: boolean;
+  userId: string;
+  onManageMembers: () => void;
+}
+
+function Row({ guild, member, online, userId, onManageMembers }: RowProps) {
   const roles = guild.roles
     .filter((role) => member.roleIds.includes(role.id))
     .sort((a, b) => b.position - a.position);
   const tag = guild.ownerId === member.user.id ? 'DONO' : (roles[0]?.name ?? null);
+  const name = member.nickname ?? member.user.displayName;
+  const actor = actorIn(guild, userId);
+  const canManage =
+    hasPermission(actor.permissions, Permissions.ManageRoles) ||
+    hasPermission(actor.permissions, Permissions.KickMembers);
+
+  const entries = (): Array<MenuEntry | false> => [
+    ...(member.user.id === userId ? [] : volumeMenuEntries(member.user.id, name)),
+    { type: 'separator' },
+    {
+      label: 'Copiar nome de usuário',
+      hint: `@${member.user.username}`,
+      onSelect: () => void navigator.clipboard?.writeText(member.user.username),
+    },
+    canManage && { label: 'Gerenciar membros', onSelect: onManageMembers },
+  ];
+
   return (
-    <li
-      data-testid="member"
-      data-online={online}
-      className="flex items-center justify-between gap-2 px-3 py-1"
-    >
-      <span className={cx('label-lg truncate', online ? 'text-fg' : 'text-muted')}>
-        {member.nickname ?? member.user.displayName}
-      </span>
-      {tag && <span className="label shrink-0 truncate text-muted">{tag}</span>}
+    <li data-testid="member" data-online={online} {...contextMenu(name, entries)}>
+      <button
+        type="button"
+        title={`${name} (@${member.user.username})`}
+        className="flex w-full items-center justify-between gap-2 px-3 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:-outline-offset-2"
+        // A plain click opens the same menu, so it can be found without a right button.
+        onClick={(event) =>
+          openContextMenu({ x: event.clientX, y: event.clientY }, name, entries())
+        }
+      >
+        <span className={cx('label-lg truncate', online ? 'text-fg' : 'text-muted')}>{name}</span>
+        {tag && <span className="label shrink-0 truncate text-muted">{tag}</span>}
+      </button>
     </li>
   );
 }
 
 /** Right column: members split by presence. */
-export function MemberList({ guild }: { guild: Guild }) {
+export function MemberList({
+  guild,
+  userId,
+  onManageMembers,
+}: {
+  guild: Guild;
+  userId: string;
+  /** Opens the server settings on the member list. */
+  onManageMembers: () => void;
+}) {
   const online = new Set(guild.onlineUserIds);
   const byName = (a: Member, b: Member) =>
     (a.nickname ?? a.user.displayName).localeCompare(b.nickname ?? b.user.displayName, 'pt-BR');
@@ -50,6 +91,8 @@ export function MemberList({ guild }: { guild: Guild }) {
                       guild={guild}
                       member={member}
                       online={online.has(member.user.id)}
+                      userId={userId}
+                      onManageMembers={onManageMembers}
                     />
                   ))}
                 </ul>

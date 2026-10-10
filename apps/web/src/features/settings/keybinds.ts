@@ -5,6 +5,7 @@ export const KEYBIND_ACTIONS = [
   'share',
   'camera',
   'leave',
+  'pushToTalk',
 ] as const;
 export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 
@@ -18,6 +19,7 @@ export const DEFAULT_KEYBINDS: Keybinds = {
   share: null,
   camera: null,
   leave: null,
+  pushToTalk: null,
 };
 
 export const KEYBIND_LABELS: Record<KeybindAction, string> = {
@@ -27,6 +29,7 @@ export const KEYBIND_LABELS: Record<KeybindAction, string> = {
   share: 'Iniciar / parar minha transmissão',
   camera: 'Ligar / desligar a câmera',
   leave: 'Desligar a chamada',
+  pushToTalk: 'Apertar para falar (segurar)',
 };
 
 const IGNORED_KEYS = new Set([

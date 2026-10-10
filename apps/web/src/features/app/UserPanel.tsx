@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { IconButton } from '../../components/IconButton';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { channelPermissions } from '../guilds/permissions';
-import { useKeybind } from '../settings/settings-store';
+import { useKeybind, useSettingsStore } from '../settings/settings-store';
 import { ScreenShareButton } from '../voice/components/ScreenShareButton';
 import { leaveVoice, toggleCamera, toggleDeafen, toggleMute } from '../voice/voice-actions';
 import { useVoiceStore } from '../voice/voice-store';
@@ -28,6 +28,9 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
   const deafenKey = useKeybind('deafen');
   const leaveKey = useKeybind('leave');
   const cameraKey = useKeybind('camera');
+  const talkKey = useKeybind('pushToTalk');
+  const pushToTalk = useSettingsStore((state) => state.inputMode === 'pushToTalk');
+  const pttHeld = useVoiceStore((state) => state.pttHeld);
   // The voice channel may belong to a server other than the one on screen.
   const guild = useGatewayStore((state) =>
     Object.values(state.guilds).find((entry) =>
@@ -106,6 +109,19 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
             {camera.error && (
               <p role="alert" className="label mt-1.5 text-danger">
                 {camera.error}
+              </p>
+            )}
+            {live && pushToTalk && micAvailable && !muted && (
+              <p
+                role="status"
+                data-testid="ptt-status"
+                className={`label mt-1.5 ${pttHeld ? 'text-accent' : talkKey ? 'text-muted' : 'text-danger'}`}
+              >
+                {pttHeld
+                  ? 'TRANSMITINDO'
+                  : talkKey
+                    ? `SEGURE ${talkKey} PARA FALAR`
+                    : 'APERTAR PARA FALAR SEM TECLA — DEFINA EM CONFIGURAÇÕES'}
               </p>
             )}
             {!micAvailable && (

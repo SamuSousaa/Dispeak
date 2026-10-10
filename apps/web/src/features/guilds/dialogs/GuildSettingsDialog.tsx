@@ -24,7 +24,8 @@ import { playSound } from '../../sounds/sound-player';
 import { PERMISSION_INFO } from '../permission-labels';
 import { actorIn } from '../permissions';
 
-type Tab = 'overview' | 'roles' | 'members' | 'invites' | 'sounds';
+export type GuildSettingsTab = 'overview' | 'roles' | 'members' | 'invites' | 'sounds';
+type Tab = GuildSettingsTab;
 
 interface TabProps {
   guild: Guild;
@@ -505,13 +506,15 @@ export function GuildSettingsDialog({
   guild,
   userId,
   onClose,
+  initialTab = 'overview',
 }: {
   guild: Guild;
   userId: string;
   onClose: () => void;
+  initialTab?: GuildSettingsTab;
 }) {
   const actor = actorIn(guild, userId);
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

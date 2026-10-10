@@ -295,6 +295,43 @@ export const uploadAttachmentQuerySchema = z.object({
   filename: z.string().trim().min(1).max(255),
 });
 
+/** Different emojis one message can collect. */
+export const REACTION_MAX_PER_MESSAGE = 20;
+
+const EMOJI_PIECES =
+  /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|[#*0-9]|\u200d|\ufe0f|\u20e3)+$/u;
+const EMOJI_CORE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u;
+
+/** One emoji, possibly a sequence (skin tone, flag, family). Free text is not a reaction. */
+export const reactionEmojiSchema = z
+  .string()
+  .min(1)
+  .max(32)
+  .refine((value) => EMOJI_PIECES.test(value) && EMOJI_CORE.test(value), {
+    message: 'not an emoji',
+  });
+
+export const reactionSchema = z.object({
+  emoji: z.string(),
+  /** Who reacted, oldest first. */
+  userIds: z.array(idSchema),
+});
+export type Reaction = z.infer<typeof reactionSchema>;
+
+/** How much of the original text a reply carries along. */
+export const REPLY_EXCERPT_LENGTH = 200;
+
+/** The message a reply answers, as shown above the reply. */
+export const messageReferenceSchema = z.object({
+  id: idSchema,
+  author: userSchema,
+  /** Beginning of the original text. */
+  content: z.string(),
+  /** How many images the original has. */
+  attachments: z.number().int(),
+});
+export type MessageReference = z.infer<typeof messageReferenceSchema>;
+
 export const messageSchema = z.object({
   /** Time-ordered id; also the pagination cursor. */
   id: idSchema,
@@ -304,6 +341,9 @@ export const messageSchema = z.object({
   /** May be empty when the message has attachments. */
   content: z.string(),
   attachments: z.array(attachmentSchema),
+  reactions: z.array(reactionSchema),
+  /** `null` when the message is not a reply, or the original is gone. */
+  replyTo: messageReferenceSchema.nullable(),
   /** Members mentioned with `<@id>` who can see the channel. */
   mentions: z.array(idSchema),
   mentionEveryone: z.boolean(),
@@ -319,6 +359,8 @@ export const sendMessageRequestSchema = z
     content: optionalContentSchema.default(''),
     /** Ids returned by the upload endpoint, in display order. */
     attachmentIds: z.array(idSchema).max(ATTACHMENT_MAX_PER_MESSAGE).default([]),
+    /** A message of the same channel this one answers; its author is notified like a mention. */
+    replyToId: idSchema.nullable().default(null),
   })
   .refine((value) => value.content.length > 0 || value.attachmentIds.length > 0, {
     message: 'a message needs text or an attachment',
@@ -342,6 +384,67 @@ export const messagePageSchema = z.object({
   nextCursor: idSchema.nullable(),
 });
 export type MessagePage = z.infer<typeof messagePageSchema>;
+
+// --- unread ---------------------------------------------------------------------------------
+
+/** Messages by other people that arrived in a channel since the user last read it. */
+export const unreadChannelSchema = z.object({
+  channelId: idSchema,
+  guildId: idSchema,
+  count: z.number().int(),
+  /** How many of them mention the user, answer the user or mention everyone. */
+  mentions: z.number().int(),
+});
+export type UnreadChannel = z.infer<typeof unreadChannelSchema>;
+
+export const unreadResponseSchema = z.object({ channels: z.array(unreadChannelSchema) });
+
+// --- link previews and GIFs -----------------------------------------------------------------
+
+const webUrlSchema = z
+  .url()
+  .max(2048)
+  .refine((value) => /^https?:\/\//i.test(value), { message: 'only http and https' });
+
+export const unfurlQuerySchema = z.object({ url: webUrlSchema });
+
+export const linkPreviewSchema = z.object({
+  url: z.string(),
+  /** `image` when the link is the picture itself. */
+  kind: z.enum(['page', 'image']),
+  title: z.string().nullable(),
+  description: z.string().nullable(),
+  siteName: z.string().nullable(),
+  /** Absolute http(s) URL of the picture to show. */
+  image: z.string().nullable(),
+});
+export type LinkPreview = z.infer<typeof linkPreviewSchema>;
+
+export const gifSearchQuerySchema = z.object({
+  /** Empty means "what is trending". */
+  q: z.string().trim().max(100).default(''),
+});
+
+export const gifSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  /** What gets posted in the chat. */
+  url: z.string(),
+  /** Small rendition for the picker. */
+  previewUrl: z.string(),
+  width: z.number().int(),
+  height: z.number().int(),
+});
+export type Gif = z.infer<typeof gifSchema>;
+
+export const gifPageSchema = z.object({ gifs: z.array(gifSchema) });
+
+/** Optional features of this installation, so clients only offer what works. */
+export const featuresSchema = z.object({
+  gifs: z.boolean(),
+  linkPreviews: z.boolean(),
+});
+export type Features = z.infer<typeof featuresSchema>;
 
 // --- errors ---------------------------------------------------------------------------------
 

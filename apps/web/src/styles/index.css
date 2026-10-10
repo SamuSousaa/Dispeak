@@ -89,6 +89,11 @@
     cursor: not-allowed;
   }
 
+  /* A long press opens the app's own menu; the system's link preview would cover it. */
+  nav a {
+    -webkit-touch-callout: none;
+  }
+
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--line-strong) transparent;

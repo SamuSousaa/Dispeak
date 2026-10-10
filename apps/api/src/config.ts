@@ -54,6 +54,15 @@ const envSchema = z.object({
   RATE_LIMIT_MESSAGES_MAX: z.coerce.number().int().min(1).default(60),
   /** Attachments per minute a single user may upload. */
   RATE_LIMIT_UPLOADS_MAX: z.coerce.number().int().min(1).default(30),
+  /** Link previews and GIF searches per minute a single user may ask for. */
+  RATE_LIMIT_UNFURL_MAX: z.coerce.number().int().min(1).default(60),
+  /** Fetch the title and picture of links posted in the chat. */
+  LINK_PREVIEWS: flag.default(true),
+  /** Lets previews fetch private addresses. For tests only: never enable on a real server. */
+  LINK_PREVIEW_ALLOW_PRIVATE: flag.default(false),
+  /** GIPHY API key; the GIF picker only exists when it is set. */
+  GIPHY_API_KEY: z.string().min(1).optional(),
+  GIPHY_API_URL: z.string().default('https://api.giphy.com'),
   /** Directory where chat attachments are stored. Must survive restarts (a volume in Docker). */
   UPLOADS_DIR: z.string().default('.dev/uploads'),
 
@@ -83,7 +92,9 @@ export type Config = Omit<
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = envSchema.safeParse(env);
+  // An empty value (`NAME=` in an env file, `${NAME:-}` in compose) means "not set".
+  const present = Object.fromEntries(Object.entries(env).filter(([, value]) => value !== ''));
+  const parsed = envSchema.safeParse(present);
   if (!parsed.success) {
     throw new Error(`Invalid environment: ${z.prettifyError(parsed.error)}`);
   }

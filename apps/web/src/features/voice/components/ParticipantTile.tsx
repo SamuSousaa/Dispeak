@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type HTMLAttributes } from 'react';
 import { Button } from '../../../components/Button';
 import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
@@ -22,6 +22,10 @@ interface ParticipantTileProps {
   video?: MediaStream | null;
   /** Reports the displayed height (CSS px) of a remote camera, to pick its quality. */
   onVideoViewport?: (cssHeight: number) => void;
+  /** How this user hears the participant, when not at full volume (`VOL 40%`). */
+  volumeNote?: string | null;
+  /** Handlers that open the participant's menu (right click, long press). */
+  menu?: HTMLAttributes<HTMLDivElement>;
 }
 
 function initials(name: string): string {
@@ -45,6 +49,8 @@ export function ParticipantTile({
   compact = false,
   video = null,
   onVideoViewport,
+  volumeNote = null,
+  menu,
 }: ParticipantTileProps) {
   const status = deafened ? 'SURDO' : muted ? 'MUDO' : null;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +85,7 @@ export function ParticipantTile({
       data-muted={muted}
       data-deafened={deafened}
       data-live={live}
+      {...menu}
       className={cx(
         'anim-rise relative flex flex-col border bg-surface transition-colors',
         compact ? 'h-full w-44 shrink-0' : 'aspect-video',
@@ -124,6 +131,11 @@ export function ParticipantTile({
           {name}
           {isSelf && <span className="text-muted"> (VOCÊ)</span>}
         </span>
+        {volumeNote && !status && (
+          <span className="shrink-0 text-muted" data-testid="volume-note">
+            {volumeNote}
+          </span>
+        )}
         {status && <span className="shrink-0 text-danger">{status}</span>}
         {!status && speaking && <span className="sr-only">falando</span>}
       </div>

@@ -175,6 +175,13 @@ export class VoiceSession {
     await this.applyState(!muted, false);
   }
 
+  /** Push-to-talk key pressed or released. */
+  setPushToTalk(held: boolean): void {
+    if (get().pttHeld === held) return;
+    set({ pttHeld: held });
+    this.gateMicrophone();
+  }
+
   async toggleDeafen(): Promise<void> {
     const { muted, deafened } = get();
     if (deafened) {
@@ -739,6 +746,10 @@ export class VoiceSession {
     if (settings.cameraDeviceId !== previous.cameraDeviceId && this.cameraStream) {
       void this.stopCamera().then(() => this.startCamera());
     }
+    if (settings.userVolumes !== previous.userVolumes) {
+      for (const entry of this.consumers.values()) this.applyVolume(entry);
+    }
+    if (settings.inputMode !== previous.inputMode) this.gateMicrophone();
     if (settings.outputDeviceId !== previous.outputDeviceId) {
       for (const { audio } of this.consumers.values()) {
         if (audio) this.routeOutput(audio);
@@ -785,6 +796,28 @@ export class VoiceSession {
     previous?.close();
   }
 
+  /**
+   * Opens or closes the microphone: muted never sends; in push-to-talk mode it also needs the
+   * key held. The key does not change the `muted` everyone else sees.
+   */
+  private gateMicrophone(): void {
+    const { muted, pttHeld } = get();
+    const open = !muted && (useSettingsStore.getState().inputMode !== 'pushToTalk' || pttHeld);
+    if (open) this.micProducer?.resume();
+    else this.micProducer?.pause();
+  }
+
+  /** How this user chose to hear a participant: their voice only, not what they stream. */
+  private applyVolume({ audio, peerId, source }: ActiveConsumer): void {
+    if (!audio) return;
+    const userId = get().peers[peerId]?.userId;
+    const volume =
+      source === 'mic' && userId ? (useSettingsStore.getState().userVolumes[userId] ?? 1) : 1;
+    // iPhones ignore `volume`; silencing someone still works there through `muted`.
+    audio.volume = volume;
+    audio.muted = get().deafened || volume === 0;
+  }
+
   /** Sends remote audio to the output device chosen in the settings, where supported. */
   private routeOutput(audio: HTMLAudioElement): void {
     if (typeof audio.setSinkId !== 'function') return;
@@ -806,7 +839,7 @@ export class VoiceSession {
         appData: { source: 'mic' satisfies ProducerSource },
       });
       this.micProducer = producer;
-      if (get().muted) producer.pause();
+      this.gateMicrophone();
       producer.on('transportclose', () => {
         if (this.micProducer === producer) this.micProducer = null;
       });
@@ -822,12 +855,9 @@ export class VoiceSession {
   private async applyState(muted: boolean, deafened: boolean): Promise<void> {
     const effectiveMuted = muted || deafened || !this.micTrack;
     // Apply locally first so the microphone stops immediately, then sync the server.
-    if (effectiveMuted) this.micProducer?.pause();
-    else this.micProducer?.resume();
-    for (const { audio } of this.consumers.values()) {
-      if (audio) audio.muted = deafened;
-    }
     set({ muted: effectiveMuted, deafened });
+    this.gateMicrophone();
+    for (const entry of this.consumers.values()) this.applyVolume(entry);
     await this.connection?.rpc
       .request('setState', { muted: effectiveMuted, deafened })
       .catch((error: unknown) => console.warn('[voice] failed to sync state', error));
@@ -930,10 +960,10 @@ export class VoiceSession {
       if (consumer.kind === 'audio') {
         const audio = new Audio();
         audio.srcObject = new MediaStream([consumer.track]);
-        audio.muted = get().deafened;
+        entry.audio = audio;
+        this.applyVolume(entry);
         this.routeOutput(audio);
         audio.play().catch((error: unknown) => console.warn('[voice] playback blocked', error));
-        entry.audio = audio;
       } else if (source === 'camera') {
         const layer = this.cameraLayers.get(peerId);
         if (layer !== undefined) {

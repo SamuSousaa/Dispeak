@@ -18,6 +18,10 @@ import {
 export const NOISE_SUPPRESSION_MODES = ['off', 'browser', 'rnnoise'] as const;
 export type NoiseSuppressionMode = (typeof NOISE_SUPPRESSION_MODES)[number];
 
+/** `voice` keeps the microphone open; `pushToTalk` opens it only while a key is held. */
+export const INPUT_MODES = ['voice', 'pushToTalk'] as const;
+export type InputMode = (typeof INPUT_MODES)[number];
+
 const perSound = <T extends z.ZodType>(schema: T) =>
   Object.fromEntries(SOUND_EVENTS.map((event) => [event, schema])) as Record<SoundEvent, T>;
 
@@ -29,6 +33,13 @@ const settingsSchema = z.object({
   noiseSuppression: z.enum(NOISE_SUPPRESSION_MODES),
   echoCancellation: z.boolean(),
   autoGainControl: z.boolean(),
+  inputMode: z.enum(INPUT_MODES),
+  /** How loud each person sounds to this user, by user id (0 to 1); absent means full volume. */
+  userVolumes: z.record(z.string(), z.number().min(0).max(1)),
+  /** Show pictures and previews of links posted in the chat. */
+  showEmbeds: z.boolean(),
+  /** System notification when someone mentions the user while the tab is in the background. */
+  desktopNotifications: z.boolean(),
   /** Last quality picked for a screen share; the share shortcut starts with it. */
   sharePreset: z.enum(SCREEN_PRESET_IDS),
   /** Notification sounds: joining, leaving, a stream starting or ending. */
@@ -58,6 +69,10 @@ export const defaultSettings: Settings = {
   noiseSuppression: 'rnnoise',
   echoCancellation: true,
   autoGainControl: true,
+  inputMode: 'voice',
+  userVolumes: {},
+  showEmbeds: true,
+  desktopNotifications: false,
   sharePreset: '1080p30',
   soundsEnabled: true,
   soundVolume: 0.5,
@@ -88,6 +103,17 @@ export const useSettingsStore = create<Settings>()(
 export function updateSettings(patch: Partial<Omit<Settings, 'keybinds'>>): void {
   useSettingsStore.setState(patch);
 }
+
+/** Volume of one person for this user only; full volume forgets the entry. */
+export function setUserVolume(userId: string, volume: number): void {
+  useSettingsStore.setState((state) => {
+    const { [userId]: _previous, ...others } = state.userVolumes;
+    return { userVolumes: volume >= 1 ? others : { ...others, [userId]: Math.max(0, volume) } };
+  });
+}
+
+export const useUserVolume = (userId: string): number =>
+  useSettingsStore((state) => state.userVolumes[userId] ?? 1);
 
 export function setKeybind(action: KeybindAction, binding: string | null): void {
   useSettingsStore.setState((state) => ({

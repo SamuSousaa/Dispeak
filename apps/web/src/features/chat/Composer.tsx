@@ -11,7 +11,8 @@ import { IconButton } from '../../components/IconButton';
 import { cx } from '../../lib/cx';
 import { describeError } from '../../lib/http';
 import { memberName } from '../guilds/permissions';
-import { EMOJI_GROUPS } from './emoji';
+import { EmojiGrid } from './EmojiGrid';
+import { GifPicker } from './GifPicker';
 import { mentionQueryAt, toWireContent } from './mentions';
 
 interface ComposerProps {
@@ -29,6 +30,10 @@ interface ComposerProps {
   attachments?: boolean;
   /** Accepts an empty text: editing a message that keeps its images. */
   allowEmpty?: boolean;
+  /** Offers the GIF search. */
+  gifs?: boolean;
+  /** Focuses the field whenever this value changes (e.g. the message being answered). */
+  focusKey?: unknown;
 }
 
 interface Suggestion {
@@ -79,28 +84,7 @@ function EmojiPicker({
       aria-label="Emojis"
       className="anim-pop absolute right-0 bottom-full z-10 mb-1 max-h-72 w-80 max-w-full overflow-y-auto border border-line-strong bg-surface-2"
     >
-      {EMOJI_GROUPS.map((group) => (
-        <section key={group.label}>
-          <h3 className="label sticky top-0 border-b border-line bg-surface-2 px-2 py-1 text-muted">
-            {group.label}
-          </h3>
-          <div className="grid grid-cols-8 p-1">
-            {group.emojis.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                aria-label={emoji}
-                // Keep focus (and the caret) in the textarea.
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onPick(emoji)}
-                className="flex aspect-square items-center justify-center text-xl transition-colors hover:bg-surface"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
+      <EmojiGrid onPick={onPick} />
     </div>
   );
 }
@@ -120,6 +104,8 @@ export function Composer({
   autoFocus = false,
   attachments = false,
   allowEmpty = false,
+  gifs = false,
+  focusKey,
 }: ComposerProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -132,6 +118,7 @@ export function Composer({
   const [pending, setPending] = useState<PendingFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [gifOpen, setGifOpen] = useState(false);
 
   // Grow with the content, up to a few lines.
   useEffect(() => {
@@ -147,6 +134,10 @@ export function Composer({
     element?.focus();
     element?.setSelectionRange(element.value.length, element.value.length);
   }, [autoFocus]);
+
+  useEffect(() => {
+    if (focusKey !== undefined && focusKey !== null) ref.current?.focus();
+  }, [focusKey]);
 
   // Previews are object URLs: release whatever is still pending when the composer goes away.
   const pendingRef = useRef(pending);
@@ -255,6 +246,22 @@ export function Composer({
     }
   };
 
+  /** A GIF goes out on its own, as its link; whatever is being typed stays in the field. */
+  const sendGif = async (url: string) => {
+    setGifOpen(false);
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSubmit(url, []);
+    } catch (failure) {
+      setError(describeError(failure, 'NÃO FOI POSSÍVEL ENVIAR O GIF.').toUpperCase());
+    } finally {
+      setBusy(false);
+      ref.current?.focus();
+    }
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (suggestions.length > 0) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -333,6 +340,10 @@ export function Composer({
           }}
           onClose={() => setEmojiOpen(false)}
         />
+      )}
+
+      {gifOpen && (
+        <GifPicker onPick={(gif) => void sendGif(gif.url)} onClose={() => setGifOpen(false)} />
       )}
 
       {pending.length > 0 && (
@@ -414,6 +425,26 @@ export function Composer({
             addFiles(files);
           }}
         />
+        {gifs && (
+          <button
+            type="button"
+            aria-label="Buscar GIF"
+            title="Buscar GIF"
+            aria-expanded={gifOpen}
+            disabled={busy}
+            // The picker closes itself on an outside press; do not let that press reopen it.
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => setGifOpen((value) => !value)}
+            className={cx(
+              'pressable label inline-flex h-9 shrink-0 items-center justify-center border px-2 disabled:opacity-40',
+              gifOpen
+                ? 'border-accent text-accent'
+                : 'border-line-strong text-fg hover:border-accent hover:text-accent',
+            )}
+          >
+            GIF
+          </button>
+        )}
         <IconButton
           icon="smile"
           label="Emojis"

@@ -7,33 +7,21 @@ import {
   listMessagesQuerySchema,
   messagePageSchema,
   messageSchema,
+  reactionEmojiSchema,
   sendMessageRequestSchema,
+  unreadResponseSchema,
   uploadAttachmentQuerySchema,
 } from '@frequencia/shared';
-import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { badRequest } from '../../errors';
+import { perUser } from '../../lib/per-user-limit';
 
 const channelParams = z.object({ channelId: idSchema });
 const messageParams = z.object({ messageId: idSchema });
+const reactionParams = z.object({ messageId: idSchema, emoji: reactionEmojiSchema });
 const attachmentParams = z.object({ attachmentId: idSchema });
 const noContent = { 204: z.null() };
-
-/**
- * Subject of the bearer token, read without verifying it. Rate limiting runs before
- * authentication, and a forged subject only earns a 401 from the next hook.
- */
-function tokenSubject(request: FastifyRequest): string | null {
-  const payload = request.headers.authorization?.split('.')[1];
-  if (!payload) return null;
-  try {
-    const { sub } = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { sub?: unknown };
-    return typeof sub === 'string' ? `user:${sub}` : null;
-  } catch {
-    return null;
-  }
-}
 
 export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
   const { messages, config } = app.ctx;
@@ -46,13 +34,6 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
     { parseAs: 'buffer', bodyLimit: ATTACHMENT_MAX_BYTES },
     (_request, body, done) => done(null, body),
   );
-  const perUser = (max: number) => ({
-    rateLimit: {
-      max,
-      timeWindow: '1 minute',
-      keyGenerator: (request: FastifyRequest) => tokenSubject(request) ?? request.ip,
-    },
-  });
 
   app.get(
     '/channels/:channelId/messages',
@@ -83,7 +64,8 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
         summary: 'Send a message (SEND_MESSAGES)',
         description:
           'Mention a member with `<@user-id>`; `@todos` mentions everyone. `attachmentIds` ' +
-          'takes ids returned by the upload endpoint of the same channel.',
+          'takes ids returned by the upload endpoint of the same channel. `replyToId` makes ' +
+          'the message an answer to another one of the channel.',
         security,
         params: channelParams,
         body: sendMessageRequestSchema,
@@ -99,6 +81,7 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
             request.params.channelId,
             request.body.content,
             request.body.attachmentIds,
+            request.body.replyToId,
           ),
         ),
   );
@@ -214,6 +197,67 @@ export const messageRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request, reply) => {
       await messages.delete(request.auth.userId, request.params.messageId);
+      return reply.code(204).send(null);
+    },
+  );
+
+  app.put(
+    '/messages/:messageId/reactions/:emoji',
+    {
+      config: perUser(config.RATE_LIMIT_MESSAGES_MAX),
+      schema: {
+        tags: ['messages'],
+        summary: 'React to a message with an emoji (VIEW_CHANNEL)',
+        security,
+        params: reactionParams,
+        response: { 200: messageSchema },
+      },
+    },
+    (request) =>
+      messages.react(request.auth.userId, request.params.messageId, request.params.emoji),
+  );
+
+  app.delete(
+    '/messages/:messageId/reactions/:emoji',
+    {
+      schema: {
+        tags: ['messages'],
+        summary: 'Take back your own reaction',
+        security,
+        params: reactionParams,
+        response: { 200: messageSchema },
+      },
+    },
+    (request) =>
+      messages.unreact(request.auth.userId, request.params.messageId, request.params.emoji),
+  );
+
+  app.get(
+    '/users/@me/unread',
+    {
+      schema: {
+        tags: ['messages'],
+        summary: 'Channels with messages the user has not read yet',
+        security,
+        response: { 200: unreadResponseSchema },
+      },
+    },
+    async (request) => ({ channels: await messages.unread(request.auth.userId) }),
+  );
+
+  app.post(
+    '/channels/:channelId/ack',
+    {
+      schema: {
+        tags: ['messages'],
+        summary: 'Mark a channel as read up to now',
+        security,
+        params: channelParams,
+        response: noContent,
+      },
+    },
+    async (request, reply) => {
+      await messages.ack(request.auth.userId, request.params.channelId);
       return reply.code(204).send(null);
     },
   );

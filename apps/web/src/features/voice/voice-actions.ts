@@ -28,6 +28,11 @@ export function toggleMute(): void {
   void session?.toggleMute();
 }
 
+/** Push-to-talk: opens the microphone while the key is held. */
+export function setPushToTalk(held: boolean): void {
+  session?.setPushToTalk(held);
+}
+
 export function toggleDeafen(): void {
   void session?.toggleDeafen();
 }

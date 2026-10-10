@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
+import { ContextMenuHost } from '../../components/ContextMenu';
 import { cx } from '../../lib/cx';
 import { logout, useAuthStore } from '../auth/auth-store';
 import { releaseAttachmentUrls } from '../chat/Attachments';
@@ -11,25 +12,29 @@ import { useGatewayStore } from '../gateway/gateway-store';
 import { AddGuildDialog } from '../guilds/dialogs/AddGuildDialog';
 import { ChannelSettingsDialog } from '../guilds/dialogs/ChannelSettingsDialog';
 import { CreateChannelDialog } from '../guilds/dialogs/CreateChannelDialog';
-import { GuildSettingsDialog } from '../guilds/dialogs/GuildSettingsDialog';
+import { GuildSettingsDialog, type GuildSettingsTab } from '../guilds/dialogs/GuildSettingsDialog';
 import { InviteDialog } from '../guilds/dialogs/InviteDialog';
 import { groupChannels } from '../guilds/permissions';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { startVoiceSounds } from '../sounds/sound-player';
+import { notifyMention } from '../unread/notify';
+import { applyUnreadEvent, useUnreadTitle } from '../unread/unread-store';
 import { useVoiceShortcuts } from '../voice/use-voice-shortcuts';
 import { leaveVoice } from '../voice/voice-actions';
+import { useVoiceStore } from '../voice/voice-store';
 import { ChannelPanel } from './ChannelPanel';
 import { MemberList } from './MemberList';
 import { ServerRail } from './ServerRail';
 import { SystemBar } from './SystemBar';
 import { TextChannelView } from './TextChannelView';
+import { rememberTextChannel, toggleSideChat, useUiStore } from './ui-store';
 import { UserPanel } from './UserPanel';
 import { VoiceChannelView } from './VoiceChannelView';
 
 type DialogState =
   | { kind: 'add-guild' }
   | { kind: 'invite' }
-  | { kind: 'guild-settings' }
+  | { kind: 'guild-settings'; tab?: GuildSettingsTab }
   | { kind: 'create-channel'; parentId: string | null }
   | { kind: 'channel-settings'; channelId: string }
   | { kind: 'settings' }
@@ -51,13 +56,33 @@ export function AppPage() {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
 
+  const sideChatOpen = useUiStore((state) => state.sideChatOpen);
+  const voiceChannelId = useVoiceStore((state) => state.channelId);
+
   useVoiceShortcuts();
+  useUnreadTitle();
   useEffect(() => startVoiceSounds(), []);
+
+  // Event handlers registered once still need the current router.
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  });
 
   const queryClient = useQueryClient();
   useEffect(() => {
     // Chat history lives in the query cache; gateway events keep it current.
-    const unsubscribe = gateway.subscribe((t, data) => applyChatEvent(queryClient, t, data));
+    const unsubscribe = gateway.subscribe((t, data) => {
+      applyChatEvent(queryClient, t, data);
+      const self = useAuthStore.getState().user;
+      if (!self) return;
+      const mention = applyUnreadEvent(t, data, self.id);
+      if (mention) {
+        notifyMention(mention, useGatewayStore.getState().guilds[mention.guildId], () =>
+          navigateRef.current(`/app/${mention.guildId}/${mention.channelId}`),
+        );
+      }
+    });
     const releaseAttachments = releaseAttachmentUrls(queryClient);
     gateway.start();
     return () => {
@@ -73,6 +98,11 @@ export function AppPage() {
   const numbered = groups.flatMap((group) => group.channels);
   const current = numbered.find((entry) => entry.channel.id === channelId);
   const hasLoaded = status === 'ready' || order.length > 0;
+
+  const currentChannel = current?.channel;
+  useEffect(() => {
+    if (guildId && currentChannel?.type === 'text') rememberTextChannel(guildId, currentChannel.id);
+  }, [guildId, currentChannel?.id, currentChannel?.type]);
 
   // Keep the URL pointing at something that exists (guilds and channels come and go).
   useEffect(() => {
@@ -166,15 +196,31 @@ export function AppPage() {
             ) : (
               <span className="label-lg text-muted">FREQUÊNCIA</span>
             )}
-            {guild && (
-              <button
-                type="button"
-                className="label ml-auto shrink-0 text-muted transition-colors hover:text-accent lg:hidden"
-                onClick={() => setDrawer('members')}
-              >
-                [ MEMBROS ]
-              </button>
-            )}
+            <div className="ml-auto flex shrink-0 items-center gap-3">
+              {current?.channel.type === 'voice' && voiceChannelId === current.channel.id && (
+                <button
+                  type="button"
+                  aria-pressed={sideChatOpen}
+                  title="Abrir um canal de texto ao lado da chamada"
+                  className={cx(
+                    'label transition-colors hover:text-accent',
+                    sideChatOpen ? 'text-accent' : 'text-muted',
+                  )}
+                  onClick={toggleSideChat}
+                >
+                  [ CHAT ]
+                </button>
+              )}
+              {guild && (
+                <button
+                  type="button"
+                  className="label text-muted transition-colors hover:text-accent lg:hidden"
+                  onClick={() => setDrawer('members')}
+                >
+                  [ MEMBROS ]
+                </button>
+              )}
+            </div>
           </header>
 
           <div className="min-h-0 flex-1">
@@ -228,12 +274,17 @@ export function AppPage() {
               drawer === 'members' ? 'translate-x-0' : 'translate-x-full',
             )}
           >
-            <MemberList guild={guild} />
+            <MemberList
+              guild={guild}
+              userId={user.id}
+              onManageMembers={() => setDialog({ kind: 'guild-settings', tab: 'members' })}
+            />
           </aside>
         )}
       </div>
 
       <SystemBar />
+      <ContextMenuHost />
 
       {dialog?.kind === 'add-guild' && <AddGuildDialog onClose={closeDialog} />}
       {dialog?.kind === 'settings' && (
@@ -241,7 +292,12 @@ export function AppPage() {
       )}
       {guild && dialog?.kind === 'invite' && <InviteDialog guild={guild} onClose={closeDialog} />}
       {guild && dialog?.kind === 'guild-settings' && (
-        <GuildSettingsDialog guild={guild} userId={user.id} onClose={closeDialog} />
+        <GuildSettingsDialog
+          guild={guild}
+          userId={user.id}
+          initialTab={dialog.tab}
+          onClose={closeDialog}
+        />
       )}
       {guild && dialog?.kind === 'create-channel' && (
         <CreateChannelDialog guild={guild} parentId={dialog.parentId} onClose={closeDialog} />

@@ -1,9 +1,12 @@
 import { hasPermission, Permissions, type Channel, type Guild } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { contextMenu } from '../../components/ContextMenu';
 import { Icon, type IconName } from '../../components/Icon';
 import { cx } from '../../lib/cx';
 import { actorIn, channelPermissions, groupChannels, memberName } from '../guilds/permissions';
+import { markRead, useUnreadStore } from '../unread/unread-store';
+import { volumeMenuEntries } from '../voice/components/VolumeControl';
 import { useVoiceStore } from '../voice/voice-store';
 import { connectToVoiceChannel, useSpeakingUserIds } from './voice-channel';
 
@@ -164,6 +167,12 @@ export function ChannelPanel({
   ].some((permission) => hasPermission(actor.permissions, permission));
   const connectedChannelId = useVoiceStore((state) => state.channelId);
   const speaking = useSpeakingUserIds(userId);
+  const unread = useUnreadStore((state) => state.channels);
+
+  const canConnectTo = (channel: Channel) =>
+    hasPermission(channelPermissions(guild, channel, userId), Permissions.Connect);
+  const copyLink = (channel: Channel) =>
+    void navigator.clipboard?.writeText(`${window.location.origin}/app/${guild.id}/${channel.id}`);
 
   const canConfigure = (channel: Channel) =>
     hasPermission(channelPermissions(guild, channel, userId), Permissions.ManageChannels) ||
@@ -208,7 +217,20 @@ export function ChannelPanel({
         {groupChannels(guild).map((group) => (
           <section key={group.category?.id ?? 'root'} className="mb-3">
             {group.category && (
-              <div className="flex items-center justify-between gap-2 py-1 pr-1.5 pl-3">
+              <div
+                className="flex items-center justify-between gap-2 py-1 pr-1.5 pl-3"
+                {...contextMenu(group.category.name, () => [
+                  canManageChannels && {
+                    label: 'Criar canal aqui',
+                    onSelect: () => onCreateChannel(group.category?.id ?? null),
+                  },
+                  group.category &&
+                    canConfigure(group.category) && {
+                      label: 'Configurar categoria',
+                      onSelect: () => group.category && onChannelSettings(group.category),
+                    },
+                ])}
+              >
                 <h3 className="label truncate text-muted">{group.category.name}</h3>
                 <span className="flex shrink-0">
                   {canManageChannels && (
@@ -231,24 +253,45 @@ export function ChannelPanel({
             <ul>
               {group.channels.map(({ channel, number }) => {
                 const voices = guild.voiceStates.filter((state) => state.channelId === channel.id);
+                const pending = unread[channel.id];
+                const joinable =
+                  channel.type === 'voice' &&
+                  connectedChannelId !== channel.id &&
+                  canConnectTo(channel);
                 return (
                   <li key={channel.id}>
-                    <div className="group flex items-center">
+                    <div
+                      className="group flex items-center"
+                      data-testid="channel-row"
+                      data-unread={Boolean(pending)}
+                      {...contextMenu(channel.name, () => [
+                        pending && {
+                          label: 'Marcar como lido',
+                          onSelect: () => markRead(channel.id),
+                        },
+                        joinable && {
+                          label: 'Entrar no canal',
+                          onSelect: () => connectToVoiceChannel(channel),
+                        },
+                        { label: 'Copiar link do canal', onSelect: () => copyLink(channel) },
+                        { type: 'separator' },
+                        canInvite && { label: 'Convidar pessoas', onSelect: onInvite },
+                        canConfigure(channel) && {
+                          label: 'Configurar canal',
+                          onSelect: () => onChannelSettings(channel),
+                        },
+                        canManageChannels && {
+                          label: 'Criar canal',
+                          onSelect: () => onCreateChannel(channel.parentId),
+                        },
+                      ])}
+                    >
                       <NavLink
                         to={`/app/${guild.id}/${channel.id}`}
                         onClick={() => {
                           onNavigate();
                           // Like a phone call: picking a voice channel joins it right away.
-                          if (
-                            channel.type === 'voice' &&
-                            connectedChannelId !== channel.id &&
-                            hasPermission(
-                              channelPermissions(guild, channel, userId),
-                              Permissions.Connect,
-                            )
-                          ) {
-                            connectToVoiceChannel(channel);
-                          }
+                          if (joinable) connectToVoiceChannel(channel);
                         }}
                         className={({ isActive }) =>
                           cx(
@@ -260,7 +303,26 @@ export function ChannelPanel({
                         }
                       >
                         <span className="text-muted">{number}.</span>
-                        <span className="truncate">{channel.name}</span>
+                        <span className={cx('truncate', pending && 'font-semibold')}>
+                          {channel.name}
+                        </span>
+                        {pending &&
+                          (pending.mentions > 0 ? (
+                            <span
+                              className="label ml-auto shrink-0 bg-fg px-1 text-bg"
+                              data-testid="mention-badge"
+                              aria-label={`${pending.mentions} ${pending.mentions === 1 ? 'menção' : 'menções'}`}
+                            >
+                              {pending.mentions > 99 ? '99+' : pending.mentions}
+                            </span>
+                          ) : (
+                            <span
+                              className="ml-auto h-1.5 w-1.5 shrink-0 bg-fg"
+                              data-testid="unread-dot"
+                              role="img"
+                              aria-label="Mensagens não lidas"
+                            />
+                          ))}
                         {channel.type === 'voice' && (
                           <span
                             className={cx(
@@ -288,7 +350,12 @@ export function ChannelPanel({
                           <li
                             key={voice.userId}
                             data-testid="voice-member"
-                            className="label flex items-center gap-2 py-0.5 pr-3 pl-9"
+                            className="label flex items-center gap-2 py-0.5 pr-3 pl-9 transition-colors hover:bg-surface-2"
+                            {...contextMenu(memberName(guild, voice.userId), () =>
+                              voice.userId === userId
+                                ? []
+                                : volumeMenuEntries(voice.userId, memberName(guild, voice.userId)),
+                            )}
                           >
                             <span
                               className={cx(
@@ -298,12 +365,22 @@ export function ChannelPanel({
                             >
                               {memberName(guild, voice.userId)}
                             </span>
-                            <span className="ml-auto flex shrink-0 gap-2">
+                            <span className="ml-auto flex shrink-0 items-center gap-1.5">
                               {voice.streaming && <span className="text-accent">AO VIVO</span>}
-                              {voice.deafened ? (
-                                <span className="text-danger">SURDO</span>
-                              ) : (
-                                voice.muted && <span className="text-danger">MUDO</span>
+                              {(voice.muted || voice.deafened) && (
+                                <span
+                                  className="text-danger"
+                                  title={voice.deafened ? 'Ensurdecido' : 'Microfone mutado'}
+                                >
+                                  <Icon name="mic-off" size={12} />
+                                  <span className="sr-only">MUDO</span>
+                                </span>
+                              )}
+                              {voice.deafened && (
+                                <span className="text-danger" title="Ensurdecido">
+                                  <Icon name="headphones-off" size={12} />
+                                  <span className="sr-only">SURDO</span>
+                                </span>
                               )}
                             </span>
                           </li>

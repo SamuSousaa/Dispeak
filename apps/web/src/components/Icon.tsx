@@ -14,7 +14,9 @@ export type IconName =
   | 'smile'
   | 'invite'
   | 'plus'
-  | 'chevron-down';
+  | 'chevron-down'
+  | 'chat'
+  | 'pip';
 
 const slash = <path d="M3 3l18 18" />;
 
@@ -95,6 +97,13 @@ const paths: Record<IconName, ReactNode> = {
   ),
   plus: <path d="M12 5v14M5 12h14" />,
   'chevron-down': <path d="M6 9l6 6 6-6" />,
+  chat: <path d="M3 4h18v13H10l-5 4v-4H3z" />,
+  pip: (
+    <>
+      <rect x="3" y="4" width="18" height="16" />
+      <rect x="12" y="12" width="7" height="6" />
+    </>
+  ),
 };
 
 /** Square-cut line icons. Decorative: the button around them carries the label. */

@@ -156,6 +156,7 @@ nano .env.prod
 | `MEDIA_SHARED_SECRET` | `openssl rand -hex 32` — tokens de voz e RPC interno API ↔ mídia         |
 | `TURN_SECRET`         | `openssl rand -hex 32` — credenciais temporárias do coturn               |
 | `METRICS_TOKEN`       | Opcional. Se definido, `/metrics` exige `Authorization: Bearer`          |
+| `GIPHY_API_KEY`       | Opcional. Chave gratuita da GIPHY; liga a busca de GIF no chat           |
 | `MEDIA_NUM_WORKERS`   | Número de núcleos da VM (2)                                              |
 
 Para gerar os quatro segredos de uma vez:

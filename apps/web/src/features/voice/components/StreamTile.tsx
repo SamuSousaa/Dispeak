@@ -10,7 +10,15 @@ import { LiveBadge } from './LiveBadge';
 
 interface IosVideoElement extends HTMLVideoElement {
   webkitEnterFullscreen?: () => void;
+  webkitSupportsPresentationMode?: (mode: string) => boolean;
+  webkitSetPresentationMode?: (mode: string) => void;
+  webkitPresentationMode?: string;
 }
+
+/** A small always-on-top window with the video, so the stream follows the user around. */
+const supportsPip =
+  typeof document !== 'undefined' &&
+  (document.pictureInPictureEnabled || 'webkitSetPresentationMode' in HTMLVideoElement.prototype);
 
 interface StreamTileProps {
   /** Streamer session id, or `SELF_STREAM` for the local preview. */
@@ -85,6 +93,7 @@ export function StreamTile({
   const containerRef = useRef<HTMLDivElement>(null);
   const [showStats, setShowStats] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [floating, setFloating] = useState(false);
   const stats = useVoiceStore((state) => state.streamStats[id]);
   const isSelf = id === SELF_STREAM;
 
@@ -122,6 +131,44 @@ export function StreamTile({
     // iPhone browsers only offer fullscreen on the <video> itself, with the native player.
     const video = container.querySelector('video') as IosVideoElement | null;
     video?.webkitEnterFullscreen?.();
+  };
+
+  // The floating window can also be closed from its own controls.
+  useEffect(() => {
+    const video = containerRef.current?.querySelector('video');
+    if (!video) return;
+    const onEnter = () => setFloating(true);
+    const onLeave = () => setFloating(false);
+    video.addEventListener('enterpictureinpicture', onEnter);
+    video.addEventListener('leavepictureinpicture', onLeave);
+    return () => {
+      video.removeEventListener('enterpictureinpicture', onEnter);
+      video.removeEventListener('leavepictureinpicture', onLeave);
+      // Leaving the tile (stopped watching, left the call) takes its window along.
+      if (document.pictureInPictureElement === video) {
+        void document.exitPictureInPicture().catch(() => undefined);
+      }
+    };
+  }, []);
+
+  const toggleFloating = () => {
+    const video = containerRef.current?.querySelector('video') as IosVideoElement | null;
+    if (!video) return;
+    if (typeof video.requestPictureInPicture === 'function') {
+      if (document.pictureInPictureElement === video) {
+        void document.exitPictureInPicture().catch(() => undefined);
+      } else {
+        void video.requestPictureInPicture().catch(() => undefined);
+      }
+      return;
+    }
+    // iPhone and iPad.
+    if (video.webkitSupportsPresentationMode?.('picture-in-picture')) {
+      const next =
+        video.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+      video.webkitSetPresentationMode?.(next);
+      setFloating(next !== 'inline');
+    }
   };
 
   const toggleFullscreen = () => {
@@ -202,6 +249,17 @@ export function StreamTile({
             >
               {focused ? 'GRADE' : 'FOCO'}
             </Button>
+            {supportsPip && (
+              <Button
+                className="border-transparent"
+                variant={floating ? 'active' : 'default'}
+                aria-pressed={floating}
+                title="Mantém o vídeo numa janela pequena por cima de tudo"
+                onClick={toggleFloating}
+              >
+                {floating ? 'FECHAR JANELA' : 'JANELA FLUTUANTE'}
+              </Button>
+            )}
             <Button className="border-transparent" onClick={toggleFullscreen}>
               {fullscreen ? 'SAIR DA TELA CHEIA' : 'TELA CHEIA'}
             </Button>

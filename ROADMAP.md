@@ -113,6 +113,34 @@ passar e de um commit ser feito.
 - [x] Animações de entrada em menus, painéis, mensagens e quadros de participantes
 - [ ] Aplicativo instalável (atalhos globais, fora do navegador) — adiado
 
+## Etapa 7 — Uso do dia a dia
+
+- [x] Menu de contexto (clique direito ou toque longo) em canais, categorias, pessoas, mensagens e
+      servidores
+- [x] Volume individual por pessoa, só para quem ajusta (guardado no navegador)
+- [x] Apertar para falar, com tecla configurável
+- [x] Mensagens não lidas por canal e por servidor, com contador de menções, guardadas no servidor
+      (valem em qualquer aparelho) e mostradas no título da aba
+- [x] Notificação do sistema para menções, opcional
+- [x] Reações com emoji e respostas a mensagens (responder menciona o autor)
+- [x] Prévia de links: o servidor busca título, descrição e imagem, só em endereços públicos
+- [x] Busca de GIF pela GIPHY, opcional (`GIPHY_API_KEY`); a chave fica no servidor
+- [x] Configurações pessoais em abas (voz, vídeo, chat, sons, atalhos, conta)
+- [x] Transmissão em janela flutuante (picture-in-picture)
+- [x] Canal de texto ao lado da chamada
+- [x] Ícones de mudo e ensurdecido na lista de quem está em cada canal de voz
+
+**Único serviço externo.** A busca de GIF depende da GIPHY e por isso é opcional: sem a chave o
+botão não aparece. Não é mídia nem tempo real, então não fere a regra de infraestrutura própria.
+Imagens de links e GIFs são carregadas pelo navegador direto do site de origem (dá para desligar
+em Configurações → Chat).
+
+**Sem teste em aparelho real:** volume individual e janela flutuante no iPhone (o iOS não deixa
+uma página ajustar o volume de um áudio, só silenciar), toque longo para abrir os menus, apertar
+para falar com um jogo em primeiro plano (não funciona: o navegador só recebe teclas com a aba em
+foco), notificações do sistema e a busca de GIF contra a GIPHY de verdade (os testes usam um
+servidor falso).
+
 **Sem teste em aparelho real:** RNNoise e câmera no iPhone, troca de microfone/saída/câmera com
 dispositivos de verdade, os presets 1440p60 e original com um jogo, e a qualidade da supressão de
 ruído (só dá para julgar de ouvido). Os testes e2e cobrem tudo isso com mídia sintética no Chromium.
