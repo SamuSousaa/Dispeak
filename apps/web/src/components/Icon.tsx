@@ -8,6 +8,8 @@ export type IconName =
   | 'settings'
   | 'hang-up'
   | 'screen'
+  | 'camera'
+  | 'camera-off'
   | 'invite'
   | 'plus'
   | 'chevron-down';
@@ -55,6 +57,19 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <rect x="3" y="4" width="18" height="12" />
       <path d="M8 21h8M12 16v5M12 13V8M9.5 10.5L12 8l2.5 2.5" />
+    </>
+  ),
+  camera: (
+    <>
+      <rect x="2" y="6" width="13" height="12" />
+      <path d="M15 10l7-3v10l-7-3" />
+    </>
+  ),
+  'camera-off': (
+    <>
+      <rect x="2" y="6" width="13" height="12" />
+      <path d="M15 10l7-3v10l-7-3" />
+      {slash}
     </>
   ),
   invite: (

@@ -8,6 +8,7 @@ import {
 import { useSettingsStore } from '../settings/settings-store';
 import {
   leaveVoice,
+  toggleCamera,
   toggleDeafen,
   toggleMute,
   toggleScreenShare,
@@ -30,6 +31,7 @@ const run: Record<KeybindAction, () => void> = {
   deafen: toggleDeafen,
   fullscreen: toggleWatchFullscreen,
   share: toggleScreenShare,
+  camera: toggleCamera,
   leave: leaveVoice,
 };
 

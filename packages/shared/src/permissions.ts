@@ -15,7 +15,7 @@ export const Permissions = {
   Connect: 1n << 4n,
   /** Publish microphone audio. */
   Speak: 1n << 5n,
-  /** Publish a screen share. */
+  /** Publish video: a screen share or the camera. */
   Stream: 1n << 6n,
   CreateInvite: 1n << 7n,
   KickMembers: 1n << 8n,

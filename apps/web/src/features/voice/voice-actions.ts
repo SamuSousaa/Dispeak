@@ -62,6 +62,16 @@ export function stopScreenShare(): void {
   void session?.stopScreenShare();
 }
 
+export function toggleCamera(): void {
+  if (useVoiceStore.getState().camera.status === 'off') void session?.startCamera();
+  else void session?.stopCamera();
+}
+
+/** Tells the session how tall (CSS px) a participant's camera is displayed. */
+export function setCameraViewport(peerId: string, cssHeight: number): void {
+  session?.setCameraViewport(peerId, cssHeight);
+}
+
 /** Starts watching a participant's screen share. */
 export function watchStream(peerId: string): void {
   session?.watch(peerId);

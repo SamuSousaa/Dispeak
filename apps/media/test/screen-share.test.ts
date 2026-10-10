@@ -143,6 +143,48 @@ describe('screen sharing', () => {
     ).resolves.toBeDefined();
   });
 
+  it('publishes a camera next to a screen share, under the same permission', async () => {
+    const alice = await h.joinAs();
+    const bob = await h.joinAs();
+    const { transportId, video } = await share(alice);
+    await bob.next('producer-added');
+
+    const camera = await alice.rpc.request('produce', {
+      transportId,
+      kind: 'video',
+      source: 'camera',
+      rtpParameters: simulcastRtpParameters(),
+    });
+    await expect(bob.next('producer-added')).resolves.toEqual({
+      peerId: alice.selfId,
+      producer: { id: camera.producerId, kind: 'video', source: 'camera' },
+    });
+    expect(peerStats(alice).producers.map((producer) => [producer.id, producer.source])).toEqual([
+      [video, 'screen'],
+      [camera.producerId, 'camera'],
+    ]);
+    // One camera per participant.
+    await expect(
+      alice.rpc.request('produce', {
+        transportId,
+        kind: 'video',
+        source: 'camera',
+        rtpParameters: simulcastRtpParameters(),
+      }),
+    ).rejects.toMatchObject({ code: VoiceErrorCode.LimitReached });
+
+    const viewer = await h.joinAs({ stream: false });
+    const viewerTransport = await openTransport(viewer, 'send');
+    await expect(
+      viewer.rpc.request('produce', {
+        transportId: viewerTransport,
+        kind: 'video',
+        source: 'camera',
+        rtpParameters: simulcastRtpParameters(),
+      }),
+    ).rejects.toMatchObject({ code: VoiceErrorCode.Forbidden });
+  });
+
   it('closes the consumers of every viewer when the stream stops', async () => {
     const alice = await h.joinAs();
     const bob = await h.joinAs();

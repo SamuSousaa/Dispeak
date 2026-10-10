@@ -10,7 +10,7 @@ export const VOICE_SIGNALING_PATH = '/voice';
 export const VOICE_TOKEN_AUDIENCE = 'frequencia:voice';
 export const VOICE_TOKEN_ISSUER = 'frequencia:api';
 
-/** Screen shares are published as VP8 simulcast with this many spatial layers. */
+/** Screen shares and cameras are published as VP8 simulcast with this many spatial layers. */
 export const SIMULCAST_LAYERS = 3;
 
 export const VoiceErrorCode = {
@@ -45,7 +45,7 @@ export const voiceTokenClaimsSchema = z.object({
   room: z.string().min(1).max(64),
   /** May publish microphone audio. */
   speak: z.boolean(),
-  /** May publish a screen share. */
+  /** May publish video: a screen share (with its audio) or the camera. */
   stream: z.boolean(),
 });
 export type VoiceTokenClaims = z.infer<typeof voiceTokenClaimsSchema>;
@@ -98,7 +98,7 @@ export const mediaKindSchema = z.enum(['audio', 'video']);
 export type MediaKind = z.infer<typeof mediaKindSchema>;
 
 /** What a producer carries. */
-export const producerSourceSchema = z.enum(['mic', 'screen', 'screen-audio']);
+export const producerSourceSchema = z.enum(['mic', 'camera', 'screen', 'screen-audio']);
 export type ProducerSource = z.infer<typeof producerSourceSchema>;
 
 export const voiceProducerSchema = z.object({

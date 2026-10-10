@@ -24,6 +24,13 @@ export interface ScreenShareState {
   error: string | null;
 }
 
+export interface CameraState {
+  status: 'off' | 'starting' | 'live';
+  /** Local capture, shown in the user's own tile. */
+  stream: MediaStream | null;
+  error: string | null;
+}
+
 export interface WatchedStream {
   /** `null` until the first video consumer is ready. */
   stream: MediaStream | null;
@@ -76,6 +83,9 @@ export interface VoiceState {
   speaking: string[];
   stats: VoiceConnectionStats;
   screen: ScreenShareState;
+  camera: CameraState;
+  /** Cameras of the other participants, keyed by session id. Always received. */
+  cameras: Record<string, MediaStream>;
   /** Streams this client chose to watch, keyed by the streamer's session id. */
   watching: Record<string, WatchedStream>;
   /** Keyed by streamer session id, or `SELF_STREAM` for the local share. */
@@ -98,6 +108,8 @@ export const screenOff: ScreenShareState = {
   error: null,
 };
 
+export const cameraOff: CameraState = { status: 'off', stream: null, error: null };
+
 export const initialVoiceState: VoiceState = {
   status: 'idle',
   error: null,
@@ -112,6 +124,8 @@ export const initialVoiceState: VoiceState = {
   speaking: [],
   stats: emptyVoiceStats,
   screen: screenOff,
+  camera: cameraOff,
+  cameras: {},
   watching: {},
   streamStats: {},
 };

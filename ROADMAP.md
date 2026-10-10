@@ -96,6 +96,20 @@ passar e de um commit ser feito.
 - [x] Teste de carga com números reais (medidos nos builds de produção rodando localmente, não na
       VM de deploy)
 
+## Etapa 6 — Ajustes depois do primeiro teste real
+
+- [x] Painel de controle na coluna de canais (voz conectada, câmera, transmissão, microfone, fone)
+- [x] Configurações rápidas: microfone, saída, câmera, eco, ganho, atalhos de teclado configuráveis
+- [x] Supressão de ruído com RNNoise (WebAssembly), com retorno ao filtro do navegador
+- [x] Ações do servidor agrupadas no menu do nome do servidor
+- [x] Presets 1440p60 e resolução original (até 4K); teto de 20 Mbps por transmissor no SFU
+- [x] Câmera em simulcast, recebida por todos e exibida no quadro do participante
+- [ ] Aplicativo instalável (atalhos globais, fora do navegador) — adiado
+
+**Sem teste em aparelho real:** RNNoise e câmera no iPhone, troca de microfone/saída/câmera com
+dispositivos de verdade, os presets 1440p60 e original com um jogo, e a qualidade da supressão de
+ruído (só dá para julgar de ouvido). Os testes e2e cobrem tudo isso com mídia sintética no Chromium.
+
 ## Pendências
 
 O que depende do dono do projeto, e o que não pôde ser verificado no ambiente em que o projeto foi

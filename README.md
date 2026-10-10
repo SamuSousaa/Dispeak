@@ -14,9 +14,13 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
 ## O que tem
 
 - **Canais de voz** roteados por um SFU próprio: mutar, ensurdecer, indicador de quem está falando,
-  reconexão automática, atalhos de teclado.
-- **Transmissão de tela** com simulcast VP8 em 3 camadas, presets (720p30, 1080p30, 1080p60, 1440p60 e resolução original até 4K), áudio
-  do sistema quando o navegador entrega, várias transmissões ao mesmo tempo, modo foco e tela cheia.
+  reconexão automática, atalhos de teclado configuráveis.
+- **Supressão de ruído** com RNNoise rodando no navegador (WebAssembly), escolha de microfone,
+  saída e câmera.
+- **Câmera** em simulcast VP8, exibida no quadro de cada participante.
+- **Transmissão de tela** com simulcast VP8 em 3 camadas, presets (720p30, 1080p30, 1080p60,
+  1440p60 e resolução original até 4K), áudio do sistema quando o navegador entrega, várias
+  transmissões ao mesmo tempo, modo foco e tela cheia.
 - **Assistir sob demanda**: o vídeo só é encaminhado para quem clicou em assistir, e a camada de
   simulcast é escolhida pelo tamanho em que a transmissão aparece na tela de cada espectador.
 - **Servidores, canais e categorias**, convites com expiração e limite de usos.

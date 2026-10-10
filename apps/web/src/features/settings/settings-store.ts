@@ -21,6 +21,7 @@ const settingsSchema = z.object({
   /** `null` follows the system default device. */
   inputDeviceId: z.string().nullable(),
   outputDeviceId: z.string().nullable(),
+  cameraDeviceId: z.string().nullable(),
   noiseSuppression: z.enum(NOISE_SUPPRESSION_MODES),
   echoCancellation: z.boolean(),
   autoGainControl: z.boolean(),
@@ -43,6 +44,7 @@ const storedSchema = settingsSchema
 export const defaultSettings: Settings = {
   inputDeviceId: null,
   outputDeviceId: null,
+  cameraDeviceId: null,
   noiseSuppression: 'rnnoise',
   echoCancellation: true,
   autoGainControl: true,

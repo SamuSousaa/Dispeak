@@ -39,11 +39,12 @@ const supportsOutputSelection =
 interface AudioDevices {
   inputs: MediaDeviceInfo[];
   outputs: MediaDeviceInfo[];
+  cameras: MediaDeviceInfo[];
 }
 
 /** Audio devices the browser exposes. Names stay empty until microphone access is granted. */
 function useAudioDevices(refreshKey: unknown): AudioDevices {
-  const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [] });
+  const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [], cameras: [] });
 
   useEffect(() => {
     const media = navigator.mediaDevices;
@@ -61,6 +62,7 @@ function useAudioDevices(refreshKey: unknown): AudioDevices {
           setDevices({
             inputs: real.filter((device) => device.kind === 'audioinput'),
             outputs: real.filter((device) => device.kind === 'audiooutput'),
+            cameras: real.filter((device) => device.kind === 'videoinput'),
           });
         })
         .catch(() => undefined);
@@ -210,7 +212,8 @@ export function SettingsPanel({
   const voiceStatus = useVoiceStore((state) => state.status);
   const micAvailable = useVoiceStore((state) => state.micAvailable);
   const activeNoise = useVoiceStore((state) => state.noiseSuppression);
-  const devices = useAudioDevices(`${voiceStatus}:${micAvailable}`);
+  const cameraStatus = useVoiceStore((state) => state.camera.status);
+  const devices = useAudioDevices(`${voiceStatus}:${micAvailable}:${cameraStatus}`);
   const [capturing, setCapturing] = useState<KeybindAction | null>(null);
 
   const namesHidden = devices.inputs.length > 0 && devices.inputs.every((device) => !device.label);
@@ -327,7 +330,17 @@ export function SettingsPanel({
         )}
       </Section>
 
-      <Section number="03" title="ATALHOS DE TECLADO">
+      <Section number="03" title="VÍDEO">
+        <DeviceSelect
+          label="CÂMERA"
+          hint="Os nomes aparecem depois que você liga a câmera uma vez e permite o acesso."
+          value={settings.cameraDeviceId}
+          devices={devices.cameras}
+          onChange={(cameraDeviceId) => updateSettings({ cameraDeviceId })}
+        />
+      </Section>
+
+      <Section number="04" title="ATALHOS DE TECLADO">
         {touchOnly ? (
           <p className="text-sm text-muted">
             Atalhos precisam de um teclado. Neste aparelho, use os botões de microfone e fone.
@@ -362,7 +375,7 @@ export function SettingsPanel({
         )}
       </Section>
 
-      <Section number="04" title="CONTA">
+      <Section number="05" title="CONTA">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="label-lg truncate text-fg">{user.displayName}</p>

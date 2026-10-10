@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { Button } from '../../../components/Button';
+import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
 import { LiveBadge } from './LiveBadge';
 
@@ -16,6 +18,10 @@ interface ParticipantTileProps {
   onUnwatch?: () => void;
   /** Smaller rendition used when streams take the main area. */
   compact?: boolean;
+  /** The participant's camera, when it is on. */
+  video?: MediaStream | null;
+  /** Reports the displayed height (CSS px) of a remote camera, to pick its quality. */
+  onVideoViewport?: (cssHeight: number) => void;
 }
 
 function initials(name: string): string {
@@ -37,10 +43,37 @@ export function ParticipantTile({
   onWatch,
   onUnwatch,
   compact = false,
+  video = null,
+  onVideoViewport,
 }: ParticipantTileProps) {
   const status = deafened ? 'SURDO' : muted ? 'MUDO' : null;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const reportViewport = useRef(onVideoViewport);
+  useEffect(() => {
+    reportViewport.current = onVideoViewport;
+  });
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element || !video) return;
+    let timer: number | undefined;
+    const report = () => reportViewport.current?.(element.clientHeight);
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(report, 250);
+    });
+    observer.observe(element);
+    report();
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [video]);
+
   return (
     <div
+      ref={containerRef}
+      data-camera={Boolean(video)}
       data-testid="participant"
       data-speaking={speaking}
       data-muted={muted}
@@ -52,14 +85,24 @@ export function ParticipantTile({
         speaking ? 'border-accent' : 'border-line',
       )}
     >
-      {live && <LiveBadge className="absolute top-0 left-0" />}
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2">
+      {live && <LiveBadge className="absolute top-0 left-0 z-10" />}
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-2">
+        {video && (
+          <MediaVideo
+            stream={video}
+            muted
+            data-testid="camera-video"
+            // Your own camera is mirrored, the way a mirror shows you.
+            className={cx('absolute inset-0 h-full w-full object-cover', isSelf && '-scale-x-100')}
+          />
+        )}
         <span
           aria-hidden="true"
           className={cx(
             'display transition-colors',
             compact ? 'text-xl' : 'text-4xl',
             speaking ? 'text-accent' : 'text-muted',
+            video && 'invisible',
           )}
         >
           {initials(name)}
@@ -69,7 +112,7 @@ export function ParticipantTile({
             variant={watching ? 'active' : 'primary'}
             aria-pressed={watching}
             aria-label={watching ? `Parar de assistir ${name}` : `Assistir ${name}`}
-            className={cx(compact && 'h-6 px-1.5')}
+            className={cx('relative', compact && 'h-6 px-1.5', video && 'bg-bg')}
             onClick={watching ? onUnwatch : onWatch}
           >
             {watching ? 'ASSISTINDO' : 'ASSISTIR'}

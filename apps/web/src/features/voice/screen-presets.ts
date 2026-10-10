@@ -66,14 +66,16 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 2160,
     frameRate: 60,
     contentHint: 'motion',
-    bitrates: [700_000, 3_000_000, 14_000_000],
+    bitrates: [700_000, 3_000_000, 12_000_000],
   },
 };
 
 export const SCREEN_PRESET_LIST = Object.values(SCREEN_PRESETS);
 
 /** Three simulcast encodings: quarter, half and full resolution. */
-export function simulcastEncodings(preset: ScreenPreset): RTCRtpEncodingParameters[] {
+export function simulcastEncodings(
+  preset: Pick<ScreenPreset, 'bitrates' | 'frameRate'>,
+): RTCRtpEncodingParameters[] {
   return preset.bitrates.map((maxBitrate, index) => ({
     rid: `r${index}`,
     scaleResolutionDownBy: 2 ** (SIMULCAST_LAYERS - 1 - index),

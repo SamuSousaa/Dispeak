@@ -63,6 +63,7 @@ export interface RoomStats {
 /** Which producer sources a peer may publish at the same time. */
 const SOURCE_KIND: Record<ProducerSource, MediaKind> = {
   mic: 'audio',
+  camera: 'video',
   screen: 'video',
   'screen-audio': 'audio',
 };

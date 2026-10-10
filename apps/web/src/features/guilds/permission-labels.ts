@@ -58,7 +58,7 @@ export const PERMISSION_INFO: PermissionInfo[] = [
     name: 'Stream',
     bit: Permissions.Stream,
     label: 'Transmitir tela',
-    description: 'Compartilhar a tela em canais de voz.',
+    description: 'Compartilhar a tela e ligar a câmera em canais de voz.',
     channels: ['voice', 'category'],
   },
   {

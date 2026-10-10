@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cx } from '../../../lib/cx';
-import { stopScreenShare, unwatchStream, watchStream } from '../voice-actions';
+import { setCameraViewport, stopScreenShare, unwatchStream, watchStream } from '../voice-actions';
 import { isLive, SELF_STREAM, useVoiceStore } from '../voice-store';
 import { ParticipantTile } from './ParticipantTile';
 import { StreamTile } from './StreamTile';
@@ -30,6 +30,8 @@ export function VoiceStage({ selfName }: { selfName: string }) {
   const peers = useVoiceStore((state) => state.peers);
   const speaking = useVoiceStore((state) => state.speaking);
   const screen = useVoiceStore((state) => state.screen);
+  const camera = useVoiceStore((state) => state.camera);
+  const cameras = useVoiceStore((state) => state.cameras);
   const watching = useVoiceStore((state) => state.watching);
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
@@ -69,6 +71,7 @@ export function VoiceStage({ selfName }: { selfName: string }) {
           muted={muted}
           deafened={deafened}
           live={screen.status === 'live'}
+          video={camera.stream}
           compact={hasStreams}
         />
       </li>
@@ -81,6 +84,8 @@ export function VoiceStage({ selfName }: { selfName: string }) {
             deafened={peer.deafened}
             live={isLive(peer)}
             watching={Boolean(watching[peer.id])}
+            video={cameras[peer.id] ?? null}
+            onVideoViewport={(cssHeight) => setCameraViewport(peer.id, cssHeight)}
             onWatch={() => watchStream(peer.id)}
             onUnwatch={() => unwatchStream(peer.id)}
             compact={hasStreams}

@@ -5,7 +5,7 @@ import { useGatewayStore } from '../gateway/gateway-store';
 import { channelPermissions } from '../guilds/permissions';
 import { useKeybind } from '../settings/settings-store';
 import { ScreenShareButton } from '../voice/components/ScreenShareButton';
-import { leaveVoice, toggleDeafen, toggleMute } from '../voice/voice-actions';
+import { leaveVoice, toggleCamera, toggleDeafen, toggleMute } from '../voice/voice-actions';
 import { useVoiceStore } from '../voice/voice-store';
 
 const withKey = (text: string, binding: string | null) => (binding ? `${text} (${binding})` : text);
@@ -22,10 +22,12 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
   const muted = useVoiceStore((state) => state.muted);
   const deafened = useVoiceStore((state) => state.deafened);
   const micAvailable = useVoiceStore((state) => state.micAvailable);
+  const camera = useVoiceStore((state) => state.camera);
   const rttMs = useVoiceStore((state) => state.stats.rttMs);
   const muteKey = useKeybind('mute');
   const deafenKey = useKeybind('deafen');
   const leaveKey = useKeybind('leave');
+  const cameraKey = useKeybind('camera');
   // The voice channel may belong to a server other than the one on screen.
   const guild = useGatewayStore((state) =>
     Object.values(state.guilds).find((entry) =>
@@ -80,7 +82,32 @@ export function UserPanel({ user, onOpenSettings }: { user: User; onOpenSettings
             />
           </div>
           <div className="px-3 py-2">
-            {live && <ScreenShareButton allowed={canStream} />}
+            {live && (
+              <div className="flex items-start gap-1.5">
+                <IconButton
+                  icon={camera.status === 'live' ? 'camera' : 'camera-off'}
+                  tone={camera.status === 'live' ? 'active' : 'default'}
+                  label={camera.status === 'live' ? 'Desligar câmera' : 'Ligar câmera'}
+                  title={
+                    canStream
+                      ? withKey(
+                          camera.status === 'live' ? 'Desligar câmera' : 'Ligar câmera',
+                          cameraKey,
+                        )
+                      : 'Você não tem permissão para ligar a câmera neste canal'
+                  }
+                  aria-pressed={camera.status === 'live'}
+                  disabled={!canStream || status !== 'connected' || camera.status === 'starting'}
+                  onClick={toggleCamera}
+                />
+                <ScreenShareButton allowed={canStream} />
+              </div>
+            )}
+            {camera.error && (
+              <p role="alert" className="label mt-1.5 text-danger">
+                {camera.error}
+              </p>
+            )}
             {!micAvailable && (
               <p role="status" className="label mt-1.5 text-danger">
                 SEM MICROFONE — SOMENTE ESCUTA

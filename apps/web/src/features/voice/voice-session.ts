@@ -14,6 +14,7 @@ import {
 import { Device, type types } from 'mediasoup-client';
 import { connectRpc, type RpcConnection } from '../../lib/rpc-client';
 import { useSettingsStore, type Settings } from '../settings/settings-store';
+import { CAMERA, openCamera } from './camera';
 import { openMicrophone, type Microphone } from './microphone';
 import {
   layerForViewport,
@@ -29,6 +30,7 @@ import {
   type StreamSample,
 } from './voice-stats';
 import {
+  cameraOff,
   emptyVoiceStats,
   initialVoiceState,
   screenOff,
@@ -104,6 +106,8 @@ export class VoiceSession {
   private screenStream: MediaStream | null = null;
   private screenProducer: types.Producer | null = null;
   private screenAudioProducer: types.Producer | null = null;
+  private cameraStream: MediaStream | null = null;
+  private cameraProducer: types.Producer | null = null;
 
   private readonly consumers = new Map<string, ActiveConsumer>();
   private readonly consuming = new Set<string>();
@@ -111,6 +115,8 @@ export class VoiceSession {
   private readonly watched = new Set<string>();
   /** Simulcast layer wanted for each watched stream, from the size it is displayed at. */
   private readonly wantedLayers = new Map<string, number>();
+  /** Same, for each participant's camera. */
+  private readonly cameraLayers = new Map<string, number>();
 
   private readonly iceTimers = new Map<string, number>();
   private statsTimer: number | null = null;
@@ -276,6 +282,79 @@ export class VoiceSession {
     set({ screen: screenOff, streamStats });
   }
 
+  async startCamera(): Promise<void> {
+    if (get().camera.status !== 'off' || get().status !== 'connected') return;
+    set({ camera: { ...cameraOff, status: 'starting' } });
+
+    let stream: MediaStream;
+    try {
+      stream = await openCamera(useSettingsStore.getState().cameraDeviceId);
+    } catch (error) {
+      console.warn('[voice] camera unavailable', error);
+      const denied = error instanceof DOMException && error.name === 'NotAllowedError';
+      set({
+        camera: {
+          ...cameraOff,
+          error: denied
+            ? 'Permita o uso da câmera no navegador.'
+            : 'Não foi possível abrir a câmera.',
+        },
+      });
+      return;
+    }
+    if (this.disposed) {
+      for (const track of stream.getTracks()) track.stop();
+      return;
+    }
+    // Unplugging the camera ends the track.
+    stream.getVideoTracks()[0]?.addEventListener('ended', () => void this.stopCamera());
+    this.cameraStream = stream;
+
+    try {
+      await this.publishCamera();
+    } catch (error) {
+      console.warn('[voice] failed to publish the camera', error);
+      const forbidden = error instanceof RpcError && error.code === VoiceErrorCode.Forbidden;
+      await this.stopCamera();
+      set({
+        camera: {
+          ...cameraOff,
+          error: forbidden
+            ? 'Você não tem permissão para ligar a câmera neste canal.'
+            : 'Falha ao ligar a câmera.',
+        },
+      });
+    }
+  }
+
+  async stopCamera(): Promise<void> {
+    const producer = this.cameraProducer;
+    this.cameraProducer = null;
+    if (producer && !producer.closed) {
+      producer.close();
+      await this.connection?.rpc
+        .request('closeProducer', { producerId: producer.id })
+        .catch(() => undefined);
+    }
+    for (const track of this.cameraStream?.getTracks() ?? []) track.stop();
+    this.cameraStream = null;
+    set({ camera: cameraOff });
+  }
+
+  /** Reports the size a participant's camera is displayed at, to pick its simulcast layer. */
+  setCameraViewport(peerId: string, cssHeight: number): void {
+    const layer = layerForViewport(cssHeight, window.devicePixelRatio);
+    if (this.cameraLayers.get(peerId) === layer) return;
+    this.cameraLayers.set(peerId, layer);
+    for (const [consumerId, entry] of this.consumers) {
+      if (entry.peerId === peerId && entry.source === 'camera') {
+        this.connection?.rpc
+          .request('setConsumerLayers', { consumerId, spatialLayer: layer })
+          .catch(() => undefined);
+      }
+    }
+  }
+
   /** Starts receiving a participant's screen share (video and, when present, its audio). */
   watch(peerId: string): void {
     const peer = get().peers[peerId];
@@ -378,11 +457,13 @@ export class VoiceSession {
       await Promise.all([
         this.publishMicrophone(),
         this.screenStream ? this.publishScreen().catch(() => this.stopScreenShare()) : undefined,
+        this.cameraStream ? this.publishCamera().catch(() => this.stopCamera()) : undefined,
         ...joined.peers.flatMap((peer) =>
           peer.producers
             .filter(
               (producer) =>
                 producer.source === 'mic' ||
+                producer.source === 'camera' ||
                 (this.watched.has(peer.id) && isScreenSource(producer.source)),
             )
             .map((producer) => this.consume(peer.id, producer.id, producer.source)),
@@ -460,6 +541,7 @@ export class VoiceSession {
     this.micProducer = null;
     this.screenProducer = null;
     this.screenAudioProducer = null;
+    this.cameraProducer = null;
     this.sendTransport?.close();
     this.recvTransport?.close();
     this.sendTransport = null;
@@ -478,8 +560,11 @@ export class VoiceSession {
     this.micTrack = null;
     for (const track of this.screenStream?.getTracks() ?? []) track.stop();
     this.screenStream = null;
+    for (const track of this.cameraStream?.getTracks() ?? []) track.stop();
+    this.cameraStream = null;
     this.watched.clear();
     this.wantedLayers.clear();
+    this.cameraLayers.clear();
   }
 
   private bindEvents({ rpc }: Connection): void {
@@ -494,6 +579,7 @@ export class VoiceSession {
         if (entry.peerId === peerId) this.removeConsumer(consumerId);
       }
       this.watched.delete(peerId);
+      this.cameraLayers.delete(peerId);
       this.forgetStream(peerId);
     });
 
@@ -507,8 +593,9 @@ export class VoiceSession {
 
     rpc.on('producer-added', ({ peerId, producer }) => {
       this.updatePeer(peerId, (peer) => ({ ...peer, producers: [...peer.producers, producer] }));
-      // Microphones are always heard; screens only when the user asked to watch them.
-      if (producer.source === 'mic' || this.watched.has(peerId)) {
+      // Microphones and cameras are always received; screens only when the user asked to
+      // watch them.
+      if (!isScreenSource(producer.source) || this.watched.has(peerId)) {
         void this.consume(peerId, producer.id, producer.source);
       }
     });
@@ -649,6 +736,9 @@ export class VoiceSession {
   }
 
   private handleSettingsChange(settings: Settings, previous: Settings): void {
+    if (settings.cameraDeviceId !== previous.cameraDeviceId && this.cameraStream) {
+      void this.stopCamera().then(() => this.startCamera());
+    }
     if (settings.outputDeviceId !== previous.outputDeviceId) {
       for (const { audio } of this.consumers.values()) {
         if (audio) this.routeOutput(audio);
@@ -788,6 +878,28 @@ export class VoiceSession {
     });
   }
 
+  // --- camera -------------------------------------------------------------------------------
+
+  private async publishCamera(): Promise<void> {
+    const { sendTransport, device, cameraStream } = this;
+    if (!sendTransport || !device || !cameraStream) return;
+    const [track] = cameraStream.getVideoTracks();
+    if (!track || track.readyState !== 'live') throw new Error('camera track ended');
+
+    const vp8 = device.rtpCapabilities.codecs?.find(
+      (codec) => codec.mimeType.toLowerCase() === 'video/vp8',
+    );
+    this.cameraProducer = await sendTransport.produce({
+      track,
+      stopTracks: false,
+      encodings: simulcastEncodings(CAMERA),
+      codecOptions: { videoGoogleStartBitrate: 600 },
+      codec: vp8,
+      appData: { source: 'camera' satisfies ProducerSource },
+    });
+    set({ camera: { status: 'live', stream: cameraStream, error: null } });
+  }
+
   // --- consumers ----------------------------------------------------------------------------
 
   private async consume(peerId: string, producerId: string, source: ProducerSource): Promise<void> {
@@ -822,6 +934,15 @@ export class VoiceSession {
         this.routeOutput(audio);
         audio.play().catch((error: unknown) => console.warn('[voice] playback blocked', error));
         entry.audio = audio;
+      } else if (source === 'camera') {
+        const layer = this.cameraLayers.get(peerId);
+        if (layer !== undefined) {
+          await connection.rpc.request('setConsumerLayers', {
+            consumerId: consumer.id,
+            spatialLayer: layer,
+          });
+        }
+        set({ cameras: { ...get().cameras, [peerId]: new MediaStream([consumer.track]) } });
       } else {
         const layer = this.wantedLayers.get(peerId);
         if (layer !== undefined) {
@@ -855,6 +976,10 @@ export class VoiceSession {
       entry.audio.srcObject = null;
     }
     entry.consumer.close();
+    if (entry.source === 'camera') {
+      const { [entry.peerId]: _gone, ...cameras } = get().cameras;
+      set({ cameras });
+    }
     if (entry.source === 'screen' && get().watching[entry.peerId]) {
       this.setWatching(entry.peerId, { stream: null, spatialLayer: null });
     }

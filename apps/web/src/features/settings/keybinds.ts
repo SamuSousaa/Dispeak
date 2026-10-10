@@ -1,4 +1,11 @@
-export const KEYBIND_ACTIONS = ['mute', 'deafen', 'fullscreen', 'share', 'leave'] as const;
+export const KEYBIND_ACTIONS = [
+  'mute',
+  'deafen',
+  'fullscreen',
+  'share',
+  'camera',
+  'leave',
+] as const;
 export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 
 /** A binding is a string such as `M` or `Ctrl+Shift+M`; `null` means "no shortcut". */
@@ -9,6 +16,7 @@ export const DEFAULT_KEYBINDS: Keybinds = {
   deafen: 'D',
   fullscreen: 'F',
   share: null,
+  camera: null,
   leave: null,
 };
 
@@ -17,6 +25,7 @@ export const KEYBIND_LABELS: Record<KeybindAction, string> = {
   deafen: 'Ensurdecer',
   fullscreen: 'Assistir transmissão em tela cheia',
   share: 'Iniciar / parar minha transmissão',
+  camera: 'Ligar / desligar a câmera',
   leave: 'Desligar a chamada',
 };
 

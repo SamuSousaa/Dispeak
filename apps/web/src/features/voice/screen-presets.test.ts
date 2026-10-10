@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CAMERA } from './camera';
 import {
   layerForViewport,
   SCREEN_PRESET_LIST,
@@ -19,8 +20,9 @@ describe('simulcastEncodings', () => {
 
 describe('SCREEN_PRESETS', () => {
   it('keeps every preset within what the media server accepts from one sender', () => {
-    // TRANSPORT_BITRATE.maxIncoming in apps/media, minus headroom for the audio tracks.
-    const budget = 20_000_000 - 500_000;
+    // TRANSPORT_BITRATE.maxIncoming in apps/media, minus the camera and the audio tracks.
+    const camera = CAMERA.bitrates.reduce((sum, bitrate) => sum + bitrate, 0);
+    const budget = 20_000_000 - camera - 500_000;
     for (const preset of SCREEN_PRESET_LIST) {
       expect(preset.bitrates.reduce((sum, bitrate) => sum + bitrate, 0)).toBeLessThanOrEqual(
         budget,

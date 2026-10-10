@@ -55,7 +55,7 @@ export function createMetrics(rooms: RoomManager, getConnectionCount: () => numb
       transports.set(stats.totals.transports);
       connections.set(getConnectionCount());
 
-      for (const source of ['mic', 'screen', 'screen-audio'] as const) {
+      for (const source of ['mic', 'camera', 'screen', 'screen-audio'] as const) {
         producers.set(
           { source },
           peers.reduce(

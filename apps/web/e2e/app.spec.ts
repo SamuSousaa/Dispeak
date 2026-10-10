@@ -114,6 +114,23 @@ test('account → server → invite → voice channel → stream, with permissio
   await bruno.page.getByRole('button', { name: 'Ativar microfone' }).click();
   await expect(voiceMembers(alice.page).filter({ hasText: 'Bruno' })).not.toContainText('MUDO');
 
+  // --- Alice turns her camera on: Bruno sees it in her tile without asking ------------------
+  const aliceCamera = bruno.page
+    .getByTestId('participant')
+    .filter({ hasText: 'Alice' })
+    .getByTestId('camera-video');
+  await alice.page.getByRole('button', { name: 'Ligar câmera' }).click();
+  await expect
+    .poll(() => aliceCamera.evaluate((element) => (element as HTMLVideoElement).videoWidth))
+    .toBeGreaterThan(0);
+  await expect(
+    alice.page.getByTestId('participant').filter({ hasText: 'Alice' }).getByTestId('camera-video'),
+  ).toBeVisible();
+  await alice.page.getByRole('button', { name: 'Desligar câmera' }).click();
+  await expect(aliceCamera).toHaveCount(0);
+  // A camera is not a stream: nobody is marked as live because of it.
+  await expect(voiceMembers(bruno.page).filter({ hasText: 'Alice' })).not.toContainText('AO VIVO');
+
   // --- Alice streams her screen; Bruno chooses to watch -------------------------------------
   await alice.page.getByRole('button', { name: 'TRANSMITIR', exact: true }).click();
   await alice.page.getByRole('menuitem', { name: /720P30/ }).click();
