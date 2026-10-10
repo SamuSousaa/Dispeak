@@ -53,10 +53,12 @@ export async function createHarness(
 ): Promise<Harness> {
   // Every harness gets its own RTC port block so test files can run in parallel workers. Each
   // Vitest worker owns a range wide enough that a file with many harnesses cannot spill into the
-  // range of another worker.
+  // range of another worker. The blocks sit below 32768 on purpose: from there up Linux hands
+  // ports out to any outgoing connection, and one of them landing on a port a test was about to
+  // listen on made the suite fail at random ("address already in use").
   const poolId = Number(process.env.VITEST_POOL_ID ?? 0);
   const slot = nextSlot++ % HARNESSES_PER_POOL;
-  const portBase = 42000 + (poolId * HARNESSES_PER_POOL + slot) * PORTS_PER_HARNESS;
+  const portBase = 20000 + (poolId * HARNESSES_PER_POOL + slot) * PORTS_PER_HARNESS;
 
   const config = loadConfig({
     NODE_ENV: 'test',
