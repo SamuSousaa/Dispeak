@@ -223,7 +223,13 @@ export class VoiceSession {
         video: {
           width: { ideal: preset.width, max: preset.width },
           height: { ideal: preset.height, max: preset.height },
-          frameRate: { ideal: preset.frameRate, max: preset.frameRate },
+          // Asked for exactly 60, the browser's screen capturer delivers about 57 (measured on
+          // a 180 Hz display); given headroom it holds 60, its own ceiling. The encoder caps
+          // the stream at the preset's rate either way.
+          frameRate: {
+            ideal: preset.frameRate,
+            max: preset.frameRate >= 60 ? preset.frameRate * 1.5 : preset.frameRate,
+          },
         },
         // System/tab audio is only offered by some browsers and capture surfaces.
         ...(withAudio
