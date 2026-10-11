@@ -160,7 +160,7 @@ test('account → server → invite → voice channel → stream, with permissio
 
   // --- Quick settings: RNNoise is really running, and shortcuts can be rebound ---------------
   await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
-  await expect(dialog(bruno.page).getByTestId('noise-active')).toHaveText('EM USO AGORA: GTCRN');
+  await expect(dialog(bruno.page).getByTestId('noise-active')).toHaveText('EM USO AGORA: RNNOISE');
   await dialog(bruno.page).getByRole('tab', { name: 'ATALHOS' }).click();
   await dialog(bruno.page)
     .getByRole('button', { name: /^Atalho de Mutar/ })

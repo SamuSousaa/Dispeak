@@ -1,4 +1,4 @@
-import { useEffect, useRef, type HTMLAttributes } from 'react';
+import { useEffect, useRef, useState, type HTMLAttributes } from 'react';
 import { Avatar, initials } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { MediaVideo } from '../../../components/MediaVideo';
@@ -31,6 +31,10 @@ interface ParticipantTileProps {
   onVideoViewport?: (cssHeight: number) => void;
   /** How this user hears the participant, when not at full volume (`VOL 40%`). */
   volumeNote?: string | null;
+  /** The tile has the main area to itself. */
+  focused?: boolean;
+  /** Gives the camera the main area, or hands it back. Offered only while the camera is on. */
+  onToggleFocus?: () => void;
   /** Handlers that open the participant's menu (right click, long press). */
   menu?: HTMLAttributes<HTMLDivElement>;
 }
@@ -53,10 +57,36 @@ export function ParticipantTile({
   video = null,
   onVideoViewport,
   volumeNote = null,
+  focused = false,
+  onToggleFocus,
   menu,
 }: ParticipantTileProps) {
   const status = serverMuted ? 'MUTADO NO SERVIDOR' : deafened ? 'SURDO' : muted ? 'MUDO' : null;
   const containerRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const canFocus = Boolean(video && onToggleFocus);
+
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === containerRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else if (typeof container.requestFullscreen === 'function') {
+      void container.requestFullscreen().catch(() => undefined);
+    } else {
+      // iPhone browsers only offer fullscreen on the <video> itself, with the native player.
+      const player = container.querySelector('video') as
+        (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+      player?.webkitEnterFullscreen?.();
+    }
+  };
+
   const reportViewport = useRef(onVideoViewport);
   useEffect(() => {
     reportViewport.current = onVideoViewport;
@@ -88,9 +118,10 @@ export function ParticipantTile({
       data-muted={muted}
       data-deafened={deafened}
       data-live={live}
+      data-focused={focused}
       {...menu}
       className={cx(
-        'anim-rise relative flex flex-col border bg-surface transition-colors',
+        'anim-rise group relative flex flex-col border bg-surface transition-colors',
         compact ? 'h-full w-44 shrink-0' : 'h-full w-full',
         menu && 'cursor-pointer',
         speaking ? 'border-accent' : 'border-line',
@@ -104,8 +135,42 @@ export function ParticipantTile({
             muted
             data-testid="camera-video"
             // Your own camera is mirrored, the way a mirror shows you.
-            className={cx('absolute inset-0 h-full w-full object-cover', isSelf && '-scale-x-100')}
+            className={cx(
+              'absolute inset-0 h-full w-full',
+              // Enlarged, the whole picture shows; in a small tile it fills the frame.
+              focused || fullscreen ? 'bg-bg object-contain' : 'object-cover',
+              isSelf && '-scale-x-100',
+            )}
           />
+        )}
+        {canFocus && (
+          <>
+            <button
+              type="button"
+              aria-label={focused ? `Reduzir a câmera de ${name}` : `Ampliar a câmera de ${name}`}
+              title={focused ? 'Dois cliques: tela cheia' : 'Clique para ampliar'}
+              className="absolute inset-0 cursor-pointer"
+              onClick={focused ? undefined : onToggleFocus}
+              onDoubleClick={focused ? toggleFullscreen : undefined}
+            />
+            {(focused || fullscreen) && (
+              <div
+                className={cx(
+                  'absolute right-0 bottom-0 left-0 flex flex-wrap items-center justify-end gap-px border-t border-line bg-bg',
+                  'transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100',
+                )}
+              >
+                <Button className="border-transparent" onClick={toggleFullscreen}>
+                  {fullscreen ? 'SAIR DA TELA CHEIA' : 'TELA CHEIA'}
+                </Button>
+                {!fullscreen && (
+                  <Button className="border-transparent" onClick={onToggleFocus}>
+                    REDUZIR
+                  </Button>
+                )}
+              </div>
+            )}
+          </>
         )}
         {picture && !video && (
           <Avatar
@@ -127,7 +192,8 @@ export function ParticipantTile({
         >
           {initials(name)}
         </span>
-        {live && !isSelf && (
+        {/* Enlarged, the camera is what matters: the watch button stays on the small tiles. */}
+        {live && !isSelf && !focused && (
           <Button
             variant={watching ? 'active' : 'primary'}
             aria-pressed={watching}

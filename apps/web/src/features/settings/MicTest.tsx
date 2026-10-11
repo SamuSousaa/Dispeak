@@ -21,6 +21,8 @@ export function MicTest() {
   const autoGainControl = useSettingsStore((state) => state.autoGainControl);
   const noiseGate = useSettingsStore((state) => state.noiseGate);
   const noiseGateThreshold = useSettingsStore((state) => state.noiseGateThreshold);
+  const voiceLeveler = useSettingsStore((state) => state.voiceLeveler);
+  const micGain = useSettingsStore((state) => state.micGain);
   const [testing, setTesting] = useState(false);
   const [level, setLevel] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -36,6 +38,8 @@ export function MicTest() {
       autoGainControl,
       noiseGate,
       noiseGateThreshold,
+      voiceLeveler,
+      micGain,
     })
       .then((microphone) => {
         const stopMeter = meterTrack(microphone.track, setLevel);
@@ -65,6 +69,8 @@ export function MicTest() {
     autoGainControl,
     noiseGate,
     noiseGateThreshold,
+    voiceLeveler,
+    micGain,
   ]);
 
   const shown = inCall ? (muted ? 0 : callLevel) : level;

@@ -38,6 +38,10 @@ const settingsSchema = z.object({
   noiseGate: z.boolean(),
   /** Level, in dB, the cleaned microphone must reach for the gate to open. */
   noiseGateThreshold: z.number().min(-80).max(-20),
+  /** Evens out the voice and raises it, so nobody has to turn the speakers all the way up. */
+  voiceLeveler: z.boolean(),
+  /** Volume of the user's own microphone, as the others hear it (1 = as captured). */
+  micGain: z.number().min(0.5).max(2),
   inputMode: z.enum(INPUT_MODES),
   /** How loud each person sounds to this user, by user id (0 to 1); absent means full volume. */
   userVolumes: z.record(z.string(), z.number().min(0).max(1)),
@@ -77,11 +81,13 @@ export const defaultSettings: Settings = {
   inputDeviceId: null,
   outputDeviceId: null,
   cameraDeviceId: null,
-  noiseSuppression: 'gtcrn',
+  noiseSuppression: 'rnnoise',
   echoCancellation: true,
   autoGainControl: true,
   noiseGate: true,
   noiseGateThreshold: -50,
+  voiceLeveler: true,
+  micGain: 1,
   inputMode: 'voice',
   userVolumes: {},
   showEmbeds: true,
@@ -112,7 +118,16 @@ export const defaultSettings: Settings = {
 export const useSettingsStore = create<Settings>()(
   persist(() => defaultSettings, {
     name: 'frequencia.settings',
-    version: 1,
+    version: 2,
+    // Version 1 made GTCRN the default for a few days. It dulls the voice (see
+    // `noise-suppression.ts`), so it is now something the user picks, not where they start.
+    migrate: (persisted, version) => {
+      const stored = persisted as { noiseSuppression?: unknown } | null;
+      if (version < 2 && stored?.noiseSuppression === 'gtcrn') {
+        return { ...stored, noiseSuppression: 'rnnoise' };
+      }
+      return persisted;
+    },
     // Stored data may be stale or hand-edited: keep only what still validates. Shortcuts are
     // merged one by one, so an action added later starts with its default.
     merge: (persisted, current) => {

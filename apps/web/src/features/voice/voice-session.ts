@@ -74,6 +74,8 @@ const get = useVoiceStore.getState;
 const RECONNECT_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 8000, 8000];
 const ICE_RESTART_GRACE_MS = 4000;
 const STATS_INTERVAL_MS = 2000;
+/** Opus target for a voice: well above what browsers choose on their own (about 32 kbps). */
+const VOICE_BITRATE = 64_000;
 const SCREEN_AUDIO_BITRATE = 128_000;
 
 /** Close codes after which reconnecting would be wrong. */
@@ -790,7 +792,9 @@ export class VoiceSession {
       settings.echoCancellation !== previous.echoCancellation ||
       settings.autoGainControl !== previous.autoGainControl ||
       settings.noiseGate !== previous.noiseGate ||
-      settings.noiseGateThreshold !== previous.noiseGateThreshold
+      settings.noiseGateThreshold !== previous.noiseGateThreshold ||
+      settings.voiceLeveler !== previous.voiceLeveler ||
+      settings.micGain !== previous.micGain
     ) {
       this.micReload = this.micReload.then(() => this.reloadMicrophone());
     }
@@ -871,7 +875,15 @@ export class VoiceSession {
         track: this.micTrack,
         // The session owns the track: it must survive reconnections.
         stopTracks: false,
-        codecOptions: { opusDtx: true, opusFec: true, opusStereo: false },
+        // Twice the bitrate browsers pick for speech on their own, and no DTX: the voice
+        // keeps its detail and the first syllable after a pause is not clipped.
+        codecOptions: {
+          opusDtx: false,
+          opusFec: true,
+          opusStereo: false,
+          opusMaxAverageBitrate: VOICE_BITRATE,
+          opusMaxPlaybackRate: 48_000,
+        },
         appData: { source: 'mic' satisfies ProducerSource },
       });
       this.micProducer = producer;

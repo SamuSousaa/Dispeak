@@ -23,22 +23,35 @@ const GATE_HOLD_MS = 180;
 /** The gate closes a little below where it opens, so it does not flutter at the edge. */
 const GATE_HYSTERESIS_DB = 6;
 
-/** The neural models that can clean the microphone. */
+/**
+ * The neural models that can clean the microphone. RNNoise works on the full band (48 kHz), so
+ * the voice keeps its brightness. GTCRN removes more, but it is a 16 kHz model: everything
+ * above 8 kHz is lost and the voice sounds duller, like a phone line.
+ */
 export type DenoiseModel = 'rnnoise' | 'gtcrn';
 
-export interface DenoiseOptions {
-  model: DenoiseModel;
+export interface MicrophoneProcessing {
+  /** Neural model to run, or `null` to leave the cleaning to the browser (or to nobody). */
+  model: DenoiseModel | null;
   /**
    * Level (dB) the cleaned signal must reach for anything to be sent, or `null` for no gate.
    * What a model lets through between words (a key press, a click) is quiet: the gate drops it.
    */
   gateThresholdDb: number | null;
+  /** Evens out loud and quiet moments and raises the whole voice. */
+  leveler: boolean;
+  /** Volume chosen by the user for their own microphone (1 = as captured). */
+  gain: number;
 }
 
-export interface DenoisedTrack {
+export interface ProcessedTrack {
   track: MediaStreamTrack;
   close: () => void;
 }
+
+/** Whether the settings ask for anything at all; when not, the capture is sent as it is. */
+export const needsProcessing = ({ model, leveler, gain }: MicrophoneProcessing) =>
+  model !== null || leveler || gain !== 1;
 
 const binaries = new Map<DenoiseModel, Promise<ArrayBuffer>>();
 
@@ -59,21 +72,24 @@ function loadModel(model: DenoiseModel): Promise<ArrayBuffer> {
 }
 
 /**
- * Runs a microphone track through a neural denoiser in an AudioWorklet, optionally followed by
- * a gate, and returns the cleaned track. The source track stays owned by the caller. Throws
- * when the browser cannot run the pipeline (no AudioWorklet, no 48 kHz context, audio
- * blocked); the caller falls back.
+ * Runs a microphone track through the chosen chain — denoiser, gate, leveler, volume — and
+ * returns the resulting track. The source track stays owned by the caller. Throws when the
+ * browser cannot run the chain (no AudioWorklet, no 48 kHz context, audio blocked); the caller
+ * falls back.
  */
-export async function denoiseTrack(
+export async function processMicrophone(
   source: MediaStreamTrack,
-  { model, gateThresholdDb }: DenoiseOptions,
-): Promise<DenoisedTrack> {
+  { model, gateThresholdDb, leveler, gain }: MicrophoneProcessing,
+): Promise<ProcessedTrack> {
   const context = new AudioContext({ sampleRate: SAMPLE_RATE, latencyHint: 'interactive' });
+  const gated = model !== null && gateThresholdDb !== null;
   try {
     const [binary] = await Promise.all([
-      loadModel(model),
-      context.audioWorklet.addModule(model === 'gtcrn' ? gtcrnWorkletUrl : rnnoiseWorkletUrl),
-      gateThresholdDb === null ? null : context.audioWorklet.addModule(noiseGateWorkletUrl),
+      model ? loadModel(model) : null,
+      model
+        ? context.audioWorklet.addModule(model === 'gtcrn' ? gtcrnWorkletUrl : rnnoiseWorkletUrl)
+        : null,
+      gated ? context.audioWorklet.addModule(noiseGateWorkletUrl) : null,
     ]);
     // A context created outside a user gesture can start suspended and never produce audio.
     await Promise.race([
@@ -82,23 +98,55 @@ export async function denoiseTrack(
     ]);
     if (context.state !== 'running') throw new Error(`audio context is ${context.state}`);
 
-    const input = context.createMediaStreamSource(new MediaStream([source]));
+    const nodes: AudioNode[] = [context.createMediaStreamSource(new MediaStream([source]))];
     const denoiser =
-      model === 'gtcrn'
-        ? new GtcrnWorkletNode(context, { maxChannels: 1, wasmBinary: binary })
-        : new RnnoiseWorkletNode(context, { maxChannels: 1, wasmBinary: binary });
-    const gate =
-      gateThresholdDb === null
-        ? null
-        : new NoiseGateWorkletNode(context, {
-            openThreshold: gateThresholdDb,
-            closeThreshold: gateThresholdDb - GATE_HYSTERESIS_DB,
-            holdMs: GATE_HOLD_MS,
-            maxChannels: 1,
-          });
+      model && binary
+        ? model === 'gtcrn'
+          ? new GtcrnWorkletNode(context, { maxChannels: 1, wasmBinary: binary })
+          : new RnnoiseWorkletNode(context, { maxChannels: 1, wasmBinary: binary })
+        : null;
+    if (denoiser) nodes.push(denoiser);
+    if (gated) {
+      nodes.push(
+        new NoiseGateWorkletNode(context, {
+          openThreshold: gateThresholdDb,
+          closeThreshold: gateThresholdDb - GATE_HYSTERESIS_DB,
+          holdMs: GATE_HOLD_MS,
+          maxChannels: 1,
+        }),
+      );
+    }
+    if (leveler) {
+      // Brings the loud moments down and raises the rest: the node makes up for what it takes
+      // away by itself, so no gain is added here. Measured: a voice captured at -25 dBFS (where
+      // browsers leave it, faint next to other apps) goes out at -15, a quiet one at -40 goes
+      // out at -29, and a shout at -3 stays at -7.
+      const compressor = context.createDynamicsCompressor();
+      compressor.threshold.value = -30;
+      compressor.knee.value = 12;
+      compressor.ratio.value = 3;
+      compressor.attack.value = 0.005;
+      compressor.release.value = 0.2;
+      nodes.push(compressor);
+    }
+    const volume = context.createGain();
+    volume.gain.value = gain;
+    nodes.push(volume);
+    // A wall just below full scale: a shout or a boosted microphone never clips.
+    const limiter = context.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.1;
+    nodes.push(limiter);
+
     const output = context.createMediaStreamDestination();
-    if (gate) input.connect(denoiser).connect(gate).connect(output);
-    else input.connect(denoiser).connect(output);
+    nodes.push(output);
+    for (const [index, node] of nodes.entries()) {
+      const next = nodes[index + 1];
+      if (next) node.connect(next);
+    }
     const [track] = output.stream.getAudioTracks();
     if (!track) throw new Error('audio graph produced no track');
 
@@ -114,10 +162,8 @@ export async function denoiseTrack(
       track,
       close: () => {
         context.removeEventListener('statechange', onStateChange);
-        input.disconnect();
-        denoiser.disconnect();
-        denoiser.destroy();
-        gate?.disconnect();
+        for (const node of nodes) node.disconnect();
+        denoiser?.destroy();
         track.stop();
         context.close().catch(() => undefined);
       },

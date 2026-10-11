@@ -27,7 +27,7 @@ const NOISE_OPTIONS: Array<{ value: NoiseSuppressionMode; label: string; hint: s
   {
     value: 'gtcrn',
     label: 'MÁXIMA',
-    hint: 'Rede neural mais nova (GTCRN): corta teclado, cliques e ruído de fundo com mais força.',
+    hint: 'Rede neural GTCRN: corta mais teclado e cliques, mas a voz sai mais abafada, como em um telefone.',
   },
   {
     value: 'rnnoise',
@@ -559,6 +559,31 @@ export function SettingsPanel({
                 )}
               </>
             )}
+
+            <Toggle
+              label="NIVELAR E REFORÇAR A VOZ"
+              hint="Deixa a voz em um volume firme e mais alto para quem ouve, sem estourar quando você fala alto."
+              checked={settings.voiceLeveler}
+              onChange={(voiceLeveler) => updateSettings({ voiceLeveler })}
+            />
+            <label className="flex flex-col gap-1.5">
+              <span className="label text-muted">
+                VOLUME DO SEU MICROFONE — {Math.round(settings.micGain * 100)}%
+              </span>
+              <input
+                type="range"
+                min={0.5}
+                max={2}
+                step={0.05}
+                value={settings.micGain}
+                aria-label="Volume do seu microfone"
+                className="w-full accent-(--accent)"
+                onChange={(event) => updateSettings({ micGain: Number(event.target.value) })}
+              />
+              <span className="text-xs text-muted">
+                É o volume com que os outros ouvem você. Aumente se disserem que você está baixo.
+              </span>
+            </label>
 
             <Toggle
               label="CANCELAMENTO DE ECO"

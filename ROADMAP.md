@@ -164,6 +164,9 @@ passar e de um commit ser feito.
       medidor do microfone e teste nas configurações, volume e mudo por transmissão, dois
       cliques em AO VIVO para assistir, o áudio da própria chamada fora do som da transmissão
       e duas pessoas lado a lado na grade
+- [x] Chamada: voz a 64 kbps sem DTX, nivelador com reforço de volume e volume do microfone,
+      RNNoise (banda cheia) como padrão e GTCRN como opção, câmera ampliável com tela cheia e
+      escolha entre palco e grade com todos quando há transmissão
 
 **Único serviço externo.** A busca de GIF depende da GIPHY e por isso é opcional: sem a chave o
 botão não aparece. Não é mídia nem tempo real, então não fere a regra de infraestrutura própria.
