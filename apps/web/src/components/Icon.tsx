@@ -15,6 +15,7 @@ export type IconName =
   | 'invite'
   | 'plus'
   | 'chevron-down'
+  | 'chevron-up'
   | 'chat'
   | 'pip'
   | 'volume'
@@ -115,6 +116,7 @@ const paths: Record<IconName, ReactNode> = {
   ),
   plus: <path d="M12 5v14M5 12h14" />,
   'chevron-down': <path d="M6 9l6 6 6-6" />,
+  'chevron-up': <path d="M6 15l6-6 6 6" />,
   chat: <path d="M3 4h18v13H10l-5 4v-4H3z" />,
   lock: (
     <>

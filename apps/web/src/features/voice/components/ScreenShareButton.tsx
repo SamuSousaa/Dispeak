@@ -1,13 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../../components/Button';
+import { Icon } from '../../../components/Icon';
+import { cx } from '../../../lib/cx';
 import { desktop } from '../../desktop/desktop';
 import { SCREEN_PRESET_LIST, SCREEN_PRESETS } from '../screen-presets';
 import { startScreenShare, stopScreenShare } from '../voice-actions';
 import { useVoiceStore } from '../voice-store';
 
-/** Starts a screen share after picking a quality preset, or stops the running one. */
-export function ScreenShareButton({ allowed = true }: { allowed?: boolean }) {
+const TILE =
+  'pressable flex h-8 w-full items-center justify-center gap-2 border disabled:opacity-40 disabled:hover:border-line-strong';
+
+/**
+ * Starts a screen share after picking a quality preset, or stops the running one. As a `tile`
+ * it is an icon that fills its cell, for the call panel; the warnings of a live share are then
+ * shown by the panel itself.
+ */
+export function ScreenShareButton({
+  allowed = true,
+  tile = false,
+}: {
+  allowed?: boolean;
+  tile?: boolean;
+}) {
   const screen = useVoiceStore((state) => state.screen);
   const connected = useVoiceStore((state) => state.status === 'connected');
   const [open, setOpen] = useState(false);
@@ -29,6 +44,31 @@ export function ScreenShareButton({ allowed = true }: { allowed?: boolean }) {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
+
+  const disabled = !supported || !allowed || !connected || screen.status === 'starting';
+  const reason = !supported
+    ? 'Este navegador não permite capturar a tela'
+    : !allowed
+      ? 'Você não tem permissão para transmitir neste canal'
+      : undefined;
+
+  if (screen.status === 'live' && tile) {
+    return (
+      <button
+        type="button"
+        aria-label="PARAR TRANSMISSÃO"
+        title="Parar transmissão"
+        aria-pressed
+        className={cx(TILE, 'border-accent text-accent')}
+        onClick={stopScreenShare}
+      >
+        <Icon name="screen" />
+        <span className="label" data-testid="screen-preset">
+          {screen.preset ? SCREEN_PRESETS[screen.preset].label : ''}
+        </span>
+      </button>
+    );
+  }
 
   if (screen.status === 'live') {
     return (
@@ -54,28 +94,49 @@ export function ScreenShareButton({ allowed = true }: { allowed?: boolean }) {
   }
 
   return (
-    <div ref={containerRef} className="relative flex flex-wrap items-center gap-2">
-      <Button
-        variant="primary"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={!supported || !allowed || !connected || screen.status === 'starting'}
-        title={
-          !supported
-            ? 'Este navegador não permite capturar a tela'
-            : !allowed
-              ? 'Você não tem permissão para transmitir neste canal'
-              : undefined
-        }
-        onClick={() => setOpen((value) => !value)}
-      >
-        TRANSMITIR
-      </Button>
+    <div
+      ref={containerRef}
+      className={cx('relative', !tile && 'flex flex-wrap items-center gap-2')}
+    >
+      {tile ? (
+        <button
+          type="button"
+          aria-label="TRANSMITIR"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          disabled={disabled}
+          title={reason ?? 'Transmitir a tela'}
+          className={cx(
+            TILE,
+            open
+              ? 'border-accent text-accent'
+              : 'border-line-strong text-fg hover:border-accent hover:text-accent',
+          )}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Icon name="screen" />
+        </button>
+      ) : (
+        <Button
+          variant="primary"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          disabled={disabled}
+          title={reason}
+          onClick={() => setOpen((value) => !value)}
+        >
+          TRANSMITIR
+        </Button>
+      )}
       {open && (
         <ul
           role="menu"
           aria-label="Qualidade da transmissão"
-          className="anim-pop absolute bottom-full left-0 z-10 mb-2 w-72 border border-line-strong bg-surface-2"
+          className={cx(
+            'anim-pop absolute bottom-full z-10 mb-2 border border-line-strong bg-surface-2',
+            // As a tile it is the right one of two equal cells: the menu spans both.
+            tile ? 'right-0 w-[calc(200%+0.375rem)]' : 'left-0 w-72',
+          )}
         >
           {SCREEN_PRESET_LIST.map((preset) => (
             <li key={preset.id} role="none" className="border-b border-line last:border-b-0">
@@ -108,7 +169,7 @@ export function ScreenShareButton({ allowed = true }: { allowed?: boolean }) {
           )}
         </ul>
       )}
-      {screen.error && (
+      {screen.error && !tile && (
         <span role="alert" className="label text-danger">
           {screen.error}
         </span>

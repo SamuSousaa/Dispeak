@@ -85,12 +85,26 @@ test('watching from the sidebar, layouts, an enlarged camera and a microphone me
   await expectTilesApart(bruno.page, 2);
 
   // --- the meter moves with what is being sent, and goes flat when muted ----------------------
-  const meter = alice.page.locator('[data-testid="mic-level"]:visible');
+  // It lives in the quick settings behind the arrow next to the microphone button, with the
+  // device and the volume.
+  await alice.page.getByRole('button', { name: 'Opções de entrada' }).click();
+  const quick = alice.page.getByTestId('quick-audio-input');
+  await expect(quick.getByLabel('VOLUME DE ENTRADA')).toHaveValue('1');
+  const meter = quick.getByTestId('mic-level');
   await expect(meter).toBeVisible();
   expect(await peakLevel(meter)).toBeGreaterThan(0);
   await alice.page.getByRole('button', { name: 'Mutar microfone' }).first().click();
   await expect(meter).toHaveAttribute('aria-valuenow', '0');
   await alice.page.getByRole('button', { name: 'Ativar microfone' }).first().click();
+  await alice.page.keyboard.press('Escape');
+  await expect(quick).toHaveCount(0);
+
+  // The arrow next to the headphones: the volume of everything heard in the call.
+  await alice.page.getByRole('button', { name: 'Opções de saída' }).click();
+  await expect(
+    alice.page.getByTestId('quick-audio-output').getByLabel('VOLUME DE SAÍDA'),
+  ).toHaveValue('1');
+  await alice.page.keyboard.press('Escape');
 
   // --- Bruno goes live; Alice, reading a chat, double-clicks AO VIVO next to his name ---------
   await bruno.page.getByRole('button', { name: 'TRANSMITIR', exact: true }).click();

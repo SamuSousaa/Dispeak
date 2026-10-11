@@ -229,7 +229,7 @@ export function AppPage() {
           )}
         >
           <ServerRail onAdd={() => setDialog({ kind: 'add-guild' })} />
-          <div className="flex min-w-0 flex-1 flex-col border-r border-line md:w-60 md:flex-none">
+          <div className="flex min-w-0 flex-1 flex-col border-r border-line md:w-64 md:flex-none">
             {atHome ? (
               <DmPanel userId={user.id} onNavigate={() => setDrawer(null)} />
             ) : guild ? (

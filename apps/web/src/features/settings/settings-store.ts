@@ -32,6 +32,8 @@ const settingsSchema = z.object({
   voiceLeveler: z.boolean(),
   /** Volume of the user's own microphone, as the others hear it (1 = as captured). */
   micGain: z.number().min(0.5).max(2),
+  /** Volume of everything heard in a call: voices and stream audio (1 = as sent). */
+  outputVolume: z.number().min(0).max(1),
   inputMode: z.enum(INPUT_MODES),
   /** How loud each person sounds to this user, by user id (0 to 1); absent means full volume. */
   userVolumes: z.record(z.string(), z.number().min(0).max(1)),
@@ -76,6 +78,7 @@ export const defaultSettings: Settings = {
   autoGainControl: true,
   voiceLeveler: true,
   micGain: 1,
+  outputVolume: 1,
   inputMode: 'voice',
   userVolumes: {},
   showEmbeds: true,

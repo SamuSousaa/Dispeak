@@ -13,6 +13,7 @@ import {
 import { desktop, useRefusedShortcuts } from '../desktop/desktop';
 import type { NoiseEngine } from '../voice/microphone';
 import { useVoiceStore } from '../voice/voice-store';
+import { DeviceSelect, supportsOutputSelection, useAudioDevices } from './audio-devices';
 import { bindingFromEvent, KEYBIND_ACTIONS, KEYBIND_LABELS, type KeybindAction } from './keybinds';
 import {
   resetKeybinds,
@@ -51,51 +52,6 @@ const NOISE_NAMES: Record<NoiseEngine, string> = {
 const touchOnly =
   typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
-const supportsOutputSelection =
-  typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
-
-interface AudioDevices {
-  inputs: MediaDeviceInfo[];
-  outputs: MediaDeviceInfo[];
-  cameras: MediaDeviceInfo[];
-}
-
-/** Audio devices the browser exposes. Names stay empty until microphone access is granted. */
-function useAudioDevices(refreshKey: unknown): AudioDevices {
-  const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [], cameras: [] });
-
-  useEffect(() => {
-    const media = navigator.mediaDevices;
-    if (typeof media?.enumerateDevices !== 'function') return;
-    let cancelled = false;
-    const refresh = () => {
-      media
-        .enumerateDevices()
-        .then((all) => {
-          if (cancelled) return;
-          // Chrome lists aliases of the system default; "Padrão do sistema" already covers them.
-          const real = all.filter(
-            (device) => device.deviceId !== 'default' && device.deviceId !== 'communications',
-          );
-          setDevices({
-            inputs: real.filter((device) => device.kind === 'audioinput'),
-            outputs: real.filter((device) => device.kind === 'audiooutput'),
-            cameras: real.filter((device) => device.kind === 'videoinput'),
-          });
-        })
-        .catch(() => undefined);
-    };
-    refresh();
-    media.addEventListener('devicechange', refresh);
-    return () => {
-      cancelled = true;
-      media.removeEventListener('devicechange', refresh);
-    };
-  }, [refreshKey]);
-
-  return devices;
-}
-
 function Section({
   number,
   title,
@@ -112,41 +68,6 @@ function Section({
       </h3>
       <div className="flex flex-col gap-4 p-4">{children}</div>
     </section>
-  );
-}
-
-function DeviceSelect({
-  label,
-  hint,
-  value,
-  devices,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  value: string | null;
-  devices: MediaDeviceInfo[];
-  onChange: (deviceId: string | null) => void;
-}) {
-  const named = devices.filter((device) => device.deviceId && device.label);
-  // A saved device that is unplugged right now still shows up, so the choice is not lost.
-  const missing = value !== null && !named.some((device) => device.deviceId === value);
-  return (
-    <Field label={label} hint={hint}>
-      <select
-        className="field"
-        value={value ?? ''}
-        onChange={(event) => onChange(event.target.value || null)}
-      >
-        <option value="">Padrão do sistema</option>
-        {named.map((device) => (
-          <option key={device.deviceId} value={device.deviceId}>
-            {device.label}
-          </option>
-        ))}
-        {missing && <option value={value}>Dispositivo salvo (desconectado)</option>}
-      </select>
-    </Field>
   );
 }
 
@@ -494,7 +415,7 @@ export function SettingsPanel({
 
             <Toggle
               label="SUPRESSÃO DE RUÍDO"
-              hint="Uma rede neural isola a sua voz e corta teclado, cliques, ventilador e vento. Também liga e desliga pelo botão ao lado da câmera, durante a chamada."
+              hint="Uma rede neural isola a sua voz e corta teclado, cliques, ventilador e vento. Também liga e desliga pelo botão ao lado de desligar, durante a chamada."
               checked={settings.noiseSuppression}
               onChange={(noiseSuppression) => updateSettings({ noiseSuppression })}
             />

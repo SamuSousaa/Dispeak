@@ -1,4 +1,5 @@
 import { hasPermission, Permissions, type PresenceMode, type Self } from '@frequencia/shared';
+import { useCallback, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { openContextMenu } from '../../components/ContextMenu';
@@ -6,22 +7,26 @@ import { attempt } from '../../components/Toast';
 import { profileApi } from '../auth/profile-api';
 import { StatusMark } from '../profile/ProfileCard';
 import type { SettingsTab } from '../settings/SettingsPanel';
+import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
+import { cx } from '../../lib/cx';
+import { useDismiss } from '../../lib/use-dismiss';
 import { conversationOf } from '../friends/dm';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { channelPermissions } from '../guilds/permissions';
 import { updateSettings, useKeybind, useSettingsStore } from '../settings/settings-store';
-import { MicMeter } from '../voice/components/MicMeter';
 import { ScreenShareButton } from '../voice/components/ScreenShareButton';
 import { leaveVoice, toggleCamera, toggleDeafen, toggleMute } from '../voice/voice-actions';
 import { useVoiceStore } from '../voice/voice-store';
+import { QuickAudio, type QuickAudioKind } from './QuickAudio';
 
 const withKey = (text: string, binding: string | null) => (binding ? `${text} (${binding})` : text);
 
 /**
  * Bottom of the channel column, the control panel of the app: the active voice connection
- * (status, channel, screen share, hang up) and, below it, the user with the microphone,
- * headphones and settings buttons. It stays put while the user browses other channels.
+ * (status, channel, noise suppression, hang up, then camera and screen share side by side) and,
+ * below it, the user with the microphone, headphones and settings buttons; the arrows next to
+ * the first two open their quick settings. It stays put while the user browses other channels.
  */
 const MODES: Array<{ mode: PresenceMode; label: string }> = [
   { mode: 'online', label: 'Disponível' },
@@ -29,6 +34,36 @@ const MODES: Array<{ mode: PresenceMode; label: string }> = [
   { mode: 'dnd', label: 'Não perturbe' },
   { mode: 'invisible', label: 'Invisível' },
 ];
+
+/** The narrow half of a split button: opens the quick settings of the toggle beside it. */
+function QuickAudioArrow({
+  label,
+  open,
+  onClick,
+}: {
+  label: string;
+  open: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      className={cx(
+        'pressable -ml-px inline-flex h-8 w-4 items-center justify-center border',
+        open
+          ? 'z-10 border-accent text-accent'
+          : 'border-line-strong text-muted hover:z-10 hover:border-accent hover:text-accent',
+      )}
+      onClick={onClick}
+    >
+      <Icon name={open ? 'chevron-down' : 'chevron-up'} size={12} />
+    </button>
+  );
+}
 
 export function UserPanel({
   user,
@@ -44,6 +79,14 @@ export function UserPanel({
   const deafened = useVoiceStore((state) => state.deafened);
   const micAvailable = useVoiceStore((state) => state.micAvailable);
   const camera = useVoiceStore((state) => state.camera);
+  const screen = useVoiceStore((state) => state.screen);
+  const [quick, setQuick] = useState<QuickAudioKind | null>(null);
+  const userRow = useRef<HTMLDivElement>(null);
+  useDismiss(
+    userRow,
+    quick !== null,
+    useCallback(() => setQuick(null), []),
+  );
   const rttMs = useVoiceStore((state) => state.stats.rttMs);
   const muteKey = useKeybind('mute');
   const deafenKey = useKeybind('deafen');
@@ -78,17 +121,21 @@ export function UserPanel({
         <div className="anim-pop border-b border-line" data-testid="voice-panel">
           <div className="flex items-center gap-2 px-3 pt-2">
             <div className="min-w-0 flex-1">
-              <p className="label flex items-baseline gap-2">
-                <span className={status === 'connected' ? 'text-accent' : 'text-danger'}>
-                  {status === 'connected'
-                    ? 'VOZ CONECTADA'
-                    : status === 'reconnecting'
-                      ? 'RECONECTANDO'
-                      : 'CONECTANDO VOZ'}
-                </span>
-                {status === 'connected' && rttMs !== null && (
-                  <span className="text-muted">{rttMs} MS</span>
+              <p
+                className={cx(
+                  'label truncate',
+                  status === 'connected' ? 'text-accent' : 'text-danger',
                 )}
+                // The delay is in the system bar too; here it would not fit beside the buttons.
+                title={
+                  status === 'connected' && rttMs !== null ? `Atraso de ${rttMs} ms` : undefined
+                }
+              >
+                {status === 'connected'
+                  ? 'VOZ CONECTADA'
+                  : status === 'reconnecting'
+                    ? 'RECONECTANDO'
+                    : 'CONECTANDO VOZ'}
               </p>
               {guild && channel ? (
                 <NavLink
@@ -104,6 +151,18 @@ export function UserPanel({
                 <p className="label truncate text-muted">{channelName}</p>
               )}
             </div>
+            {live && (
+              <IconButton
+                icon={noiseSuppression ? 'noise' : 'noise-off'}
+                tone={noiseSuppression ? 'active' : 'default'}
+                label={
+                  noiseSuppression ? 'Desligar supressão de ruído' : 'Ligar supressão de ruído'
+                }
+                aria-pressed={noiseSuppression}
+                data-testid="noise-toggle"
+                onClick={() => updateSettings({ noiseSuppression: !noiseSuppression })}
+              />
+            )}
             <IconButton
               icon="hang-up"
               tone="danger"
@@ -114,7 +173,8 @@ export function UserPanel({
           </div>
           <div className="px-3 py-2">
             {live && (
-              <div className="flex items-start gap-1.5">
+              // Two cells of the same width, whatever is live.
+              <div className="grid grid-cols-2 gap-1.5">
                 <IconButton
                   icon={camera.status === 'live' ? 'camera' : 'camera-off'}
                   tone={camera.status === 'live' ? 'active' : 'default'}
@@ -129,25 +189,25 @@ export function UserPanel({
                   }
                   aria-pressed={camera.status === 'live'}
                   disabled={!canStream || status !== 'connected' || camera.status === 'starting'}
+                  className="w-full"
                   onClick={toggleCamera}
                 />
-                <ScreenShareButton allowed={canStream} />
-                <IconButton
-                  icon={noiseSuppression ? 'noise' : 'noise-off'}
-                  tone={noiseSuppression ? 'active' : 'default'}
-                  label={
-                    noiseSuppression ? 'Desligar supressão de ruído' : 'Ligar supressão de ruído'
-                  }
-                  aria-pressed={noiseSuppression}
-                  data-testid="noise-toggle"
-                  className="ml-auto"
-                  onClick={() => updateSettings({ noiseSuppression: !noiseSuppression })}
-                />
+                <ScreenShareButton allowed={canStream} tile />
               </div>
             )}
-            {camera.error && (
+            {screen.status === 'live' && !screen.hasAudio && (
+              <p role="status" className="label mt-1.5 text-danger" data-testid="screen-no-audio">
+                TRANSMISSÃO SEM ÁUDIO DO SISTEMA
+              </p>
+            )}
+            {screen.status === 'live' && screen.echoRisk && (
+              <p role="status" className="label mt-1.5 text-danger" data-testid="screen-echo-risk">
+                QUEM ASSISTE PODE OUVIR A PRÓPRIA VOZ — TRANSMITA UMA ABA EM VEZ DA TELA INTEIRA
+              </p>
+            )}
+            {(camera.error ?? screen.error) && (
               <p role="alert" className="label mt-1.5 text-danger">
-                {camera.error}
+                {camera.error ?? screen.error}
               </p>
             )}
             {live && pushToTalk && micAvailable && !muted && (
@@ -163,7 +223,6 @@ export function UserPanel({
                     : 'APERTAR PARA FALAR SEM TECLA — DEFINA EM CONFIGURAÇÕES'}
               </p>
             )}
-            {live && <MicMeter className="mt-2" />}
             {!micAvailable && (
               <p role="status" className="label mt-1.5 text-danger" data-testid="mic-status">
                 {serverMuted ? 'MUTADO NO SERVIDOR — ' : 'SEM MICROFONE — '}SOMENTE ESCUTA
@@ -172,7 +231,7 @@ export function UserPanel({
           </div>
         </div>
       )}
-      <div className="flex items-center gap-1.5 px-3 py-2">
+      <div ref={userRow} className="relative flex items-center gap-1 px-3 py-2">
         <button
           type="button"
           data-testid="self-status"
@@ -206,33 +265,57 @@ export function UserPanel({
             </span>
           </span>
         </button>
-        <IconButton
-          icon={muted ? 'mic-off' : 'mic'}
-          tone={muted ? 'danger' : 'default'}
-          label={muted ? 'Ativar microfone' : 'Mutar microfone'}
-          title={
-            inVoice
-              ? withKey(muted ? 'Ativar microfone' : 'Mutar microfone', muteKey)
-              : 'Entre em um canal de voz para usar o microfone'
-          }
-          aria-pressed={muted}
-          disabled={!inVoice}
-          onClick={toggleMute}
-        />
-        <IconButton
-          icon={deafened ? 'headphones-off' : 'headphones'}
-          tone={deafened ? 'danger' : 'default'}
-          label={deafened ? 'Ativar áudio' : 'Ensurdecer'}
-          title={
-            inVoice
-              ? withKey(deafened ? 'Ativar áudio' : 'Ensurdecer', deafenKey)
-              : 'Entre em um canal de voz para usar o áudio'
-          }
-          aria-pressed={deafened}
-          disabled={!inVoice}
-          onClick={toggleDeafen}
-        />
+        {/* Each toggle shares a border with the arrow that opens its quick settings. */}
+        <span className="flex shrink-0">
+          <IconButton
+            icon={muted ? 'mic-off' : 'mic'}
+            tone={muted ? 'danger' : 'default'}
+            label={muted ? 'Ativar microfone' : 'Mutar microfone'}
+            title={
+              inVoice
+                ? withKey(muted ? 'Ativar microfone' : 'Mutar microfone', muteKey)
+                : 'Entre em um canal de voz para usar o microfone'
+            }
+            aria-pressed={muted}
+            disabled={!inVoice}
+            onClick={toggleMute}
+          />
+          <QuickAudioArrow
+            label="Opções de entrada"
+            open={quick === 'input'}
+            onClick={() => setQuick(quick === 'input' ? null : 'input')}
+          />
+        </span>
+        <span className="flex shrink-0">
+          <IconButton
+            icon={deafened ? 'headphones-off' : 'headphones'}
+            tone={deafened ? 'danger' : 'default'}
+            label={deafened ? 'Ativar áudio' : 'Ensurdecer'}
+            title={
+              inVoice
+                ? withKey(deafened ? 'Ativar áudio' : 'Ensurdecer', deafenKey)
+                : 'Entre em um canal de voz para usar o áudio'
+            }
+            aria-pressed={deafened}
+            disabled={!inVoice}
+            onClick={toggleDeafen}
+          />
+          <QuickAudioArrow
+            label="Opções de saída"
+            open={quick === 'output'}
+            onClick={() => setQuick(quick === 'output' ? null : 'output')}
+          />
+        </span>
         <IconButton icon="settings" label="Configurações" onClick={() => onOpenSettings()} />
+        {quick && (
+          <QuickAudio
+            kind={quick}
+            onOpenSettings={() => {
+              setQuick(null);
+              onOpenSettings('voice');
+            }}
+          />
+        )}
       </div>
     </div>
   );

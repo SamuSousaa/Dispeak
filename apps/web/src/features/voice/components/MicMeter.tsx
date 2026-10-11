@@ -5,8 +5,18 @@ import { useVoiceStore } from '../voice-store';
 const SEGMENTS = 8;
 
 /** A row of segments that light up with the level (0 to 1). */
-export function LevelBar({ level, className }: { level: number; className?: string }) {
-  const lit = Math.round(Math.min(1, Math.max(0, level)) * SEGMENTS);
+export function LevelBar({
+  level,
+  className,
+  segments = SEGMENTS,
+}: {
+  level: number;
+  className?: string;
+  /** More segments for a bar that fills its row instead of sitting next to a label. */
+  segments?: number;
+}) {
+  const lit = Math.round(Math.min(1, Math.max(0, level)) * segments);
+  const fills = segments !== SEGMENTS;
   return (
     <span
       role="meter"
@@ -17,10 +27,14 @@ export function LevelBar({ level, className }: { level: number; className?: stri
       data-testid="mic-level"
       className={cx('flex h-2.5 shrink-0 gap-px', className)}
     >
-      {Array.from({ length: SEGMENTS }, (_, index) => (
+      {Array.from({ length: segments }, (_, index) => (
         <span
           key={index}
-          className={cx('h-full w-1.5', index < lit ? 'bg-accent' : 'bg-line-strong')}
+          className={cx(
+            'h-full',
+            fills ? 'flex-1' : 'w-1.5',
+            index < lit ? 'bg-accent' : 'bg-line-strong',
+          )}
         />
       ))}
     </span>

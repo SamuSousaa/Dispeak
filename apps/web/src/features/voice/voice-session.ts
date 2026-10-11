@@ -802,7 +802,10 @@ export class VoiceSession {
     if (settings.cameraDeviceId !== previous.cameraDeviceId && this.cameraStream) {
       void this.stopCamera().then(() => this.startCamera());
     }
-    if (settings.userVolumes !== previous.userVolumes) {
+    if (
+      settings.userVolumes !== previous.userVolumes ||
+      settings.outputVolume !== previous.outputVolume
+    ) {
       for (const entry of this.consumers.values()) this.applyVolume(entry);
     }
     if (settings.inputMode !== previous.inputMode) this.gateMicrophone();
@@ -870,12 +873,15 @@ export class VoiceSession {
   private applyVolume({ audio, peerId, source }: ActiveConsumer): void {
     if (!audio) return;
     const userId = get().peers[peerId]?.userId;
-    const volume =
+    const settings = useSettingsStore.getState();
+    const own =
       source === 'screen-audio'
         ? (get().streamVolumes[peerId] ?? 1)
         : source === 'mic' && userId
-          ? (useSettingsStore.getState().userVolumes[userId] ?? 1)
+          ? (settings.userVolumes[userId] ?? 1)
           : 1;
+    // The person's or stream's own volume, under the master one of the quick audio menu.
+    const volume = own * settings.outputVolume;
     // iPhones ignore `volume`; silencing someone still works there through `muted`.
     audio.volume = volume;
     audio.muted = get().deafened || volume === 0;
