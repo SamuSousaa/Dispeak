@@ -1,6 +1,5 @@
-import os from 'node:os';
 import { app } from 'electron';
-import { raiseGpuPriority } from './gpu-priority';
+import { keepTimersFine } from './windows-scheduling';
 
 /** How often the process list is checked for children that started since the last pass. */
 const INTERVAL_MS = 5000;
@@ -21,29 +20,23 @@ export function applyBackgroundSwitches(): void {
 }
 
 /**
- * Raises the CPU and GPU scheduling priority of the app's processes. A game that takes every core
- * otherwise leaves the capture and the encoder a fraction of the frames they need — the
- * one thing a browser tab cannot do anything about.
+ * Keeps Windows from slowing the app's processes down while a game covers the window — the one
+ * thing a browser tab cannot do anything about. Raising the CPU priority and the GPU scheduling
+ * class was tried first and changed nothing in the measurements, so neither is done.
  */
 export function keepProcessesResponsive(): void {
-  const raised = new Set<number>();
-  const raise = () => {
-    for (const { pid, type } of app.getAppMetrics()) {
-      if (raised.has(pid)) continue;
-      // The GPU process is the one that copies every captured frame off the graphics card.
-      if (type === 'GPU') {
-        void raiseGpuPriority(pid).then((result) => {
-          console.warn(`[desktop] gpu scheduling priority of ${pid}: ${result}`);
-        });
-      }
-      try {
-        os.setPriority(pid, os.constants.priority.PRIORITY_HIGH);
-        raised.add(pid);
-      } catch {
-        // The process ended in the meantime, or the system refuses: the default priority stays.
-      }
-    }
+  const handled = new Set<number>();
+  const pass = () => {
+    const fresh = app
+      .getAppMetrics()
+      .map((metric) => metric.pid)
+      .filter((pid) => !handled.has(pid));
+    if (fresh.length === 0) return;
+    for (const pid of fresh) handled.add(pid);
+    void keepTimersFine(fresh).then((result) => {
+      console.warn(`[desktop] timer throttling off: ${result}`);
+    });
   };
-  raise();
-  setInterval(raise, INTERVAL_MS).unref();
+  pass();
+  setInterval(pass, INTERVAL_MS).unref();
 }
