@@ -10,18 +10,20 @@ interface Picture {
 const named = (codec: types.RtpCodecCapability, mimeType: string) =>
   codec.mimeType.toLowerCase() === mimeType;
 
-/** Whether this machine encodes H.264 High at that size on its graphics hardware. */
-async function encodesH264InHardware({
-  width,
-  height,
-  frameRate,
-  bitrate,
-}: Picture): Promise<boolean> {
+const profileOf = (codec: types.RtpCodecCapability) =>
+  String(codec.parameters?.['profile-level-id'] ?? '').toLowerCase();
+
+/** Whether this machine encodes that H.264 profile at that size on its graphics hardware. */
+async function encodesInHardware(
+  profile: string,
+  { width, height, frameRate, bitrate }: Picture,
+): Promise<boolean> {
   try {
     const info = await navigator.mediaCapabilities.encodingInfo({
       type: 'webrtc',
       video: {
-        contentType: 'video/H264;profile-level-id=640034;packetization-mode=1',
+        // Level 5.2, whatever the router advertises: the question is about the profile.
+        contentType: `video/H264;profile-level-id=${profile.slice(0, 4)}34;packetization-mode=1`,
         width,
         height,
         framerate: frameRate,
@@ -37,19 +39,19 @@ async function encodesH264InHardware({
 
 /**
  * The codec a screen share goes out in. H.264 when the graphics card encodes it: a large, fast
- * picture then costs the CPU next to nothing, and the browser has no reason to shrink it. In
- * software H.264 is the worse choice, so everything else stays on VP8.
+ * picture then costs the CPU next to nothing, and the browser has no reason to shrink it. Which
+ * profile the hardware takes depends on the vendor, so each one the router offers is tried, High
+ * first. In software H.264 is the worse choice, so everything else stays on VP8.
  */
 export async function pickScreenCodec(
   codecs: types.RtpCodecCapability[] | undefined,
   picture: Picture,
 ): Promise<types.RtpCodecCapability | undefined> {
-  const vp8 = codecs?.find((codec) => named(codec, 'video/vp8'));
-  const h264 = codecs?.find(
-    (codec) =>
-      named(codec, 'video/h264') &&
-      String(codec.parameters?.['profile-level-id'] ?? '').startsWith('64'),
-  );
-  if (h264 && (await encodesH264InHardware(picture))) return h264;
-  return vp8;
+  const h264 = (codecs ?? [])
+    .filter((codec) => named(codec, 'video/h264') && profileOf(codec).length === 6)
+    .sort((a, b) => profileOf(b).localeCompare(profileOf(a)));
+  for (const codec of h264) {
+    if (await encodesInHardware(profileOf(codec), picture)) return codec;
+  }
+  return codecs?.find((codec) => named(codec, 'video/vp8'));
 }

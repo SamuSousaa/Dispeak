@@ -179,6 +179,9 @@ export function collectOutboundStreamStats(
   const limitation = outbound
     .map((entry) => entry.qualityLimitationReason)
     .find((reason) => typeof reason === 'string' && reason !== 'none');
+  const source = entries(report).find(
+    (entry) => entry.type === 'media-source' && entry.kind === 'video',
+  );
 
   return {
     sample,
@@ -191,6 +194,8 @@ export function collectOutboundStreamStats(
       codec: codecOf(report, outbound[0]),
       layers,
       limitation: typeof limitation === 'string' ? limitation : null,
+      captureFps:
+        typeof source?.framesPerSecond === 'number' ? Math.round(source.framesPerSecond) : null,
     },
   };
 }

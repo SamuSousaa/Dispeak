@@ -31,6 +31,19 @@ export const mediaCodecs: types.RouterRtpCodecCapability[] = [
       'x-google-start-bitrate': 1000,
     },
   },
+  // Constrained Baseline, for the graphics cards whose encoder the browser exposes in that
+  // profile only.
+  {
+    kind: 'video',
+    mimeType: 'video/H264',
+    clockRate: 90000,
+    parameters: {
+      'packetization-mode': 1,
+      'profile-level-id': '42e032',
+      'level-asymmetry-allowed': 1,
+      'x-google-start-bitrate': 1000,
+    },
+  },
 ];
 
 export const AUDIO_LEVEL_OBSERVER = {

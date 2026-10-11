@@ -53,6 +53,12 @@ function StatsPanel({ id, stats }: { id: string; stats: StreamStats | undefined 
     ['CODEC', dash(stats?.codec?.toUpperCase())],
   ];
   if (isSelf) {
+    rows.splice(
+      1,
+      1,
+      ['FPS CAPTURADO', dash(stats?.captureFps)],
+      ['FPS ENVIADO', dash(stats?.fps)],
+    );
     rows.push(['LIMITAÇÃO', dash(stats?.limitation?.toUpperCase() ?? 'NENHUMA')]);
     for (const item of stats?.layers ?? []) {
       rows.push([

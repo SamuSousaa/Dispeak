@@ -60,6 +60,8 @@ export interface StreamStats {
   layers?: StreamLayerStats[];
   /** Outgoing streams only: why the encoder is holding back (`cpu`, `bandwidth`), if it is. */
   limitation?: string | null;
+  /** Outgoing streams only: frames the browser captures, before the encoder drops any. */
+  captureFps?: number | null;
 }
 
 /** Key used in `streamStats` for the local user's own screen share. */
