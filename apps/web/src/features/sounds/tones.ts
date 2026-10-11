@@ -57,9 +57,31 @@ function synthesize(notes: Note[]): Int16Array<ArrayBuffer> {
   return samples;
 }
 
+/** A friend calling: two rising pairs and a pause, meant to be played in a loop. */
+const RING: Note[] = [
+  { frequency: 659.25, duration: 0.14 },
+  { frequency: 880, duration: 0.22 },
+  { frequency: 659.25, duration: 0.14 },
+  { frequency: 880, duration: 0.3 },
+];
+const RING_PAUSE_SECONDS = 1.4;
+
 /** A WAV file holding the built-in sound of an event. */
 export function toneWav(event: SoundEvent): Blob {
-  const samples = synthesize(TONES[event]);
+  return wav(synthesize(TONES[event]));
+}
+
+/** A WAV file with one cycle of the ring of an incoming call, silence included. */
+export function ringWav(): Blob {
+  const notes = synthesize(RING);
+  const samples = new Int16Array(
+    new ArrayBuffer((notes.length + Math.round(RING_PAUSE_SECONDS * SAMPLE_RATE)) * 2),
+  );
+  samples.set(notes);
+  return wav(samples);
+}
+
+function wav(samples: Int16Array<ArrayBuffer>): Blob {
   const header = new DataView(new ArrayBuffer(44));
   const text = (position: number, value: string) => {
     for (let index = 0; index < value.length; index++) {

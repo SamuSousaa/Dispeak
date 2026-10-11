@@ -71,8 +71,18 @@ test('friends: a request, a private conversation, a call and the end of it', asy
   await alice.page.getByRole('button', { name: 'LIGAR', exact: true }).click();
   await expect(alice.page.getByTestId('voice-status')).toHaveText('CONECTADO');
   await expect(conversations(bruno.page)).toContainText('EM CHAMADA');
-  await bruno.page.getByRole('button', { name: /CHAMADA · AO VIVO/ }).click();
-  await bruno.page.getByRole('button', { name: 'ENTRAR NA CHAMADA' }).click();
+  // The call rings for Bruno wherever he is. Refused, it stays quiet until the next one.
+  const ring = bruno.page.getByTestId('incoming-call');
+  await expect(ring).toContainText('Alice');
+  await ring.getByRole('button', { name: 'RECUSAR' }).click();
+  await expect(ring).toHaveCount(0);
+  await alice.page.getByRole('button', { name: 'Desligar voz' }).first().click();
+  await expect(conversations(bruno.page)).not.toContainText('EM CHAMADA');
+  await alice.page.getByRole('button', { name: 'LIGAR', exact: true }).click();
+  await expect(alice.page.getByTestId('voice-status')).toHaveText('CONECTADO');
+  // Answering takes him into the call.
+  await ring.getByRole('button', { name: 'ATENDER' }).click();
+  await expect(ring).toHaveCount(0);
   await expect(bruno.page.getByTestId('voice-status')).toHaveText('CONECTADO');
   await expect(alice.page.getByTestId('participant')).toHaveCount(2);
   // Nothing in a conversation is there to be moderated.
