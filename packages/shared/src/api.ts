@@ -217,9 +217,18 @@ export const uploadGuildSoundQuerySchema = z.object({
   filename: z.string().trim().min(1).max(255),
 });
 
+/**
+ * `server` is a place people are invited to. `dm` is the private conversation of two friends:
+ * the same thing underneath (a text channel and a voice channel), without owner, roles or
+ * invites, and never listed among the servers.
+ */
+export const guildKindSchema = z.enum(['server', 'dm']);
+export type GuildKind = z.infer<typeof guildKindSchema>;
+
 /** A guild as one member sees it: only the channels they can view. */
 export const guildSchema = z.object({
   id: idSchema,
+  kind: guildKindSchema,
   name: z.string(),
   /** Id of the server icon, served at `/images/:id`. */
   icon: idSchema.nullable(),
@@ -588,6 +597,36 @@ export const featuresSchema = z.object({
   linkPreviews: z.boolean(),
 });
 export type Features = z.infer<typeof featuresSchema>;
+
+// --- friends --------------------------------------------------------------------------------
+
+/**
+ * A friendship that was asked for and not answered yet, as one of the two sees it. Accepting
+ * it opens the private conversation of the pair (a guild of kind `dm`), and that conversation
+ * is the friendship from then on.
+ */
+export const friendRequestSchema = z.object({
+  id: idSchema,
+  /** The other person. */
+  user: userSchema,
+  /** `incoming`: they asked; `outgoing`: the reader did. */
+  direction: z.enum(['incoming', 'outgoing']),
+  createdAt: z.iso.datetime(),
+});
+export type FriendRequest = z.infer<typeof friendRequestSchema>;
+
+export const friendRequestsResponseSchema = z.object({ requests: z.array(friendRequestSchema) });
+export type FriendRequestsResponse = z.infer<typeof friendRequestsResponseSchema>;
+
+export const sendFriendRequestSchema = z.object({ username: usernameSchema });
+export type SendFriendRequest = z.infer<typeof sendFriendRequestSchema>;
+
+/** Answer to a request: still pending, or already a conversation when the other had asked too. */
+export const sendFriendRequestResponseSchema = z.object({
+  request: friendRequestSchema.nullable(),
+  guild: guildSchema.nullable(),
+});
+export type SendFriendRequestResponse = z.infer<typeof sendFriendRequestResponseSchema>;
 
 // --- errors ---------------------------------------------------------------------------------
 

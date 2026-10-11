@@ -10,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -75,6 +76,10 @@ export const passwordResets = pgTable('password_resets', {
 
 export const guilds = pgTable('guilds', {
   id: uuid('id').primaryKey(),
+  /** `server`, or `dm` for the private conversation of two friends. */
+  kind: text('kind').notNull().default('server'),
+  /** For a `dm`: the ids of its two people, sorted and joined by `:`. One per pair. */
+  dmKey: text('dm_key').unique(),
   name: text('name').notNull(),
   /** File id of the server icon. */
   iconId: uuid('icon_id'),
@@ -83,6 +88,25 @@ export const guilds = pgTable('guilds', {
     .references(() => users.id),
   createdAt: createdAt(),
 });
+
+/** Friendships asked for and not answered yet. An accepted one becomes a `dm` guild. */
+export const friendRequests = pgTable(
+  'friend_requests',
+  {
+    id: uuid('id').primaryKey(),
+    fromId: uuid('from_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    toId: uuid('to_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique('friend_requests_pair').on(table.fromId, table.toId),
+    index('friend_requests_to_idx').on(table.toId),
+  ],
+);
 
 export const guildMembers = pgTable(
   'guild_members',

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type HTMLAttributes } from 'react';
 import { Avatar, initials } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
+import { IconButton } from '../../../components/IconButton';
 import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
 import { LiveBadge } from './LiveBadge';
+import { useFocusClick } from './use-focus-click';
 
 interface ParticipantTileProps {
   name: string;
@@ -33,7 +35,7 @@ interface ParticipantTileProps {
   volumeNote?: string | null;
   /** The tile has the main area to itself. */
   focused?: boolean;
-  /** Gives the camera the main area, or hands it back. Offered only while the camera is on. */
+  /** Gives the participant the main area, or hands it back: what a click on the tile does. */
   onToggleFocus?: () => void;
   /** Handlers that open the participant's menu (right click, long press). */
   menu?: HTMLAttributes<HTMLDivElement>;
@@ -64,7 +66,6 @@ export function ParticipantTile({
   const status = serverMuted ? 'MUTADO NO SERVIDOR' : deafened ? 'SURDO' : muted ? 'MUDO' : null;
   const containerRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const canFocus = Boolean(video && onToggleFocus);
 
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === containerRef.current);
@@ -86,6 +87,14 @@ export function ParticipantTile({
       player?.webkitEnterFullscreen?.();
     }
   };
+
+  const focusClick = useFocusClick({
+    focused,
+    fullscreen,
+    onToggleFocus,
+    // Only a camera is worth the whole screen.
+    onFullscreen: video ? toggleFullscreen : undefined,
+  });
 
   const reportViewport = useRef(onVideoViewport);
   useEffect(() => {
@@ -143,15 +152,20 @@ export function ParticipantTile({
             )}
           />
         )}
-        {canFocus && (
+        {onToggleFocus && (
           <>
             <button
               type="button"
-              aria-label={focused ? `Reduzir a câmera de ${name}` : `Ampliar a câmera de ${name}`}
-              title={focused ? 'Dois cliques: tela cheia' : 'Clique para ampliar'}
+              aria-label={focused ? `Tirar ${name} do destaque` : `Destacar ${name}`}
+              title={
+                focused
+                  ? video
+                    ? 'Clique: voltar à grade · dois cliques: tela cheia'
+                    : 'Clique para voltar à grade'
+                  : 'Clique para destacar'
+              }
               className="absolute inset-0 cursor-pointer"
-              onClick={focused ? undefined : onToggleFocus}
-              onDoubleClick={focused ? toggleFullscreen : undefined}
+              {...focusClick}
             />
             {(focused || fullscreen) && (
               <div
@@ -160,13 +174,21 @@ export function ParticipantTile({
                   'transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100',
                 )}
               >
-                <Button className="border-transparent" onClick={toggleFullscreen}>
-                  {fullscreen ? 'SAIR DA TELA CHEIA' : 'TELA CHEIA'}
-                </Button>
                 {!fullscreen && (
-                  <Button className="border-transparent" onClick={onToggleFocus}>
-                    REDUZIR
-                  </Button>
+                  <IconButton
+                    icon="grid"
+                    label="Voltar à grade"
+                    className="border-transparent"
+                    onClick={onToggleFocus}
+                  />
+                )}
+                {video && (
+                  <IconButton
+                    icon={fullscreen ? 'fullscreen-exit' : 'fullscreen'}
+                    label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+                    className="border-transparent"
+                    onClick={toggleFullscreen}
+                  />
                 )}
               </div>
             )}
@@ -176,7 +198,7 @@ export function ParticipantTile({
           <Avatar
             name={name}
             picture={picture}
-            size={compact ? 44 : 88}
+            size={compact ? 44 : focused ? 160 : 88}
             className={cx('border transition-colors', speaking ? 'border-accent' : 'border-line')}
           />
         )}

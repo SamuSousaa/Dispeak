@@ -10,7 +10,7 @@ export const VOICE_SIGNALING_PATH = '/voice';
 export const VOICE_TOKEN_AUDIENCE = 'frequencia:voice';
 export const VOICE_TOKEN_ISSUER = 'frequencia:api';
 
-/** Screen shares and cameras are published as VP8 simulcast with this many spatial layers. */
+/** Screen shares and cameras are published as simulcast with this many spatial layers. */
 export const SIMULCAST_LAYERS = 3;
 
 export const VoiceErrorCode = {

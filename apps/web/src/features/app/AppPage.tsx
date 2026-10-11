@@ -10,6 +10,10 @@ import { cx } from '../../lib/cx';
 import { logout, useAuthStore } from '../auth/auth-store';
 import { releaseAttachmentUrls } from '../chat/Attachments';
 import { applyChatEvent } from '../chat/chat-store';
+import { conversationOf, HOME } from '../friends/dm';
+import { DmPanel } from '../friends/DmPanel';
+import { FRIEND_REQUESTS_KEY } from '../friends/friends-api';
+import { FriendsView } from '../friends/FriendsView';
 import { gateway } from '../gateway/gateway-client';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { AddGuildDialog } from '../guilds/dialogs/AddGuildDialog';
@@ -18,6 +22,7 @@ import { CreateChannelDialog } from '../guilds/dialogs/CreateChannelDialog';
 import { GuildSettingsDialog, type GuildSettingsTab } from '../guilds/dialogs/GuildSettingsDialog';
 import { InviteDialog } from '../guilds/dialogs/InviteDialog';
 import { groupChannels } from '../guilds/permissions';
+import { ProfileCard } from '../profile/ProfileCard';
 import { SettingsPanel, type SettingsTab } from '../settings/SettingsPanel';
 import { startVoiceSounds } from '../sounds/sound-player';
 import { notifyMention } from '../unread/notify';
@@ -74,6 +79,9 @@ export function AppPage() {
     // Chat history lives in the query cache; gateway events keep it current.
     const unsubscribe = gateway.subscribe((t, data) => {
       applyChatEvent(queryClient, t, data);
+      if (t === 'FRIEND_REQUEST_CREATE' || t === 'FRIEND_REQUEST_DELETE' || t === 'READY') {
+        void queryClient.invalidateQueries({ queryKey: FRIEND_REQUESTS_KEY });
+      }
       const self = useAuthStore.getState().user;
       if (!self) return;
       const mention = applyUnreadEvent(t, data, self.id);
@@ -94,6 +102,10 @@ export function AppPage() {
   }, [queryClient]);
 
   const guild = guildId ? guilds[guildId] : undefined;
+  // Home: the friends list, or one of the private conversations.
+  const conversation = user ? conversationOf(guild, user.id) : null;
+  const atHome = guildId === HOME || conversation !== null;
+  const firstServer = order.find((id) => guilds[id]?.kind === 'server');
   const groups = guild ? groupChannels(guild) : [];
   const numbered = groups.flatMap((group) => group.channels);
   // A thread is reached through its channel: it shows that channel's number.
@@ -109,21 +121,32 @@ export function AppPage() {
     .find((entry) => entry.channel.id === channelId);
   const hasLoaded = status === 'ready' || order.length > 0;
 
+  // Whether the guild last on screen was a private conversation.
+  const wasConversation = useRef(false);
   // Keep the URL pointing at something that exists (guilds and channels come and go).
   useEffect(() => {
     if (!hasLoaded) return;
+    if (guildId === HOME) return;
     if (!guild) {
-      const first = order[0];
-      if (guildId || first) navigate(first ? `/app/${first}` : '/app', { replace: true });
+      // A conversation that ended (the friendship was undone) leaves the user at home. Anything
+      // else goes to the first server, or waits at `/app` for one to arrive.
+      const target = wasConversation.current
+        ? `/app/${HOME}`
+        : firstServer
+          ? `/app/${firstServer}`
+          : '/app';
+      wasConversation.current = false;
+      if (guildId || firstServer) navigate(target, { replace: true });
       return;
     }
+    wasConversation.current = guild.kind === 'dm';
     if (!current) {
       const fallback =
         numbered.find((entry) => entry.channel.type === 'text') ?? numbered[0] ?? null;
       const target = fallback ? `/app/${guild.id}/${fallback.channel.id}` : `/app/${guild.id}`;
       if (channelId || fallback) navigate(target, { replace: true });
     }
-  }, [hasLoaded, guild, guildId, current, channelId, numbered, order, navigate]);
+  }, [hasLoaded, guild, guildId, current, channelId, numbered, firstServer, navigate]);
 
   const voiceStatus = useVoiceStore((state) => state.status);
   const voiceChannelId = useVoiceStore((state) => state.channelId);
@@ -164,7 +187,10 @@ export function AppPage() {
       const dy = touch.clientY - start.y;
       if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
       if (dx > 0) setDrawer((open) => (open === 'members' ? null : 'channels'));
-      else setDrawer((open) => (open === 'channels' ? null : guild ? 'members' : open));
+      else {
+        const hasMembers = Boolean(guild) && !conversation;
+        setDrawer((open) => (open === 'channels' ? null : hasMembers ? 'members' : open));
+      }
     },
   };
 
@@ -203,7 +229,9 @@ export function AppPage() {
         >
           <ServerRail onAdd={() => setDialog({ kind: 'add-guild' })} />
           <div className="flex min-w-0 flex-1 flex-col border-r border-line md:w-60 md:flex-none">
-            {guild ? (
+            {atHome ? (
+              <DmPanel userId={user.id} onNavigate={() => setDrawer(null)} />
+            ) : guild ? (
               <ChannelPanel
                 guild={guild}
                 userId={user.id}
@@ -232,7 +260,45 @@ export function AppPage() {
             >
               [ CANAIS ]
             </button>
-            {current ? (
+            {conversation ? (
+              <>
+                <h1 className="label-lg flex min-w-0 items-baseline gap-2">
+                  <span className="text-muted">@</span>
+                  <span className="truncate text-fg" data-testid="channel-title">
+                    {conversation.friend.user.displayName}
+                  </span>
+                </h1>
+                <nav aria-label="Conversa ou chamada" className="ml-auto flex shrink-0 gap-2">
+                  {conversation.text && (
+                    <Button
+                      variant={current?.channel.type === 'text' ? 'active' : 'default'}
+                      onClick={() =>
+                        navigate(`/app/${conversation.guild.id}/${conversation.text?.id}`)
+                      }
+                    >
+                      CONVERSA
+                    </Button>
+                  )}
+                  {conversation.voice && (
+                    <Button
+                      variant={current?.channel.type === 'voice' ? 'active' : 'default'}
+                      onClick={() =>
+                        navigate(`/app/${conversation.guild.id}/${conversation.voice?.id}`)
+                      }
+                    >
+                      {conversation.inCall ? 'CHAMADA · AO VIVO' : 'CHAMADA'}
+                    </Button>
+                  )}
+                </nav>
+              </>
+            ) : atHome ? (
+              <h1 className="label-lg flex min-w-0 items-baseline gap-2">
+                <span className="text-muted">00.</span>
+                <span className="text-fg" data-testid="channel-title">
+                  AMIGOS
+                </span>
+              </h1>
+            ) : current ? (
               <h1 className="label-lg flex min-w-0 items-baseline gap-2">
                 <span className="text-muted">{current.number}.</span>
                 {current.origin && (
@@ -250,7 +316,7 @@ export function AppPage() {
             ) : (
               <span className="label-lg text-muted">{APP_NAME.toUpperCase()}</span>
             )}
-            {guild && (
+            {guild && !conversation && (
               <button
                 type="button"
                 className="label ml-auto shrink-0 text-muted transition-colors hover:text-accent lg:hidden"
@@ -273,6 +339,8 @@ export function AppPage() {
               <div className="grid-bg flex h-full items-center justify-center">
                 <p className="label text-muted">CONECTANDO AO GATEWAY</p>
               </div>
+            ) : guildId === HOME ? (
+              <FriendsView userId={user.id} />
             ) : !guild ? (
               <div className="grid-bg flex h-full items-center justify-center p-4">
                 <section className="w-full max-w-sm border border-line bg-surface">
@@ -313,7 +381,16 @@ export function AppPage() {
           </div>
         </main>
 
-        {guild && (
+        {conversation && (
+          <aside className="hidden w-72 shrink-0 flex-col overflow-y-auto border-l border-line bg-surface xl:flex">
+            <ProfileCard
+              user={conversation.friend.user}
+              name={conversation.friend.user.displayName}
+              presence={conversation.online ? conversation.friend.user.status : 'offline'}
+            />
+          </aside>
+        )}
+        {guild && !conversation && (
           <aside
             className={cx(
               'absolute inset-y-0 right-0 z-20 flex w-60 max-w-[80vw] flex-col border-l border-line bg-surface transition-transform lg:static lg:z-0 lg:translate-x-0',

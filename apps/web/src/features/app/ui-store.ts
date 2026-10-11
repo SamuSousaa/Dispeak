@@ -6,11 +6,6 @@ interface UiState {
   sideChatOpen: boolean;
   /** Categories folded away in the channel list, by id. */
   collapsed: Record<string, true>;
-  /**
-   * How a call with streams is laid out: `stage` gives the streams the main area and lines the
-   * people up below; `grid` shows everyone and every stream as equal tiles.
-   */
-  stageLayout: 'stage' | 'grid';
   /** Emojis picked lately, most recent first. */
   recentEmojis: string[];
 }
@@ -20,7 +15,6 @@ const RECENT_EMOJIS = 27;
 const initialUi: UiState = {
   sideChatOpen: false,
   collapsed: {},
-  stageLayout: 'stage',
   recentEmojis: [],
 };
 
@@ -36,10 +30,6 @@ export const useUiStore = create<UiState>()(
 
 export function toggleSideChat(): void {
   useUiStore.setState((state) => ({ sideChatOpen: !state.sideChatOpen }));
-}
-
-export function setStageLayout(stageLayout: UiState['stageLayout']): void {
-  useUiStore.setState({ stageLayout });
 }
 
 export function rememberEmoji(emoji: string): void {

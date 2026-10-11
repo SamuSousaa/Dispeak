@@ -1,10 +1,8 @@
 import type { Guild } from '@frequencia/shared';
-import { useState, type ReactNode } from 'react';
-import { Button } from '../../../components/Button';
-import { cx } from '../../../lib/cx';
-import { setStageLayout, useUiStore } from '../../app/ui-store';
+import { useState } from 'react';
+import { isContextMenuOpen } from '../../../components/ContextMenu';
 import { memberColor, memberName } from '../../guilds/permissions';
-import { userMenu } from '../../guilds/user-menu';
+import { userContextMenu } from '../../guilds/user-menu';
 import { useSettingsStore } from '../../settings/settings-store';
 import { setCameraViewport, stopScreenShare, unwatchStream, watchStream } from '../voice-actions';
 import { isLive, SELF_STREAM, useVoiceStore } from '../voice-store';
@@ -27,23 +25,17 @@ type Focus = { kind: 'stream' | 'person'; id: string };
 /** The local user in the list of people, who has no session id of their own in the store. */
 const SELF_PERSON = 'self';
 
-const gridColumns = (count: number) =>
-  count <= 1
-    ? 'grid-cols-1'
-    : count <= 4
-      ? 'grid-cols-1 md:grid-cols-2'
-      : 'grid-cols-2 lg:grid-cols-3';
-
 const GAP = 12;
 
 /**
- * Main area of a voice channel, in one of three arrangements:
+ * Main area of a voice channel, in one of two arrangements:
  *
- * - grid: everyone, and every stream being watched, as equal tiles as large as fit. This is
- *   what a call without streams looks like, and what the user can ask for at any time;
- * - stage: the streams take the main area and the people line up in a strip below;
- * - focus: one stream or one camera, picked by the user, has the main area to itself and
- *   everything else goes to the strip.
+ * - grid: everyone, and every stream being watched, as equal tiles as large as fit;
+ * - focus: one stream or one person has the main area to itself and everything else lines up
+ *   in a strip below.
+ *
+ * A click on a tile gives it the focus, wherever it is; a click on the focused one goes back
+ * to the grid. A stream the user starts watching takes the focus by itself.
  */
 export function VoiceStage({
   guild,
@@ -68,17 +60,21 @@ export function VoiceStage({
   const cameras = useVoiceStore((state) => state.cameras);
   const watching = useVoiceStore((state) => state.watching);
   const userVolumes = useSettingsStore((state) => state.userVolumes);
-  const layout = useUiStore((state) => state.stageLayout);
-  const [focus, setFocus] = useState<Focus | null>(null);
+  // Coming back to the call from another channel, a stream being watched is still the focus.
+  const [focus, setFocus] = useState<Focus | null>(() => {
+    const [id] = Object.keys(useVoiceStore.getState().watching);
+    return id ? { kind: 'stream', id } : null;
+  });
   // Kept in state, not in a ref: the grid is unmounted while the stage is on screen, and when
   // it comes back the tiles must be sized again.
   const [grid, setGrid] = useState<HTMLUListElement | null>(null);
 
   const memberOf = (id: string | undefined) => guild?.members.find((entry) => entry.user.id === id);
   const colorOf = (id: string | undefined) => (guild && id ? memberColor(guild, id) : undefined);
+  // On the stage a click picks the focus; the person's menu is on the right click.
   const menuOf = (targetId: string | undefined) =>
     guild && userId && targetId
-      ? userMenu({ guild, targetId, selfId: userId, onManageMembers })
+      ? userContextMenu({ guild, targetId, selfId: userId, onManageMembers })
       : undefined;
   const others = Object.values(peers).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
@@ -97,19 +93,26 @@ export function VoiceStage({
       })),
   ];
 
-  // A focus only holds while its subject is there: the stream still watched, the camera still on.
+  // A stream the user has just started watching is what they came for: it takes the focus.
+  const watchedIds = streams
+    .filter((stream) => stream.id !== SELF_STREAM)
+    .map((stream) => stream.id)
+    .join(' ');
+  const [knownIds, setKnownIds] = useState(watchedIds);
+  if (watchedIds !== knownIds) {
+    const known = knownIds.split(' ');
+    const added = watchedIds.split(' ').find((id) => id && !known.includes(id));
+    setKnownIds(watchedIds);
+    if (added) setFocus({ kind: 'stream', id: added });
+  }
+
+  // A focus only holds while its subject is there: the stream still watched, the person in the call.
   const focusedStream =
     focus?.kind === 'stream' ? streams.find((stream) => stream.id === focus.id) : undefined;
-  const cameraOf = (id: string) => (id === SELF_PERSON ? camera.stream : (cameras[id] ?? null));
   const focusedPerson =
-    focus?.kind === 'person' && cameraOf(focus.id) && (focus.id === SELF_PERSON || peers[focus.id])
-      ? focus.id
-      : null;
+    focus?.kind === 'person' && (focus.id === SELF_PERSON || peers[focus.id]) ? focus.id : null;
   const focused = Boolean(focusedStream) || focusedPerson !== null;
-  const hasStreams = streams.length > 0;
-  // With nothing to put on a stage, the grid is all there is.
-  const mode = focused ? 'focus' : hasStreams && layout === 'stage' ? 'stage' : 'grid';
-  const compact = mode !== 'grid';
+  const compact = focused;
 
   const tileCount = others.length + 1 + streams.length;
   const cell = useFillGrid(grid, tileCount, 16 / 9, GAP);
@@ -118,8 +121,11 @@ export function VoiceStage({
   const slot = compact || !measured ? undefined : { width: cell.width, height: cell.height };
   const slotClass = compact ? 'h-full' : measured ? 'shrink-0' : 'aspect-video w-full max-w-xl';
 
-  const toggleFocus = (next: Focus) =>
+  const toggleFocus = (next: Focus) => {
+    // A long press has just opened the person's menu; lifting the finger is not a click.
+    if (isContextMenuOpen()) return;
     setFocus((current) => (current?.kind === next.kind && current.id === next.id ? null : next));
+  };
 
   const streamTile = (stream: StageStream, thumbnail = false) => (
     <StreamTile
@@ -186,31 +192,9 @@ export function VoiceStage({
 
   const people = [SELF_PERSON, ...others.map((peer) => peer.id)];
 
-  // Only a call with streams has two ways of being laid out.
-  const layoutSwitch = (hasStreams || focused) && (
-    <div className="absolute top-3 right-14 z-10 bg-bg" data-testid="stage-layout">
-      <Button
-        aria-pressed={mode === 'grid'}
-        variant={mode === 'grid' ? 'active' : 'default'}
-        title={
-          mode === 'grid'
-            ? 'Voltar a dar o espaço principal às transmissões'
-            : 'Ver todo mundo e as transmissões em quadros do mesmo tamanho'
-        }
-        onClick={() => {
-          setFocus(null);
-          setStageLayout(mode === 'grid' ? 'stage' : 'grid');
-        }}
-      >
-        {mode === 'grid' ? 'DESTACAR' : 'VER TODOS'}
-      </Button>
-    </div>
-  );
-
-  if (mode === 'grid') {
+  if (!focused) {
     return (
       <div className="grid-bg relative h-full">
-        {layoutSwitch}
         <ul
           ref={setGrid}
           aria-label="Participantes"
@@ -233,34 +217,25 @@ export function VoiceStage({
     );
   }
 
-  let main: ReactNode;
-  if (focusedStream) main = streamTile(focusedStream);
-  else if (focusedPerson !== null) main = personTile(focusedPerson, true);
-  else {
-    main = (
-      <div className={cx('grid h-full auto-rows-fr gap-3', gridColumns(streams.length))}>
-        {streams.map((stream) => streamTile(stream))}
-      </div>
-    );
-  }
-
   return (
     <div className="relative flex h-full flex-col">
-      {layoutSwitch}
-      <div className="min-h-0 flex-1 p-3">{main}</div>
+      <div className="min-h-0 flex-1 p-3">
+        {focusedStream
+          ? streamTile(focusedStream)
+          : focusedPerson !== null && personTile(focusedPerson, true)}
+      </div>
       <ul
         aria-label="Participantes"
         className="flex h-32 shrink-0 gap-3 overflow-x-auto border-t border-line bg-surface p-3"
       >
-        {/* Next to a focus, the other streams wait in the strip as thumbnails. */}
-        {focused &&
-          streams
-            .filter((stream) => stream.id !== focusedStream?.id)
-            .map((stream) => (
-              <li key={`stream:${stream.id}`} className="aspect-video h-full shrink-0">
-                {streamTile(stream, true)}
-              </li>
-            ))}
+        {/* Next to the focus, the other streams wait in the strip as thumbnails. */}
+        {streams
+          .filter((stream) => stream.id !== focusedStream?.id)
+          .map((stream) => (
+            <li key={`stream:${stream.id}`} className="aspect-video h-full shrink-0">
+              {streamTile(stream, true)}
+            </li>
+          ))}
         {people
           .filter((id) => id !== focusedPerson)
           .map((id) => (

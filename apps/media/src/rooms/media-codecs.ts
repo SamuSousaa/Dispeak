@@ -2,7 +2,9 @@ import type { types } from 'mediasoup';
 
 /**
  * Codecs offered by every router. Opus carries in-band FEC; DTX is negotiated per producer by
- * the browser. VP8 is the only video codec so simulcast behaves the same for every viewer.
+ * the browser. VP8 is what every browser can send and receive, and what cameras use. H.264
+ * High is there for screen shares: it is the profile graphics cards encode, which takes a
+ * 1440p60 stream off the sender's CPU. The sender picks it only when its hardware does the work.
  */
 export const mediaCodecs: types.RouterRtpCodecCapability[] = [
   {
@@ -18,6 +20,17 @@ export const mediaCodecs: types.RouterRtpCodecCapability[] = [
     clockRate: 90000,
     parameters: { 'x-google-start-bitrate': 1000 },
   },
+  {
+    kind: 'video',
+    mimeType: 'video/H264',
+    clockRate: 90000,
+    parameters: {
+      'packetization-mode': 1,
+      'profile-level-id': '640032',
+      'level-asymmetry-allowed': 1,
+      'x-google-start-bitrate': 1000,
+    },
+  },
 ];
 
 export const AUDIO_LEVEL_OBSERVER = {
@@ -30,7 +43,9 @@ export const AUDIO_LEVEL_OBSERVER = {
 } as const;
 
 export const TRANSPORT_BITRATE = {
-  initialAvailableOutgoing: 1_500_000,
-  // Room for the three simulcast layers of the heaviest screen share preset, plus audio.
-  maxIncoming: 20_000_000,
+  // Where the estimate of a viewer's connection starts: enough for the middle layer of a
+  // stream right away, instead of a blurry first few seconds.
+  initialAvailableOutgoing: 3_000_000,
+  // Room for the three simulcast layers of the heaviest screen share preset, a camera and audio.
+  maxIncoming: 40_000_000,
 } as const;

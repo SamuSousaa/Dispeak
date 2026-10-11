@@ -8,6 +8,7 @@ import {
   serializePermissions,
   type Channel,
   type Guild,
+  type GuildKind,
   type GuildSound,
   type GuildSoundEvent,
   type HierarchyActor,
@@ -51,7 +52,7 @@ export interface MemberEntry {
 
 /** Everything needed to answer permission questions about one guild, loaded in one go. */
 export interface GuildSnapshot {
-  guild: { id: string; name: string; ownerId: string; iconId: string | null };
+  guild: { id: string; kind: GuildKind; name: string; ownerId: string; iconId: string | null };
   roles: Map<string, RoleRow>;
   channels: Map<string, ChannelRow>;
   overwrites: Map<string, PermissionOverwrite[]>;
@@ -114,7 +115,13 @@ export async function loadGuildSnapshot(
   for (const row of memberRoleRows) members.get(row.userId)?.roleIds.push(row.roleId);
 
   return {
-    guild: { id: guild.id, name: guild.name, ownerId: guild.ownerId, iconId: guild.iconId },
+    guild: {
+      id: guild.id,
+      kind: guild.kind === 'dm' ? 'dm' : 'server',
+      name: guild.name,
+      ownerId: guild.ownerId,
+      iconId: guild.iconId,
+    },
     roles: new Map(roleRows.map((role) => [role.id, role])),
     channels: new Map(channelRows.map((channel) => [channel.id, channel])),
     overwrites,
@@ -139,7 +146,8 @@ export function actorOf(snapshot: GuildSnapshot, userId: string): Actor | null {
   const memberRoleRows = member.roleIds
     .map((roleId) => snapshot.roles.get(roleId))
     .filter((role): role is RoleRow => Boolean(role));
-  const isOwner = snapshot.guild.ownerId === userId;
+  // A private conversation belongs to both: whoever asked for the friendship owns nothing.
+  const isOwner = snapshot.guild.kind === 'server' && snapshot.guild.ownerId === userId;
   return {
     userId,
     member,
@@ -256,6 +264,7 @@ export function guildPayloadFor(
 
   return {
     id: snapshot.guild.id,
+    kind: snapshot.guild.kind,
     name: snapshot.guild.name,
     icon: snapshot.guild.iconId,
     ownerId: snapshot.guild.ownerId,

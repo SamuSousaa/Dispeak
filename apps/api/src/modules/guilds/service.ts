@@ -91,12 +91,15 @@ export class GuildService {
   // --- guilds -------------------------------------------------------------------------------
 
   async list(userId: string): Promise<GuildSummary[]> {
-    return this.db
-      .select({ id: guilds.id, name: guilds.name, icon: guilds.iconId, ownerId: guilds.ownerId })
-      .from(guilds)
-      .innerJoin(guildMembers, eq(guildMembers.guildId, guilds.id))
-      .where(eq(guildMembers.userId, userId))
-      .orderBy(guildMembers.joinedAt);
+    return (
+      this.db
+        .select({ id: guilds.id, name: guilds.name, icon: guilds.iconId, ownerId: guilds.ownerId })
+        .from(guilds)
+        .innerJoin(guildMembers, eq(guildMembers.guildId, guilds.id))
+        // Private conversations are not servers; they come with the gateway, like everything else.
+        .where(and(eq(guildMembers.userId, userId), eq(guilds.kind, 'server')))
+        .orderBy(guildMembers.joinedAt)
+    );
   }
 
   async get(userId: string, guildId: string): Promise<Guild> {
@@ -255,6 +258,8 @@ export class GuildService {
     if (requireActor(snapshot, userId).isOwner) {
       throw conflict('the owner cannot leave; delete the server or transfer it first');
     }
+    // A conversation ends by ending the friendship, for both at once.
+    if (snapshot.guild.kind === 'dm') throw forbidden('a private conversation cannot be left');
     await this.removeMember(guildId, userId);
   }
 

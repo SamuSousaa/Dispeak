@@ -143,6 +143,9 @@ export const gatewayReducers: { [T in GatewayEventName]: Reducer<T> } = {
   MESSAGE_UPDATE: () => ({}),
   MESSAGE_DELETE: () => ({}),
   TYPING_START: () => ({}),
+  // Pending friend requests are server state, kept in the query cache.
+  FRIEND_REQUEST_CREATE: () => ({}),
+  FRIEND_REQUEST_DELETE: () => ({}),
 };
 
 export function applyGatewayEvent<T extends GatewayEventName>(

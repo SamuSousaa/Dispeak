@@ -71,6 +71,13 @@
       "when": 1791667851735,
       "tag": "0009_password_resets",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791732293433,
+      "tag": "0010_friends_and_dms",
+      "breakpoints": true
     }
   ]
 }

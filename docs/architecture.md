@@ -138,7 +138,10 @@ Discord.
 
 ### Transmissão de tela
 
-- Publicada como VP8 simulcast: três codificações da mesma captura (1/4, 1/2 e resolução cheia).
+- Publicada como simulcast: três codificações da mesma captura (1/4, 1/2 e resolução cheia). A
+  exceção é o preset FILME, com uma única codificação em resolução cheia para todo mundo.
+- O codec é escolhido por quem transmite (`video-codec.ts`): H.264 High quando a placa de vídeo
+  codifica (`mediaCapabilities` responde `powerEfficient`), VP8 nos demais casos. Câmeras usam VP8.
 - Entrar num canal consome apenas microfones. O consumer de uma transmissão só é criado quando a
   pessoa clica em assistir, e é fechado quando ela para.
 - Cada tile mede sua altura com um `ResizeObserver` e pede a camada correspondente

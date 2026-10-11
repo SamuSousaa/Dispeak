@@ -11,14 +11,6 @@ import {
   type Keybinds,
 } from './keybinds';
 
-/**
- * `browser` is the suppression built into the browser; `gtcrn` (the newer, stronger model) and
- * `rnnoise` run a neural network
- * (RNNoise, WebAssembly) on the microphone before it is sent.
- */
-export const NOISE_SUPPRESSION_MODES = ['off', 'browser', 'rnnoise', 'gtcrn'] as const;
-export type NoiseSuppressionMode = (typeof NOISE_SUPPRESSION_MODES)[number];
-
 /** `voice` keeps the microphone open; `pushToTalk` opens it only while a key is held. */
 export const INPUT_MODES = ['voice', 'pushToTalk'] as const;
 export type InputMode = (typeof INPUT_MODES)[number];
@@ -31,13 +23,10 @@ const settingsSchema = z.object({
   inputDeviceId: z.string().nullable(),
   outputDeviceId: z.string().nullable(),
   cameraDeviceId: z.string().nullable(),
-  noiseSuppression: z.enum(NOISE_SUPPRESSION_MODES),
+  /** On or off, nothing in between: what "on" runs is decided in `voice/microphone.ts`. */
+  noiseSuppression: z.boolean(),
   echoCancellation: z.boolean(),
   autoGainControl: z.boolean(),
-  /** After a neural model, drop what is too quiet to be a voice (key presses between words). */
-  noiseGate: z.boolean(),
-  /** Level, in dB, the cleaned microphone must reach for the gate to open. */
-  noiseGateThreshold: z.number().min(-80).max(-20),
   /** Evens out the voice and raises it, so nobody has to turn the speakers all the way up. */
   voiceLeveler: z.boolean(),
   /** Volume of the user's own microphone, as the others hear it (1 = as captured). */
@@ -81,11 +70,9 @@ export const defaultSettings: Settings = {
   inputDeviceId: null,
   outputDeviceId: null,
   cameraDeviceId: null,
-  noiseSuppression: 'rnnoise',
+  noiseSuppression: true,
   echoCancellation: true,
   autoGainControl: true,
-  noiseGate: true,
-  noiseGateThreshold: -50,
   voiceLeveler: true,
   micGain: 1,
   inputMode: 'voice',
@@ -118,13 +105,12 @@ export const defaultSettings: Settings = {
 export const useSettingsStore = create<Settings>()(
   persist(() => defaultSettings, {
     name: 'frequencia.settings',
-    version: 2,
-    // Version 1 made GTCRN the default for a few days. It dulls the voice (see
-    // `noise-suppression.ts`), so it is now something the user picks, not where they start.
+    version: 3,
+    // Up to version 2 the suppression was a choice among four modes; now it is on or off.
     migrate: (persisted, version) => {
       const stored = persisted as { noiseSuppression?: unknown } | null;
-      if (version < 2 && stored?.noiseSuppression === 'gtcrn') {
-        return { ...stored, noiseSuppression: 'rnnoise' };
+      if (version < 3 && stored && typeof stored.noiseSuppression === 'string') {
+        return { ...stored, noiseSuppression: stored.noiseSuppression !== 'off' };
       }
       return persisted;
     },

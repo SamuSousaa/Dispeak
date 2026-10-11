@@ -1,4 +1,4 @@
-import type { NoiseSuppressionMode, Settings } from '../settings/settings-store';
+import type { Settings } from '../settings/settings-store';
 import {
   needsProcessing,
   processMicrophone,
@@ -12,34 +12,44 @@ export type MicrophoneSettings = Pick<
   | 'noiseSuppression'
   | 'echoCancellation'
   | 'autoGainControl'
-  | 'noiseGate'
-  | 'noiseGateThreshold'
   | 'voiceLeveler'
   | 'micGain'
 >;
+
+/**
+ * What is cleaning the microphone: one of the neural models, the filter built into the browser
+ * (when no model can run), or nothing.
+ */
+export type NoiseEngine = DenoiseModel | 'browser' | 'off';
 
 export interface Microphone {
   /** The track to publish: the capture itself, or its processed version. */
   track: MediaStreamTrack;
   /** What is actually cleaning the audio, which can differ from what was asked for. */
-  noiseSuppression: NoiseSuppressionMode;
+  noiseSuppression: NoiseEngine;
   close: () => void;
 }
+
+/**
+ * Level (dB) the cleaned voice must reach to be sent. What a model lets through between words
+ * (a key press, a click) is quieter than this.
+ */
+const GATE_THRESHOLD_DB = -50;
+
+/** With the suppression on: the strongest model first, then what can stand in for it. */
+const MODELS: DenoiseModel[] = ['gtcrn', 'rnnoise'];
 
 const isMissingDevice = (error: unknown) =>
   error instanceof DOMException &&
   (error.name === 'OverconstrainedError' || error.name === 'NotFoundError');
-
-const isNeural = (mode: NoiseSuppressionMode): mode is DenoiseModel =>
-  mode === 'gtcrn' || mode === 'rnnoise';
 
 async function capture(settings: MicrophoneSettings): Promise<MediaStreamTrack> {
   const constraints = (deviceId: string | null): MediaStreamConstraints => ({
     audio: {
       echoCancellation: settings.echoCancellation,
       autoGainControl: settings.autoGainControl,
-      // A neural model replaces the browser's suppressor; running both distorts the voice.
-      noiseSuppression: settings.noiseSuppression === 'browser',
+      // A neural model does the cleaning; running the browser's filter too distorts the voice.
+      noiseSuppression: false,
       // One clean channel at the rate the codec works in, instead of whatever the device offers.
       channelCount: { ideal: 1 },
       sampleRate: { ideal: 48_000 },
@@ -70,24 +80,14 @@ export async function openMicrophone(settings: MicrophoneSettings): Promise<Micr
   const wanted = settings.noiseSuppression;
   const chain = (model: DenoiseModel | null): MicrophoneProcessing => ({
     model,
-    gateThresholdDb: settings.noiseGate ? settings.noiseGateThreshold : null,
+    gateThresholdDb: GATE_THRESHOLD_DB,
     leveler: settings.voiceLeveler,
     gain: settings.micGain,
   });
-  const raw = (noiseSuppression: NoiseSuppressionMode): Microphone => ({
-    track: source,
-    noiseSuppression,
-    close: () => source.stop(),
-  });
 
-  const attempts: Array<DenoiseModel | null> = isNeural(wanted)
-    ? wanted === 'gtcrn'
-      ? ['gtcrn', 'rnnoise', null]
-      : ['rnnoise', null]
-    : [null];
-  let browserFilter = wanted === 'browser';
-  for (const model of attempts) {
-    if (model === null && isNeural(wanted)) {
+  let browserFilter = false;
+  for (const model of wanted ? [...MODELS, null] : [null]) {
+    if (model === null && wanted) {
       // No model could run: the browser's filter is better than nothing.
       await source.applyConstraints({ noiseSuppression: true }).catch(() => undefined);
       browserFilter = true;
@@ -108,5 +108,9 @@ export async function openMicrophone(settings: MicrophoneSettings): Promise<Micr
       console.warn(`[voice] microphone chain unavailable (${model ?? 'no model'})`, error);
     }
   }
-  return raw(browserFilter ? 'browser' : 'off');
+  return {
+    track: source,
+    noiseSuppression: browserFilter ? 'browser' : 'off',
+    close: () => source.stop(),
+  };
 }

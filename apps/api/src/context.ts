@@ -9,6 +9,7 @@ import type { AuthService } from './modules/auth/service';
 import type { AccessClaims } from './modules/auth/tokens';
 import type { GifSearch } from './modules/embeds/gifs';
 import type { LinkPreviews } from './modules/embeds/link-preview';
+import type { FriendService } from './modules/friends/service';
 import type { GuildService } from './modules/guilds/service';
 import type { MessageService } from './modules/messages/service';
 import type { PictureStore } from './modules/users/pictures';
@@ -29,6 +30,7 @@ export interface AppContext {
   voiceStates: VoiceStateStore;
   auth: AuthService;
   guilds: GuildService;
+  friends: FriendService;
   messages: MessageService;
   users: UserService;
   pictures: PictureStore;

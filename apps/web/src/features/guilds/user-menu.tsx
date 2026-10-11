@@ -1,6 +1,11 @@
 import { hasPermission, outranks, Permissions, type Guild } from '@frequencia/shared';
 import type { MouseEvent } from 'react';
-import { contextMenu, openContextMenu, type MenuEntry } from '../../components/ContextMenu';
+import {
+  contextMenu,
+  isContextMenuOpen,
+  openContextMenu,
+  type MenuEntry,
+} from '../../components/ContextMenu';
 import { showLink } from '../../components/LinkDialog';
 import { attempt } from '../../components/Toast';
 import { ProfileCard } from '../profile/ProfileCard';
@@ -33,10 +38,51 @@ function confirm(
   ]);
 }
 
+/** The card a person made for themselves, on its own: what a plain click on their name shows. */
+export function openUserProfile(
+  { guild, targetId }: Pick<UserMenuContext, 'guild' | 'targetId'>,
+  point: { x: number; y: number },
+): void {
+  const member = guild.members.find((entry) => entry.user.id === targetId);
+  if (!member) return;
+  const name = memberName(guild, targetId);
+  const online = guild.onlineUserIds.includes(targetId);
+  const roles = guild.roles
+    .filter((role) => role.id !== guild.id && member.roleIds.includes(role.id))
+    .sort((a, b) => b.position - a.position);
+
+  openContextMenu(
+    point,
+    name,
+    [
+      {
+        type: 'custom',
+        key: 'profile',
+        render: () => (
+          // Edge to edge inside the menu, which pads its custom entries.
+          <div className="-mx-3 -my-2">
+            <ProfileCard
+              user={member.user}
+              name={name}
+              presence={online ? member.user.status : 'offline'}
+              nameColor={memberColor(guild, targetId)}
+              roles={roles}
+              memberSince={member.joinedAt}
+              isOwner={guild.ownerId === targetId}
+            />
+          </div>
+        ),
+      },
+    ],
+    { wide: true },
+  );
+}
+
 /**
- * Everything one can do about a person, the same wherever their name shows up: how loud they
- * are for this user, and, for those allowed to moderate, the server-wide actions. The server
- * checks every one of them again.
+ * Everything one can do about a person, the same wherever their name shows up. What belongs to
+ * a call (how loud they are for this user, server mute, disconnect) is only there while the
+ * person is in one; the server-wide actions are always there for those allowed to moderate.
+ * The server checks every one of them again.
  */
 export function userMenuEntries(
   { guild, targetId, selfId, onManageMembers }: UserMenuContext,
@@ -52,34 +98,14 @@ export function userMenuEntries(
   const above = outranks(actor, target);
   const inVoice = guild.voiceStates.some((state) => state.userId === targetId);
 
-  const online = guild.onlineUserIds.includes(targetId);
-  const roles = guild.roles
-    .filter((role) => role.id !== guild.id && member.roleIds.includes(role.id))
-    .sort((a, b) => b.position - a.position);
-
   return [
-    {
-      type: 'custom',
-      key: 'profile',
-      render: () => (
-        // Edge to edge inside the menu, which pads its custom entries.
-        <div className="-mx-3 -my-2">
-          <ProfileCard
-            user={member.user}
-            name={name}
-            presence={online ? member.user.status : 'offline'}
-            nameColor={memberColor(guild, targetId)}
-            roles={roles}
-            memberSince={member.joinedAt}
-            isOwner={guild.ownerId === targetId}
-          />
-        </div>
-      ),
-    },
+    { label: 'Perfil', onSelect: () => openUserProfile({ guild, targetId }, point) },
     { type: 'separator' },
-    ...(isSelf ? [] : volumeMenuEntries(targetId, name)),
+    ...(inVoice && !isSelf ? volumeMenuEntries(targetId, name) : []),
     { type: 'separator' },
-    can(Permissions.MuteMembers) &&
+    // Someone muted who has left the call can still be given the microphone back.
+    (inVoice || member.serverMuted) &&
+      can(Permissions.MuteMembers) &&
       (isSelf || above) && {
         label: member.serverMuted ? 'Devolver o microfone' : 'Mutar no servidor',
         hint: member.serverMuted ? 'MUTADO' : undefined,
@@ -140,15 +166,12 @@ export function userMenuEntries(
   ];
 }
 
-/**
- * Props that open a person's menu on click, right click and long press, so it is found
- * whatever the habit.
- */
-export function userMenu(context: UserMenuContext) {
+/** Props that open a person's menu of actions on right click and long press. */
+export function userContextMenu(context: UserMenuContext) {
   const title = memberName(context.guild, context.targetId);
   // The long press has no pointer position to hand over; the menu itself reads it from the store.
   let last = { x: 0, y: 0 };
-  const handlers = contextMenu(title, () => userMenuEntries(context, last), { wide: true });
+  const handlers = contextMenu(title, () => userMenuEntries(context, last));
   return {
     ...handlers,
     onContextMenu: (event: MouseEvent) => {
@@ -160,12 +183,23 @@ export function userMenu(context: UserMenuContext) {
       if (touch) last = { x: touch.clientX, y: touch.clientY };
       handlers.onTouchStart(event);
     },
+  };
+}
+
+/**
+ * Props for a person's name in a list: a click shows their profile, a right click or a long
+ * press opens the menu of actions.
+ */
+export function userMenu(context: UserMenuContext) {
+  return {
+    ...userContextMenu(context),
     onClick: (event: MouseEvent) => {
       // Buttons inside (such as "watch") keep their own click.
       const control = (event.target as HTMLElement).closest('button, a');
       if (control && control !== event.currentTarget) return;
-      last = { x: event.clientX, y: event.clientY };
-      openContextMenu(last, title, userMenuEntries(context, last), { wide: true });
+      // A long press has just opened the menu of actions; lifting the finger is not a click.
+      if (isContextMenuOpen()) return;
+      openUserProfile(context, { x: event.clientX, y: event.clientY });
     },
   };
 }

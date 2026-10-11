@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   channelSchema,
+  friendRequestSchema,
   guildSchema,
   idSchema,
   memberSchema,
@@ -102,6 +103,11 @@ export const gatewayEvents = {
   MESSAGE_CREATE: messageSchema,
   MESSAGE_UPDATE: messageSchema,
   MESSAGE_DELETE: z.object({ id: idSchema, channelId: idSchema, guildId: idSchema }),
+  /** A friend request was made, to or by the user. */
+  FRIEND_REQUEST_CREATE: friendRequestSchema,
+  /** A friend request is gone: accepted, declined or withdrawn. */
+  FRIEND_REQUEST_DELETE: z.object({ id: idSchema }),
+
   /** Someone started typing in a text channel; clients expire it after a few seconds. */
   TYPING_START: z.object({ guildId: idSchema, channelId: idSchema, userId: idSchema }),
 } as const;

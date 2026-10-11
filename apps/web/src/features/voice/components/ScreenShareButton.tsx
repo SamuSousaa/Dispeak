@@ -42,6 +42,11 @@ export function ScreenShareButton({ allowed = true }: { allowed?: boolean }) {
             SEM ÁUDIO DO SISTEMA
           </span>
         )}
+        {screen.echoRisk && (
+          <span role="status" className="label text-danger" data-testid="screen-echo-risk">
+            QUEM ASSISTE PODE OUVIR A PRÓPRIA VOZ — TRANSMITA UMA ABA EM VEZ DA TELA INTEIRA
+          </span>
+        )}
       </div>
     );
   }

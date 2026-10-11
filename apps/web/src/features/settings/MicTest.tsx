@@ -19,8 +19,6 @@ export function MicTest() {
   const noiseSuppression = useSettingsStore((state) => state.noiseSuppression);
   const echoCancellation = useSettingsStore((state) => state.echoCancellation);
   const autoGainControl = useSettingsStore((state) => state.autoGainControl);
-  const noiseGate = useSettingsStore((state) => state.noiseGate);
-  const noiseGateThreshold = useSettingsStore((state) => state.noiseGateThreshold);
   const voiceLeveler = useSettingsStore((state) => state.voiceLeveler);
   const micGain = useSettingsStore((state) => state.micGain);
   const [testing, setTesting] = useState(false);
@@ -36,8 +34,6 @@ export function MicTest() {
       noiseSuppression,
       echoCancellation,
       autoGainControl,
-      noiseGate,
-      noiseGateThreshold,
       voiceLeveler,
       micGain,
     })
@@ -67,8 +63,6 @@ export function MicTest() {
     noiseSuppression,
     echoCancellation,
     autoGainControl,
-    noiseGate,
-    noiseGateThreshold,
     voiceLeveler,
     micGain,
   ]);

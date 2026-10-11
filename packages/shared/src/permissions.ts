@@ -54,6 +54,19 @@ export const DEFAULT_EVERYONE_PERMISSIONS =
   Permissions.AttachFiles |
   Permissions.AddReactions;
 
+/**
+ * What the two people of a private conversation can do in it: talk, call and share, and
+ * nothing that manages the place. Nobody in it is treated as an owner.
+ */
+export const DM_PERMISSIONS =
+  Permissions.ViewChannel |
+  Permissions.SendMessages |
+  Permissions.Connect |
+  Permissions.Speak |
+  Permissions.Stream |
+  Permissions.AttachFiles |
+  Permissions.AddReactions;
+
 /** Permissions that only make sense inside a voice channel. */
 const VOICE_ONLY = Permissions.Speak | Permissions.Stream;
 

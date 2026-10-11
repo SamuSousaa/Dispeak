@@ -19,7 +19,15 @@ export type IconName =
   | 'pip'
   | 'volume'
   | 'volume-off'
-  | 'lock';
+  | 'lock'
+  | 'stats'
+  | 'focus'
+  | 'grid'
+  | 'fullscreen'
+  | 'fullscreen-exit'
+  | 'close'
+  | 'noise'
+  | 'noise-off';
 
 const slash = <path d="M3 3l18 18" />;
 
@@ -118,6 +126,31 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <rect x="3" y="4" width="18" height="16" />
       <rect x="12" y="12" width="7" height="6" />
+    </>
+  ),
+  stats: <path d="M4 20h16M7 20v-6M12 20V5M17 20v-9" />,
+  focus: (
+    <>
+      <rect x="3" y="4" width="18" height="16" />
+      <rect x="7" y="8" width="10" height="8" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="3" y="3" width="8" height="8" />
+      <rect x="13" y="3" width="8" height="8" />
+      <rect x="3" y="13" width="8" height="8" />
+      <rect x="13" y="13" width="8" height="8" />
+    </>
+  ),
+  fullscreen: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
+  'fullscreen-exit': <path d="M4 9h5V4M15 4v5h5M20 15h-5v5M9 20v-5H4" />,
+  close: <path d="M5 5l14 14M19 5L5 19" />,
+  noise: <path d="M3 12h2M7 8v8M11 4v16M15 9v6M19 11v2" />,
+  'noise-off': (
+    <>
+      <path d="M3 12h2M7 8v8M11 4v16M15 9v6M19 11v2" />
+      {slash}
     </>
   ),
 };

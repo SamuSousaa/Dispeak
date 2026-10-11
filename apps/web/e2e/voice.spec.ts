@@ -25,6 +25,14 @@ async function roomStats(request: APIRequestContext, channel: string) {
 
 async function join(browser: Browser, channel: string, nickname: string): Promise<Page> {
   const context = await browser.newContext();
+  // The synthetic microphone beeps, and a beep is exactly what the noise suppression removes:
+  // these tests are about the audio going through, so it is sent as captured.
+  await context.addInitScript(() => {
+    localStorage.setItem(
+      'frequencia.settings',
+      JSON.stringify({ state: { noiseSuppression: false }, version: 3 }),
+    );
+  });
   const page = await context.newPage();
   await page.goto(`/lab/voice?canal=${channel}`);
   await page.getByLabel('APELIDO').fill(nickname);

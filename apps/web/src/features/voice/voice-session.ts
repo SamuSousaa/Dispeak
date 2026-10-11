@@ -23,6 +23,7 @@ import {
   simulcastEncodings,
   type ScreenPresetId,
 } from './screen-presets';
+import { pickScreenCodec } from './video-codec';
 import {
   collectConnectionStats,
   collectInboundStreamStats,
@@ -76,7 +77,23 @@ const ICE_RESTART_GRACE_MS = 4000;
 const STATS_INTERVAL_MS = 2000;
 /** Opus target for a voice: well above what browsers choose on their own (about 32 kbps). */
 const VOICE_BITRATE = 64_000;
-const SCREEN_AUDIO_BITRATE = 128_000;
+const SCREEN_AUDIO_BITRATE = 256_000;
+
+/**
+ * Whether the captured sound includes what this page itself plays, that is, the voices of the
+ * call: viewers would then hear themselves back through the stream. It happens when the whole
+ * screen is shared with the sound of the system and the browser cannot leave its own out.
+ */
+function capturesOwnAudio(video: MediaStreamTrack, audio: MediaStreamTrack | undefined): boolean {
+  if (!audio) return false;
+  const surface = (video.getSettings() as { displaySurface?: string }).displaySurface;
+  if (surface !== 'monitor') return false;
+  const supported = (
+    navigator.mediaDevices.getSupportedConstraints() as { restrictOwnAudio?: boolean }
+  ).restrictOwnAudio;
+  const applied = (audio.getSettings() as { restrictOwnAudio?: boolean }).restrictOwnAudio;
+  return supported !== true || applied === false;
+}
 
 /** Close codes after which reconnecting would be wrong. */
 const FATAL_CLOSE: Record<number, string> = {
@@ -791,8 +808,6 @@ export class VoiceSession {
       settings.noiseSuppression !== previous.noiseSuppression ||
       settings.echoCancellation !== previous.echoCancellation ||
       settings.autoGainControl !== previous.autoGainControl ||
-      settings.noiseGate !== previous.noiseGate ||
-      settings.noiseGateThreshold !== previous.noiseGateThreshold ||
       settings.voiceLeveler !== previous.voiceLeveler ||
       settings.micGain !== previous.micGain
     ) {
@@ -915,7 +930,10 @@ export class VoiceSession {
 
   // --- screen share -------------------------------------------------------------------------
 
-  /** Publishes the captured screen as VP8 simulcast, plus its audio track when there is one. */
+  /**
+   * Publishes the captured screen with the encodings of its preset, in the codec this machine
+   * handles best, plus its audio track when there is one.
+   */
   private async publishScreen(): Promise<void> {
     const { sendTransport, device, screenStream } = this;
     const presetId = get().screen.preset;
@@ -924,15 +942,23 @@ export class VoiceSession {
     const [audioTrack] = screenStream.getAudioTracks();
     if (!videoTrack || videoTrack.readyState !== 'live') throw new Error('screen track ended');
 
-    const vp8 = device.rtpCapabilities.codecs?.find(
-      (codec) => codec.mimeType.toLowerCase() === 'video/vp8',
-    );
+    const preset = SCREEN_PRESETS[presetId];
+    const topBitrate = Math.max(...preset.bitrates);
+    const codec = await pickScreenCodec(device.rtpCapabilities.codecs, {
+      width: preset.width,
+      height: preset.height,
+      frameRate: preset.frameRate,
+      bitrate: topBitrate,
+    });
+    // The share may have been stopped, or the call dropped, while the browser was asked.
+    if (this.sendTransport !== sendTransport || this.screenStream !== screenStream) return;
     this.screenProducer = await sendTransport.produce({
       track: videoTrack,
       stopTracks: false,
-      encodings: simulcastEncodings(SCREEN_PRESETS[presetId]),
-      codecOptions: { videoGoogleStartBitrate: 1000 },
-      codec: vp8,
+      encodings: simulcastEncodings(preset),
+      // Start near the target instead of climbing to it over the first seconds (kbps).
+      codecOptions: { videoGoogleStartBitrate: Math.min(4000, Math.round(topBitrate / 2000)) },
+      codec,
       appData: { source: 'screen' satisfies ProducerSource },
     });
 
@@ -940,8 +966,14 @@ export class VoiceSession {
       this.screenAudioProducer = await sendTransport.produce({
         track: audioTrack,
         stopTracks: false,
-        // Music and game audio: stereo, no DTX, higher bitrate than speech.
-        codecOptions: { opusStereo: true, opusDtx: false, opusFec: true },
+        // Music, films and game audio: stereo, no DTX, at a bitrate where Opus is transparent.
+        codecOptions: {
+          opusStereo: true,
+          opusDtx: false,
+          opusFec: true,
+          opusMaxAverageBitrate: SCREEN_AUDIO_BITRATE,
+          opusMaxPlaybackRate: 48_000,
+        },
         encodings: [{ maxBitrate: SCREEN_AUDIO_BITRATE }],
         appData: { source: 'screen-audio' satisfies ProducerSource },
       });
@@ -952,6 +984,7 @@ export class VoiceSession {
         status: 'live',
         preset: presetId,
         hasAudio: Boolean(this.screenAudioProducer),
+        echoRisk: Boolean(this.screenAudioProducer) && capturesOwnAudio(videoTrack, audioTrack),
         stream: screenStream,
         error: null,
       },

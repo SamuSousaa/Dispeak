@@ -26,7 +26,14 @@ export default defineConfig({
       ],
     },
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+  projects: [
+    {
+      name: 'chromium',
+      // `E2E_CHANNEL=chrome` runs the suite on the installed Chrome, which has what the bundled
+      // Chromium lacks: hardware encoders, and so the H.264 path of a screen share.
+      use: { browserName: 'chromium', channel: process.env.E2E_CHANNEL },
+    },
+  ],
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {

@@ -34,4 +34,8 @@ reconexão, escolha de camadas, balanceamento entre workers.
   consumers em 0,58 núcleo ([teste de carga](../load-test.md)).
 - O mediasoup tem código nativo. Em desenvolvimento usa-se o worker pré-compilado; em Docker a
   imagem carrega o toolchain para as plataformas sem binário pronto.
-- Vídeo restrito a VP8, para o simulcast se comportar igual em todos os navegadores.
+- Vídeo em VP8 por padrão, para o simulcast se comportar igual em todos os navegadores. Desde
+  2026-10 o router também aceita H.264 High, usado só em transmissões de tela e só quando o
+  hardware de quem transmite codifica: em 1440p60 o VP8 por software fazia o navegador reduzir a
+  imagem. Quem assiste num navegador sem decodificador H.264 High (Firefox) não recebe essas
+  transmissões.

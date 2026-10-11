@@ -16,13 +16,18 @@ describe('simulcastEncodings', () => {
     const bitrates = encodings.map((encoding) => encoding.maxBitrate ?? 0);
     expect(bitrates).toEqual([...bitrates].sort((a, b) => a - b));
   });
+
+  it('publishes a single full-size encoding for a preset with one bitrate', () => {
+    const encodings = simulcastEncodings(SCREEN_PRESETS.film);
+    expect(encodings).toEqual([{ maxBitrate: 18_000_000, maxFramerate: 30 }]);
+  });
 });
 
 describe('SCREEN_PRESETS', () => {
   it('keeps every preset within what the media server accepts from one sender', () => {
     // TRANSPORT_BITRATE.maxIncoming in apps/media, minus the camera and the audio tracks.
     const camera = CAMERA.bitrates.reduce((sum, bitrate) => sum + bitrate, 0);
-    const budget = 20_000_000 - camera - 500_000;
+    const budget = 40_000_000 - camera - 500_000;
     for (const preset of SCREEN_PRESET_LIST) {
       expect(preset.bitrates.reduce((sum, bitrate) => sum + bitrate, 0)).toBeLessThanOrEqual(
         budget,

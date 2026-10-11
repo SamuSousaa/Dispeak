@@ -1,6 +1,6 @@
 import type { VoicePeer } from '@frequencia/shared';
 import { create } from 'zustand';
-import type { NoiseSuppressionMode } from '../settings/settings-store';
+import type { NoiseEngine } from './microphone';
 import type { ScreenPresetId } from './screen-presets';
 
 export type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
@@ -19,6 +19,8 @@ export interface ScreenShareState {
   preset: ScreenPresetId | null;
   /** Whether the browser handed over system/tab audio along with the video. */
   hasAudio: boolean;
+  /** The captured sound includes the call itself: viewers may hear their own voices back. */
+  echoRisk: boolean;
   /** Local capture, shown as the streamer's own preview. */
   stream: MediaStream | null;
   error: string | null;
@@ -78,7 +80,7 @@ export interface VoiceState {
   /** False when no microphone could be opened; the user is then listen-only. */
   micAvailable: boolean;
   /** What is cleaning the microphone right now; `null` while there is no microphone. */
-  noiseSuppression: NoiseSuppressionMode | null;
+  noiseSuppression: NoiseEngine | null;
   /** Remote participants keyed by session id. */
   peers: Record<string, VoicePeer>;
   /** Session ids currently speaking (may include `selfId`). */
@@ -110,6 +112,7 @@ export const screenOff: ScreenShareState = {
   status: 'off',
   preset: null,
   hasAudio: false,
+  echoRisk: false,
   stream: null,
   error: null,
 };

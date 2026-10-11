@@ -124,11 +124,10 @@ test('watching from the sidebar, layouts, an enlarged camera and a microphone me
   await volume.getByRole('button', { name: 'Ativar som da transmissão' }).click();
   await expect(volume).toContainText('40%');
 
-  // --- the user picks the layout: everyone as equal tiles, even with a stream on -------------
-  const layout = alice.page.getByTestId('stage-layout').getByRole('button');
-  await expect(layout).toHaveText(/VER TODOS/);
-  await layout.click();
+  // --- clicks pick the layout: one on the stream in the main area and everyone is equal ------
   const everyone = alice.page.getByTestId('participant-grid');
+  await expect(everyone).toHaveCount(0);
+  await watched.getByTestId('stream-video').click();
   await expect(everyone.getByTestId('participant')).toHaveCount(2);
   await expect(everyone.getByTestId('stream-tile')).toHaveCount(1);
   await expect
@@ -140,17 +139,17 @@ test('watching from the sidebar, layouts, an enlarged camera and a microphone me
       return Math.abs((stream?.width ?? 0) - (person?.width ?? -99)) <= 2;
     })
     .toBe(true);
-  await expect(layout).toHaveText(/DESTACAR/);
-  await layout.click();
+  // A click on the stream gives it the main area again.
+  await everyone.getByTestId('stream-video').click();
   await expect(everyone).toHaveCount(0);
   await expect(watched).toBeVisible();
 
-  // --- a camera can be given the main area, and from there the whole screen ------------------
+  // --- a person in the strip takes the main area with a click, camera on or not --------------
   await bruno.page.getByRole('button', { name: 'Ligar câmera' }).click();
   const brunoTile = alice.page.getByTestId('participant').filter({ hasText: 'Bruno' });
   await expect(brunoTile.getByTestId('camera-video')).toBeVisible();
   const small = await brunoTile.boundingBox();
-  await alice.page.getByRole('button', { name: 'Ampliar a câmera de Bruno' }).click();
+  await alice.page.getByRole('button', { name: 'Destacar Bruno' }).click();
   await expect(brunoTile).toHaveAttribute('data-focused', 'true');
   await expect
     .poll(async () => (await brunoTile.boundingBox())?.height ?? 0)
@@ -160,13 +159,17 @@ test('watching from the sidebar, layouts, an enlarged camera and a microphone me
     alice.page.getByRole('button', { name: 'Focar na transmissão de Bruno' }),
   ).toBeVisible();
   await brunoTile.hover();
-  await expect(brunoTile.getByRole('button', { name: 'TELA CHEIA' })).toBeVisible();
-  await brunoTile.getByRole('button', { name: 'REDUZIR', exact: true }).click();
+  await expect(brunoTile.getByRole('button', { name: 'Tela cheia' })).toBeVisible();
+  await brunoTile.getByRole('button', { name: 'Voltar à grade' }).click();
   await expect(brunoTile).toHaveAttribute('data-focused', 'false');
-  // Turning the camera off while it is enlarged gives the area back by itself.
-  await alice.page.getByRole('button', { name: 'Ampliar a câmera de Bruno' }).click();
+  await expect(everyone.getByTestId('participant')).toHaveCount(2);
+  // He keeps the main area when the camera goes off; the thumbnail swaps the stream back in.
+  await alice.page.getByRole('button', { name: 'Destacar Bruno' }).click();
   await expect(brunoTile).toHaveAttribute('data-focused', 'true');
   await bruno.page.getByRole('button', { name: 'Desligar câmera' }).click();
+  await expect(brunoTile.getByTestId('camera-video')).toHaveCount(0);
+  await expect(brunoTile).toHaveAttribute('data-focused', 'true');
+  await alice.page.getByRole('button', { name: 'Focar na transmissão de Bruno' }).click();
   await expect(brunoTile).toHaveAttribute('data-focused', 'false');
   await expect(watched).toBeVisible();
   await watched.hover();

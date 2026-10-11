@@ -39,6 +39,7 @@ const channel = (id: string, type: Channel['type'], position: number): Channel =
 
 const guild = (overrides: Partial<Guild> = {}): Guild => ({
   id: GUILD,
+  kind: 'server',
   name: 'Amigos',
   icon: null,
   ownerId: ALICE,

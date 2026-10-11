@@ -119,9 +119,10 @@ test('two simultaneous streams; a viewer only receives the one being watched', a
 
   // Real statistics from getStats() in the viewer's panel.
   await stream(carla, 'Alice').hover();
-  await stream(carla, 'Alice').getByRole('button', { name: 'STATS' }).click();
+  await stream(carla, 'Alice').getByRole('button', { name: 'Estatísticas' }).click();
   const panel = stream(carla, 'Alice').getByTestId('stream-stats');
-  await expect(panel.locator('[data-stat="CODEC"]')).toHaveText('VP8');
+  // H.264 where the graphics card encodes it (the installed Chrome), VP8 everywhere else.
+  await expect(panel.locator('[data-stat="CODEC"]')).toHaveText(/^(VP8|H264)$/);
   await expect(panel.locator('[data-stat="RESOLUÇÃO"]')).toHaveText(/^\d+×\d+$/);
   await expect(panel.locator('[data-stat="BITRATE"]')).toHaveText(/^[1-9]\d* KBPS$/);
   await expect(panel.locator('[data-stat="FPS"]')).toHaveText(/^[1-9]\d*$/);
@@ -135,13 +136,12 @@ test('two simultaneous streams; a viewer only receives the one being watched', a
     )
     .toBe(2);
 
-  // Watching the second stream and focusing the first turns the second into a thumbnail,
-  // which is served from the lowest layer.
+  // The second stream takes the main area when Carla starts watching it. A click on the
+  // first, now a thumbnail, swaps them: the second is then served from the lowest layer.
   await carla.getByRole('button', { name: 'Assistir Bruno' }).click();
   await expect(stream(carla, 'Bruno')).toBeVisible();
   await expect.poll(() => videoWidth(carla, 'Bruno')).toBeGreaterThan(0);
-  await stream(carla, 'Alice').hover();
-  await stream(carla, 'Alice').getByRole('button', { name: 'FOCO' }).click();
+  await carla.getByRole('button', { name: 'Focar na transmissão de Alice' }).click();
   await expect
     .poll(async () => {
       const consumers = (await peerNamed(request, channel, 'Carla'))?.consumers ?? [];

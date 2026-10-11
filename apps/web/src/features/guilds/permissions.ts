@@ -29,7 +29,8 @@ export function actorIn(guild: Guild, userId: string): HierarchyActor {
   const member = guild.members.find((entry) => entry.user.id === userId);
   const roles = guild.roles.filter((role) => member?.roleIds.includes(role.id));
   const everyone = guild.roles.find((role) => role.id === guild.id);
-  const isOwner = guild.ownerId === userId;
+  // A private conversation has no owner, whoever asked for the friendship.
+  const isOwner = guild.kind === 'server' && guild.ownerId === userId;
   return {
     isOwner,
     permissions: computeBasePermissions({

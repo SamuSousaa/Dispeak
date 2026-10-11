@@ -95,12 +95,16 @@ export function VoiceChannelView({
     here && (status === 'connecting' || status === 'connected' || status === 'reconnecting');
 
   const inChannel = guild.voiceStates.filter((state) => state.channelId === channel.id);
+  // A private conversation has one chat: the call shows it, not a second one of its own.
+  const isDm = guild.kind === 'dm';
+  const chatChannel =
+    (isDm ? guild.channels.find((entry) => entry.type === 'text') : undefined) ?? channel;
   const connecting = here && status === 'connecting';
 
   return (
     <div className="flex h-full flex-col md:flex-row">
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <ChatToggle channel={channel} open={sideChatOpen} />
+        <ChatToggle channel={chatChannel} open={sideChatOpen} />
         {live ? (
           <>
             <div className="min-h-0 flex-1">
@@ -115,8 +119,16 @@ export function VoiceChannelView({
           <div className="grid-bg flex h-full items-center justify-center p-4">
             <section className="anim-rise w-full max-w-sm border border-line bg-surface">
               <header className="border-b border-line px-4 py-4">
-                <p className="label text-muted">CANAL DE VOZ</p>
-                <h2 className="display mt-1 truncate text-xl text-fg">{channel.name}</h2>
+                <p className="label text-muted">{isDm ? 'CHAMADA PRIVADA' : 'CANAL DE VOZ'}</p>
+                <h2 className="display mt-1 truncate text-xl text-fg">
+                  {isDm
+                    ? memberName(
+                        guild,
+                        guild.members.find((member) => member.user.id !== userId)?.user.id ??
+                          userId,
+                      )
+                    : channel.name}
+                </h2>
               </header>
               <div className="flex flex-col gap-4 p-4">
                 <div>
@@ -152,14 +164,20 @@ export function VoiceChannelView({
                   disabled={!canConnect || connecting}
                   onClick={() => connectToVoiceChannel(channel)}
                 >
-                  {connecting ? 'CONECTANDO' : 'ENTRAR NO CANAL'}
+                  {connecting
+                    ? 'CONECTANDO'
+                    : isDm
+                      ? inChannel.length > 0
+                        ? 'ENTRAR NA CHAMADA'
+                        : 'LIGAR'
+                      : 'ENTRAR NO CANAL'}
                 </Button>
               </div>
             </section>
           </div>
         )}
       </div>
-      {sideChatOpen && <VoiceChat guild={guild} channel={channel} userId={userId} />}
+      {sideChatOpen && <VoiceChat guild={guild} channel={chatChannel} userId={userId} />}
     </div>
   );
 }

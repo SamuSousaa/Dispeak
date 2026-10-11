@@ -51,6 +51,8 @@ export function openContextMenu(
   });
 }
 
+export const isContextMenuOpen = (): boolean => useMenuStore.getState().open !== null;
+
 export function closeContextMenu(): void {
   if (useMenuStore.getState().open) useMenuStore.setState({ open: null });
 }

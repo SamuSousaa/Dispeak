@@ -114,9 +114,14 @@ test('account → server → invite → voice channel → stream, with permissio
 
   // --- Right click on a person: their volume, for this user only ---------------------------
   const brunoTile = alice.page.getByTestId('participant').filter({ hasText: 'Bruno' });
-  // A plain click on the name opens the same menu as a right click.
+  // A plain click on the name shows the profile and nothing else.
   await voiceMembers(alice.page).filter({ hasText: 'Bruno' }).click();
+  await expect(alice.page.getByTestId('context-menu').getByTestId('profile-card')).toBeVisible();
+  await expect(alice.page.getByRole('menuitem')).toHaveCount(0);
+  await alice.page.keyboard.press('Escape');
+  await voiceMembers(alice.page).filter({ hasText: 'Bruno' }).click({ button: 'right' });
   await expect(alice.page.getByTestId('context-menu')).toContainText('VOLUME PARA MIM — 100%');
+  await expect(alice.page.getByTestId('profile-card')).toHaveCount(0);
   await alice.page.getByRole('menuitem', { name: 'Silenciar para mim' }).click();
   await expect(brunoTile.getByTestId('volume-note')).toHaveText('SILENCIADO');
   await brunoTile.click({ button: 'right' });
@@ -158,9 +163,17 @@ test('account → server → invite → voice channel → stream, with permissio
   await channelList.getByTestId('category-toggle').last().click();
   await expect(channelList.getByRole('link', { name: /geral/ })).toHaveCount(1);
 
-  // --- Quick settings: RNNoise is really running, and shortcuts can be rebound ---------------
+  // --- Noise suppression: one switch next to the call controls, and the model really runs ----
+  await bruno.page.getByTestId('noise-toggle').click();
+  await expect(bruno.page.getByTestId('noise-toggle')).toHaveAttribute('aria-pressed', 'false');
   await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
-  await expect(dialog(bruno.page).getByTestId('noise-active')).toHaveText('EM USO AGORA: RNNOISE');
+  await expect(dialog(bruno.page).getByTestId('noise-active')).toHaveText(
+    'EM USO AGORA: DESLIGADA',
+  );
+  await dialog(bruno.page)
+    .getByRole('checkbox', { name: /SUPRESSÃO DE RUÍDO/ })
+    .check();
+  await expect(dialog(bruno.page).getByTestId('noise-active')).toHaveText('EM USO AGORA: GTCRN');
   await dialog(bruno.page).getByRole('tab', { name: 'ATALHOS' }).click();
   await dialog(bruno.page)
     .getByRole('button', { name: /^Atalho de Mutar/ })
@@ -283,7 +296,7 @@ test('account → server → invite → voice channel → stream, with permissio
   await expect(brunoMember.locator('[data-presence="online"]')).toBeVisible();
 
   // --- A forgotten password: the owner makes a link, and it works once -----------------------
-  await brunoMember.click();
+  await brunoMember.click({ button: 'right' });
   await alice.page.getByRole('menuitem', { name: 'Link de nova senha' }).click();
   const resetLink = await alice.page.getByTestId('link-dialog').getByLabel('Link').inputValue();
   expect(resetLink).toMatch(/\/reset\/[\w-]{20,}$/);
@@ -313,27 +326,30 @@ test('account → server → invite → voice channel → stream, with permissio
   await joinVoice(bruno.page);
   await expect(alice.page.getByTestId('participant')).toHaveCount(2);
 
-  // --- Moderation from the same menu: server mute, then out of the call ---------------------
-  await brunoTile.click();
+  // --- Moderation from the right-click menu: server mute, then out of the call --------------
+  await brunoTile.click({ button: 'right' });
   await alice.page.getByRole('menuitem', { name: 'Mutar no servidor' }).click();
   await expect(bruno.page.getByTestId('mic-status')).toHaveText(
     'MUTADO NO SERVIDOR — SOMENTE ESCUTA',
   );
   await expect(brunoTile).toContainText('MUTADO NO SERVIDOR');
   // Bruno has no such item in anyone's menu, his own included.
-  await bruno.page.getByTestId('participant').filter({ hasText: 'Alice' }).click();
+  await bruno.page
+    .getByTestId('participant')
+    .filter({ hasText: 'Alice' })
+    .click({ button: 'right' });
   await expect(bruno.page.getByTestId('context-menu')).toContainText('VOLUME PARA MIM');
   await expect(bruno.page.getByRole('menuitem', { name: /Mutar no servidor|Banir/ })).toHaveCount(
     0,
   );
   await bruno.page.keyboard.press('Escape');
-  await brunoMember.click();
+  await brunoMember.click({ button: 'right' });
   await alice.page.getByRole('menuitem', { name: 'Devolver o microfone' }).click();
   await expect(bruno.page.getByTestId('mic-status')).toHaveCount(0);
   await expect(bruno.page.getByTestId('voice-status')).toHaveText('CONECTADO');
   await expect(alice.page.getByTestId('participant')).toHaveCount(2);
 
-  await brunoTile.click();
+  await brunoTile.click({ button: 'right' });
   await alice.page.getByRole('menuitem', { name: 'Desconectar da chamada' }).click();
   await expect(bruno.page.getByRole('alert')).toHaveText('Você foi removido do canal.');
   await expect(alice.page.getByTestId('participant')).toHaveCount(1);

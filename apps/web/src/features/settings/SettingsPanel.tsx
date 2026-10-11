@@ -10,6 +10,7 @@ import {
   playSound,
   setCustomSound,
 } from '../sounds/sound-player';
+import type { NoiseEngine } from '../voice/microphone';
 import { useVoiceStore } from '../voice/voice-store';
 import { bindingFromEvent, KEYBIND_ACTIONS, KEYBIND_LABELS, type KeybindAction } from './keybinds';
 import {
@@ -18,25 +19,9 @@ import {
   updateSettings,
   useSettingsStore,
   type InputMode,
-  type NoiseSuppressionMode,
 } from './settings-store';
 import { MicTest } from './MicTest';
 import { PasswordForm, ProfileTab } from './ProfileTab';
-
-const NOISE_OPTIONS: Array<{ value: NoiseSuppressionMode; label: string; hint: string }> = [
-  {
-    value: 'gtcrn',
-    label: 'MÁXIMA',
-    hint: 'Rede neural GTCRN: corta mais teclado e cliques, mas a voz sai mais abafada, como em um telefone.',
-  },
-  {
-    value: 'rnnoise',
-    label: 'AVANÇADA',
-    hint: 'Rede neural (RNNoise) que isola a voz e corta teclado, ventilador e ruído de fundo.',
-  },
-  { value: 'browser', label: 'PADRÃO', hint: 'O filtro simples que já vem no navegador.' },
-  { value: 'off', label: 'DESLIGADA', hint: 'Envia o microfone sem filtro.' },
-];
 
 const INPUT_OPTIONS: Array<{ value: InputMode; label: string; hint: string }> = [
   {
@@ -54,7 +39,7 @@ const INPUT_OPTIONS: Array<{ value: InputMode; label: string; hint: string }> = 
 export type SettingsTab = 'profile' | 'voice' | 'video' | 'chat' | 'sounds' | 'keys' | 'account';
 type Tab = SettingsTab;
 
-const NOISE_NAMES: Record<NoiseSuppressionMode, string> = {
+const NOISE_NAMES: Record<NoiseEngine, string> = {
   gtcrn: 'GTCRN',
   rnnoise: 'RNNOISE',
   browser: 'NAVEGADOR',
@@ -389,8 +374,8 @@ export function SettingsPanel({
   const [capturing, setCapturing] = useState<KeybindAction | null>(null);
 
   const namesHidden = devices.inputs.length > 0 && devices.inputs.every((device) => !device.label);
-  const neural = settings.noiseSuppression === 'gtcrn' || settings.noiseSuppression === 'rnnoise';
-  const fellBack = neural && activeNoise !== null && activeNoise !== settings.noiseSuppression;
+  // Anything but the first-choice model means that one could not run here.
+  const fellBack = settings.noiseSuppression && activeNoise !== null && activeNoise !== 'gtcrn';
 
   useEffect(() => {
     if (!capturing) return;
@@ -505,59 +490,21 @@ export function SettingsPanel({
               </fieldset>
             )}
 
-            <fieldset className="flex flex-col gap-1.5">
-              <legend className="label mb-1.5 text-muted">SUPRESSÃO DE RUÍDO</legend>
-              <OptionGroup
-                label="Supressão de ruído"
-                name="noise-suppression"
-                value={settings.noiseSuppression}
-                options={NOISE_OPTIONS}
-                onChange={(noiseSuppression) => updateSettings({ noiseSuppression })}
-              />
-              {activeNoise && (
-                <p
-                  className={cx('label', fellBack ? 'text-danger' : 'text-muted')}
-                  data-testid="noise-active"
-                >
-                  {fellBack
-                    ? `INDISPONÍVEL NESTE NAVEGADOR — EM USO: ${NOISE_NAMES[activeNoise]}`
-                    : `EM USO AGORA: ${NOISE_NAMES[activeNoise]}`}
-                </p>
-              )}
-            </fieldset>
-
-            {neural && (
-              <>
-                <Toggle
-                  label="CORTAR SONS BAIXOS"
-                  hint="Depois da rede neural, só passa o que tem força de voz: o resto de uma tecla ou de um clique entre as palavras é cortado."
-                  checked={settings.noiseGate}
-                  onChange={(noiseGate) => updateSettings({ noiseGate })}
-                />
-                {settings.noiseGate && (
-                  <label className="flex flex-col gap-1.5">
-                    <span className="label text-muted">
-                      CORTAR ABAIXO DE {settings.noiseGateThreshold} DB
-                    </span>
-                    <input
-                      type="range"
-                      min={-70}
-                      max={-30}
-                      step={1}
-                      value={settings.noiseGateThreshold}
-                      aria-label="Nível mínimo para o microfone abrir"
-                      className="w-full accent-(--accent)"
-                      onChange={(event) =>
-                        updateSettings({ noiseGateThreshold: Number(event.target.value) })
-                      }
-                    />
-                    <span className="text-xs text-muted">
-                      Para a direita corta mais (teclado some, mas voz baixa pode falhar); para a
-                      esquerda corta menos. Use o teste abaixo para acertar.
-                    </span>
-                  </label>
-                )}
-              </>
+            <Toggle
+              label="SUPRESSÃO DE RUÍDO"
+              hint="Uma rede neural isola a sua voz e corta teclado, cliques, ventilador e vento. Também liga e desliga pelo botão ao lado da câmera, durante a chamada."
+              checked={settings.noiseSuppression}
+              onChange={(noiseSuppression) => updateSettings({ noiseSuppression })}
+            />
+            {activeNoise && (
+              <p
+                className={cx('label', fellBack ? 'text-danger' : 'text-muted')}
+                data-testid="noise-active"
+              >
+                {fellBack
+                  ? `INDISPONÍVEL NESTE NAVEGADOR — EM USO: ${NOISE_NAMES[activeNoise]}`
+                  : `EM USO AGORA: ${NOISE_NAMES[activeNoise]}`}
+              </p>
             )}
 
             <Toggle

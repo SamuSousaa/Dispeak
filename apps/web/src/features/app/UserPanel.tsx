@@ -7,9 +7,10 @@ import { profileApi } from '../auth/profile-api';
 import { StatusMark } from '../profile/ProfileCard';
 import type { SettingsTab } from '../settings/SettingsPanel';
 import { IconButton } from '../../components/IconButton';
+import { conversationOf } from '../friends/dm';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { channelPermissions } from '../guilds/permissions';
-import { useKeybind, useSettingsStore } from '../settings/settings-store';
+import { updateSettings, useKeybind, useSettingsStore } from '../settings/settings-store';
 import { MicMeter } from '../voice/components/MicMeter';
 import { ScreenShareButton } from '../voice/components/ScreenShareButton';
 import { leaveVoice, toggleCamera, toggleDeafen, toggleMute } from '../voice/voice-actions';
@@ -50,6 +51,7 @@ export function UserPanel({
   const cameraKey = useKeybind('camera');
   const talkKey = useKeybind('pushToTalk');
   const pushToTalk = useSettingsStore((state) => state.inputMode === 'pushToTalk');
+  const noiseSuppression = useSettingsStore((state) => state.noiseSuppression);
   const pttHeld = useVoiceStore((state) => state.pttHeld);
   // The voice channel may belong to a server other than the one on screen.
   const guild = useGatewayStore((state) =>
@@ -58,6 +60,7 @@ export function UserPanel({
     ),
   );
   const channel = guild?.channels.find((entry) => entry.id === channelId);
+  const conversation = conversationOf(guild, user.id);
 
   const serverMuted =
     guild?.members.find((member) => member.user.id === user.id)?.serverMuted ?? false;
@@ -93,7 +96,9 @@ export function UserPanel({
                   title="Voltar para o canal de voz"
                   className="label block truncate text-muted transition-colors hover:text-accent"
                 >
-                  {channel.name} / {guild.name}
+                  {conversation
+                    ? `CHAMADA COM ${conversation.friend.user.displayName}`
+                    : `${channel.name} / ${guild.name}`}
                 </NavLink>
               ) : (
                 <p className="label truncate text-muted">{channelName}</p>
@@ -127,6 +132,17 @@ export function UserPanel({
                   onClick={toggleCamera}
                 />
                 <ScreenShareButton allowed={canStream} />
+                <IconButton
+                  icon={noiseSuppression ? 'noise' : 'noise-off'}
+                  tone={noiseSuppression ? 'active' : 'default'}
+                  label={
+                    noiseSuppression ? 'Desligar supressão de ruído' : 'Ligar supressão de ruído'
+                  }
+                  aria-pressed={noiseSuppression}
+                  data-testid="noise-toggle"
+                  className="ml-auto"
+                  onClick={() => updateSettings({ noiseSuppression: !noiseSuppression })}
+                />
               </div>
             )}
             {camera.error && (

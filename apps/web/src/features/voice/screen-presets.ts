@@ -1,6 +1,13 @@
 import { SIMULCAST_LAYERS } from '@frequencia/shared';
 
-export const SCREEN_PRESET_IDS = ['720p30', '1080p30', '1080p60', '1440p60', 'source'] as const;
+export const SCREEN_PRESET_IDS = [
+  '720p30',
+  '1080p30',
+  '1080p60',
+  '1440p60',
+  'source',
+  'film',
+] as const;
 export type ScreenPresetId = (typeof SCREEN_PRESET_IDS)[number];
 
 export interface ScreenPreset {
@@ -13,8 +20,11 @@ export interface ScreenPreset {
   frameRate: number;
   /** `detail` keeps text sharp under pressure, `motion` keeps the frame rate. */
   contentHint: 'detail' | 'motion';
-  /** Max bitrate per simulcast layer, lowest resolution first. */
-  bitrates: [number, number, number];
+  /**
+   * Max bitrate per simulcast layer, lowest resolution first. A single value publishes one
+   * encoding only: every viewer gets the full picture, whatever the size of their tile.
+   */
+  bitrates: number[];
 }
 
 export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
@@ -26,7 +36,7 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 720,
     frameRate: 30,
     contentHint: 'detail',
-    bitrates: [150_000, 500_000, 1_800_000],
+    bitrates: [150_000, 500_000, 2_500_000],
   },
   '1080p30': {
     id: '1080p30',
@@ -36,7 +46,7 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 1080,
     frameRate: 30,
     contentHint: 'detail',
-    bitrates: [250_000, 900_000, 3_000_000],
+    bitrates: [250_000, 900_000, 4_000_000],
   },
   '1080p60': {
     id: '1080p60',
@@ -46,7 +56,7 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 1080,
     frameRate: 60,
     contentHint: 'motion',
-    bitrates: [400_000, 1_400_000, 5_000_000],
+    bitrates: [400_000, 1_500_000, 8_000_000],
   },
   '1440p60': {
     id: '1440p60',
@@ -56,7 +66,7 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 1440,
     frameRate: 60,
     contentHint: 'motion',
-    bitrates: [500_000, 2_000_000, 9_000_000],
+    bitrates: [500_000, 2_000_000, 14_000_000],
   },
   source: {
     id: 'source',
@@ -66,16 +76,31 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 2160,
     frameRate: 60,
     contentHint: 'motion',
-    bitrates: [700_000, 3_000_000, 12_000_000],
+    bitrates: [700_000, 3_000_000, 20_000_000],
+  },
+  film: {
+    id: 'film',
+    label: 'FILME',
+    hint: 'Máxima fidelidade para filmes e séries — até 1440p, 30 fps',
+    width: 2560,
+    height: 1440,
+    // Films run at 24 to 30 frames: the bits of the other 30 go into each picture instead.
+    frameRate: 30,
+    contentHint: 'motion',
+    bitrates: [18_000_000],
   },
 };
 
 export const SCREEN_PRESET_LIST = Object.values(SCREEN_PRESETS);
 
-/** Three simulcast encodings: quarter, half and full resolution. */
+/** One encoding per bitrate of the preset: for three, quarter, half and full resolution. */
 export function simulcastEncodings(
   preset: Pick<ScreenPreset, 'bitrates' | 'frameRate'>,
 ): RTCRtpEncodingParameters[] {
+  const [only] = preset.bitrates;
+  if (preset.bitrates.length === 1 && only !== undefined) {
+    return [{ maxBitrate: only, maxFramerate: preset.frameRate }];
+  }
   return preset.bitrates.map((maxBitrate, index) => ({
     rid: `r${index}`,
     scaleResolutionDownBy: 2 ** (SIMULCAST_LAYERS - 1 - index),

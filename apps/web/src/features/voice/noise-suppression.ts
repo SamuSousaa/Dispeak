@@ -22,6 +22,10 @@ const RESUME_TIMEOUT_MS = 1500;
 const GATE_HOLD_MS = 180;
 /** The gate closes a little below where it opens, so it does not flutter at the edge. */
 const GATE_HYSTERESIS_DB = 6;
+/** Below the lowest voices (a deep male voice starts around 85 Hz, and is carried by its harmonics). */
+const RUMBLE_CUTOFF_HZ = 100;
+/** Two biquads with these Q values in series make a fourth-order Butterworth filter. */
+const RUMBLE_FILTER_Q = [0.5412, 1.3066];
 
 /**
  * The neural models that can clean the microphone. RNNoise works on the full band (48 kHz), so
@@ -99,6 +103,17 @@ export async function processMicrophone(
     if (context.state !== 'running') throw new Error(`audio context is ${context.state}`);
 
     const nodes: AudioNode[] = [context.createMediaStreamSource(new MediaStream([source]))];
+    if (model) {
+      // Wind, breath on the capsule and desk thumps live below the voice, where the models are
+      // at their weakest: a steep high-pass (24 dB per octave) takes them out before the model.
+      for (const q of RUMBLE_FILTER_Q) {
+        const highpass = context.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = RUMBLE_CUTOFF_HZ;
+        highpass.Q.value = q;
+        nodes.push(highpass);
+      }
+    }
     const denoiser =
       model && binary
         ? model === 'gtcrn'

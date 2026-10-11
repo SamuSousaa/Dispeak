@@ -27,6 +27,8 @@ import { LinkPreviews } from './modules/embeds/link-preview';
 import { embedRoutes } from './modules/embeds/routes';
 import { AuthService } from './modules/auth/service';
 import { guildRoutes } from './modules/guilds/routes';
+import { friendRoutes } from './modules/friends/routes';
+import { FriendService } from './modules/friends/service';
 import { GuildService } from './modules/guilds/service';
 import { AttachmentFiles } from './modules/messages/attachment-files';
 import { messageRoutes } from './modules/messages/routes';
@@ -107,6 +109,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     pictures,
     soundFiles: new AttachmentFiles(path.resolve(config.UPLOADS_DIR, 'sounds')),
   });
+  const friends = new FriendService({ db: database.db, bus, live, voice });
   const messages = new MessageService(
     database.db,
     bus,
@@ -136,6 +139,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     voiceStates,
     auth,
     guilds,
+    friends,
     messages,
     users,
     pictures,
@@ -207,6 +211,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
 
       await api.register(authRoutes);
       await api.register(guildRoutes);
+      await api.register(friendRoutes);
       await api.register(messageRoutes);
       await api.register(embedRoutes);
       await api.register(userRoutes);

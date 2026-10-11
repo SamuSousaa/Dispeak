@@ -1,6 +1,5 @@
 import { SIMULCAST_LAYERS } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '../../../components/Button';
 import { IconButton } from '../../../components/IconButton';
 import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
@@ -8,6 +7,7 @@ import { registerStreamFullscreen } from '../stream-fullscreen';
 import { setStreamViewport, setStreamVolume } from '../voice-actions';
 import { SELF_STREAM, useVoiceStore, type StreamStats } from '../voice-store';
 import { LiveBadge } from './LiveBadge';
+import { useFocusClick } from './use-focus-click';
 import { volumeIsFixed } from './VolumeControl';
 
 interface IosVideoElement extends HTMLVideoElement {
@@ -121,7 +121,10 @@ function StreamVolume({ id, name }: { id: string; name: string }) {
   );
 }
 
-/** A live screen share: the video plus sound, focus, fullscreen and statistics controls. */
+/**
+ * A live screen share: the video plus sound, focus, fullscreen and statistics controls. A click
+ * on the picture gives it the main area (or hands it back), two clicks fill the screen.
+ */
 export function StreamTile({
   id,
   name,
@@ -218,6 +221,13 @@ export function StreamTile({
     else enterFullscreen();
   };
 
+  const focusClick = useFocusClick({
+    focused,
+    fullscreen,
+    onToggleFocus,
+    onFullscreen: toggleFullscreen,
+  });
+
   // Thumbnails are left out: the fullscreen shortcut targets the streams being watched.
   useEffect(() => {
     if (compact) return;
@@ -241,8 +251,11 @@ export function StreamTile({
         stream={stream}
         muted
         data-testid="stream-video"
-        className="h-full w-full object-contain"
-        onDoubleClick={toggleFullscreen}
+        className={cx('h-full w-full object-contain', !fullscreen && 'cursor-pointer')}
+        title={
+          focused ? 'Clique: voltar à grade · dois cliques: tela cheia' : 'Clique para destacar'
+        }
+        {...focusClick}
       />
       {!stream && (
         <div className="label absolute inset-0 flex items-center justify-center text-muted">
@@ -281,39 +294,50 @@ export function StreamTile({
               ) : (
                 <span className="label mr-auto px-3 text-muted">SEM ÁUDIO</span>
               ))}
-            <Button
-              className="border-transparent"
-              variant={showStats ? 'active' : 'default'}
+            <IconButton
+              icon="stats"
+              label="Estatísticas"
+              tone={showStats ? 'active' : 'default'}
               aria-pressed={showStats}
-              onClick={() => setShowStats((value) => !value)}
-            >
-              STATS
-            </Button>
-            <Button
               className="border-transparent"
-              variant={focused ? 'active' : 'default'}
-              aria-pressed={focused}
-              onClick={onToggleFocus}
-            >
-              {focused ? 'GRADE' : 'FOCO'}
-            </Button>
-            {supportsPip && (
-              <Button
+              onClick={() => setShowStats((value) => !value)}
+            />
+            {!fullscreen && (
+              <IconButton
+                icon={focused ? 'grid' : 'focus'}
+                label={focused ? 'Voltar à grade' : 'Destacar'}
                 className="border-transparent"
-                variant={floating ? 'active' : 'default'}
-                aria-pressed={floating}
-                title="Mantém o vídeo numa janela pequena por cima de tudo"
-                onClick={toggleFloating}
-              >
-                {floating ? 'FECHAR JANELA' : 'JANELA FLUTUANTE'}
-              </Button>
+                onClick={onToggleFocus}
+              />
             )}
-            <Button className="border-transparent" onClick={toggleFullscreen}>
-              {fullscreen ? 'SAIR DA TELA CHEIA' : 'TELA CHEIA'}
-            </Button>
-            <Button className="border-transparent" variant="danger" onClick={onClose}>
-              {isSelf ? 'PARAR TRANSMISSÃO' : 'PARAR DE ASSISTIR'}
-            </Button>
+            {supportsPip && (
+              <IconButton
+                icon="pip"
+                label={floating ? 'Fechar janela flutuante' : 'Janela flutuante'}
+                title={
+                  floating
+                    ? 'Fechar janela flutuante'
+                    : 'Janela flutuante: o vídeo numa janela pequena por cima de tudo'
+                }
+                tone={floating ? 'active' : 'default'}
+                aria-pressed={floating}
+                className="border-transparent"
+                onClick={toggleFloating}
+              />
+            )}
+            <IconButton
+              icon={fullscreen ? 'fullscreen-exit' : 'fullscreen'}
+              label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+              className="border-transparent"
+              onClick={toggleFullscreen}
+            />
+            <IconButton
+              icon="close"
+              tone="danger"
+              label={isSelf ? 'Parar transmissão' : 'Parar de assistir'}
+              className="border-transparent"
+              onClick={onClose}
+            />
           </div>
         </>
       )}
