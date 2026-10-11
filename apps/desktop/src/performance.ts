@@ -15,6 +15,9 @@ export function applyBackgroundSwitches(): void {
   app.commandLine.appendSwitch('disable-background-timer-throttling');
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  // On a machine with two graphics cards Windows hands a window like this one the weak one.
+  // Capturing a game drawn by the other card then copies every frame between the two.
+  app.commandLine.appendSwitch('force_high_performance_gpu');
 }
 
 /**

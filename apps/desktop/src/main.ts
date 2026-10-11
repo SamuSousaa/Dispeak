@@ -1,5 +1,6 @@
 import { app, BrowserWindow, session, shell } from 'electron';
 import { config } from './config';
+import { showDiagnostics } from './diagnostics';
 import { isAppUrl, isExternalLink } from './navigation';
 import { applyBackgroundSwitches, keepProcessesResponsive } from './performance';
 import { pickSource } from './picker/picker';
@@ -59,6 +60,9 @@ function createWindow(): BrowserWindow {
     } else if (input.key === 'F12') {
       event.preventDefault();
       webContents.toggleDevTools();
+    } else if (input.control && input.shift && input.key.toLowerCase() === 'd') {
+      event.preventDefault();
+      void showDiagnostics(window);
     }
   });
 
