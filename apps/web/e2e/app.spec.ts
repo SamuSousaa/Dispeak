@@ -14,6 +14,16 @@ async function newUser(browser: Browser, displayName: string) {
   const context = await browser.newContext({ viewport: { width: 1360, height: 820 } });
   // Notification sounds are the only audio played from a URL (voices use srcObject): count them.
   await context.addInitScript(() => {
+    // Nobody starts with shortcuts; these tests press the ones a user would have chosen.
+    if (!localStorage.getItem('frequencia.settings')) {
+      localStorage.setItem(
+        'frequencia.settings',
+        JSON.stringify({
+          state: { keybinds: { mute: 'M', deafen: 'D', fullscreen: 'F' } },
+          version: 4,
+        }),
+      );
+    }
     const played: string[] = [];
     (window as unknown as { playedSounds: string[] }).playedSounds = played;
     const play = HTMLMediaElement.prototype.play;

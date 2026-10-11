@@ -20,6 +20,10 @@ const press = (
   });
 
 describe('keybinds', () => {
+  it('gives nobody a shortcut they did not choose', () => {
+    expect(Object.values(DEFAULT_KEYBINDS).every((binding) => binding === null)).toBe(true);
+  });
+
   it('names a key press, with modifiers in a fixed order', () => {
     expect(press('m')).toBe('M');
     expect(press('M', { shift: true, ctrl: true })).toBe('Ctrl+Shift+M');
@@ -42,15 +46,16 @@ describe('keybinds', () => {
   });
 
   it('moves a binding instead of sharing it between two actions', () => {
-    const next = assignKeybind(DEFAULT_KEYBINDS, 'leave', 'M');
+    const chosen = assignKeybind(DEFAULT_KEYBINDS, 'mute', 'M');
+    const next = assignKeybind(chosen, 'leave', 'M');
     expect(next.leave).toBe('M');
     expect(next.mute).toBeNull();
     expect(actionForBinding(next, 'M')).toBe('leave');
-    expect(DEFAULT_KEYBINDS.mute).toBe('M');
+    expect(chosen.mute).toBe('M');
   });
 
   it('clears a binding', () => {
-    const next = assignKeybind(DEFAULT_KEYBINDS, 'deafen', null);
+    const next = assignKeybind(assignKeybind(DEFAULT_KEYBINDS, 'deafen', 'D'), 'deafen', null);
     expect(next.deafen).toBeNull();
     expect(actionForBinding(next, 'D')).toBeNull();
   });

@@ -1,9 +1,11 @@
+import path from 'node:path';
 import { app, BrowserWindow, session, shell } from 'electron';
 import { config } from './config';
 import { showDiagnostics } from './diagnostics';
 import { isAppUrl, isExternalLink } from './navigation';
 import { applyBackgroundSwitches, keepProcessesResponsive } from './performance';
 import { pickSource } from './picker/picker';
+import { serveShortcuts } from './shortcuts';
 
 /** What the web app may ask the operating system for. Everything else is refused. */
 const PERMISSIONS = new Set([
@@ -28,6 +30,8 @@ function createWindow(): BrowserWindow {
     title: 'Dispeaker',
     autoHideMenuBar: true,
     webPreferences: {
+      preload: path.join(import.meta.dirname, 'preload.cjs'),
+      additionalArguments: [`--dispeaker-version=${app.getVersion()}`],
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -66,6 +70,7 @@ function createWindow(): BrowserWindow {
     }
   });
 
+  serveShortcuts(window);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });
   void window.loadURL(config.appUrl.href);
   return window;

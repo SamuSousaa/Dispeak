@@ -1,9 +1,13 @@
+import { isGlobalBinding } from '@frequencia/shared';
 import { useEffect } from 'react';
+import { desktop, useRefusedShortcuts } from '../desktop/desktop';
 import {
   actionForBinding,
   bindingFromEvent,
   firesWhileTyping,
+  GLOBAL_KEYBIND_ACTIONS,
   type KeybindAction,
+  type Keybinds,
 } from '../settings/keybinds';
 import { useSettingsStore } from '../settings/settings-store';
 import {
@@ -37,10 +41,13 @@ const run: Record<Exclude<KeybindAction, 'pushToTalk'>, () => void> = {
 };
 
 /**
- * Keyboard shortcuts while in a voice channel. The bindings come from the user's settings
- * (defaults: M mutes, D deafens, F toggles fullscreen on a stream). Bindings that would
- * also type a character are ignored while a field has focus. Push-to-talk is the one binding
- * that is held instead of pressed.
+ * Keyboard shortcuts while in a voice channel. The bindings come from the user's settings;
+ * nobody has one until they set it. Bindings that would also type a character are ignored
+ * while a field has focus. Push-to-talk is the one binding that is held instead of pressed.
+ *
+ * In the desktop app the chords among them are also registered with the system, so they work
+ * while a game has the focus. The system then keeps those keys from reaching the page, which is
+ * why nothing fires twice.
  */
 export function useVoiceShortcuts(): void {
   const active = useVoiceStore(
@@ -90,6 +97,36 @@ export function useVoiceShortcuts(): void {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', release);
       release();
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || !desktop) return;
+    const bridge = desktop;
+    const register = (keybinds: Keybinds) => {
+      const bindings: Record<string, string> = {};
+      for (const action of GLOBAL_KEYBIND_ACTIONS) {
+        const binding = keybinds[action];
+        if (binding && isGlobalBinding(binding)) bindings[action] = binding;
+      }
+      bridge.setShortcuts(bindings).then(
+        ({ failed }) => useRefusedShortcuts.setState(failed, true),
+        (error: unknown) => console.warn('[desktop] global shortcuts unavailable', error),
+      );
+    };
+    register(useSettingsStore.getState().keybinds);
+    const unsubscribe = useSettingsStore.subscribe((state, previous) => {
+      if (state.keybinds !== previous.keybinds) register(state.keybinds);
+    });
+    const stop = bridge.onShortcut((action) => {
+      const known = GLOBAL_KEYBIND_ACTIONS.find((candidate) => candidate === action);
+      if (known) run[known]();
+    });
+    return () => {
+      unsubscribe();
+      stop();
+      useRefusedShortcuts.setState([], true);
+      void bridge.setShortcuts({}).catch(() => undefined);
     };
   }, [active]);
 }

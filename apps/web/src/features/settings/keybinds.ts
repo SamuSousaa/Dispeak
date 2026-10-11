@@ -12,15 +12,29 @@ export type KeybindAction = (typeof KEYBIND_ACTIONS)[number];
 /** A binding is a string such as `M` or `Ctrl+Shift+M`; `null` means "no shortcut". */
 export type Keybinds = Record<KeybindAction, string | null>;
 
+/**
+ * Nobody starts with a shortcut: one that the user did not choose gets pressed by accident in
+ * the middle of a game. Each one exists only after being set in the settings.
+ */
 export const DEFAULT_KEYBINDS: Keybinds = {
-  mute: 'M',
-  deafen: 'D',
-  fullscreen: 'F',
+  mute: null,
+  deafen: null,
+  fullscreen: null,
   share: null,
   camera: null,
   leave: null,
   pushToTalk: null,
 };
+
+/** What every user had before shortcuts became opt-in; stored copies of these are dropped. */
+export const LEGACY_DEFAULT_KEYBINDS: Partial<Keybinds> = {
+  mute: 'M',
+  deafen: 'D',
+  fullscreen: 'F',
+};
+
+/** Actions that make sense while another program has the focus (desktop app only). */
+export const GLOBAL_KEYBIND_ACTIONS = ['mute', 'deafen', 'share', 'camera', 'leave'] as const;
 
 export const KEYBIND_LABELS: Record<KeybindAction, string> = {
   mute: 'Mutar / desmutar',

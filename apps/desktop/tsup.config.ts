@@ -18,8 +18,8 @@ export default defineConfig([
   },
   {
     ...shared,
-    // A sandboxed preload script is CommonJS.
-    entry: { 'picker-preload': 'src/picker/preload.ts' },
+    // Sandboxed preload scripts are CommonJS.
+    entry: { preload: 'src/preload.ts', 'picker-preload': 'src/picker/preload.ts' },
     format: ['cjs'],
     target: 'node22',
     platform: 'node',

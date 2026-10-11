@@ -10,6 +10,7 @@ import {
   playSound,
   setCustomSound,
 } from '../sounds/sound-player';
+import { desktop, useRefusedShortcuts } from '../desktop/desktop';
 import type { NoiseEngine } from '../voice/microphone';
 import { useVoiceStore } from '../voice/voice-store';
 import { bindingFromEvent, KEYBIND_ACTIONS, KEYBIND_LABELS, type KeybindAction } from './keybinds';
@@ -372,6 +373,7 @@ export function SettingsPanel({
   const devices = useAudioDevices(`${voiceStatus}:${micAvailable}:${cameraStatus}`);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [capturing, setCapturing] = useState<KeybindAction | null>(null);
+  const refused = useRefusedShortcuts();
 
   const namesHidden = devices.inputs.length > 0 && devices.inputs.every((device) => !device.label);
   // Anything but the first-choice model means that one could not run here.
@@ -667,11 +669,24 @@ export function SettingsPanel({
                 ))}
               </ul>
               <p className="text-xs text-muted">
-                Clique em um atalho e pressione a nova tecla (Esc cancela). Atalhos de uma tecla só
-                não valem enquanto você digita; combine com Ctrl ou Alt para valerem sempre.
-                Funcionam com esta aba em foco. “Apertar para falar” só vale com esse modo ligado na
-                aba VOZ.
+                Nenhum atalho vem definido: clique em um e pressione a tecla (Esc cancela). Atalhos
+                de uma tecla só não valem enquanto você digita; combine com Ctrl ou Alt para valerem
+                sempre. “Apertar para falar” só vale com esse modo ligado na aba VOZ.
               </p>
+              <p className="text-xs text-muted">
+                {desktop
+                  ? 'No app, atalhos com Ctrl ou Alt e as teclas F1 a F24 funcionam também com um jogo em foco, para mutar, ensurdecer, transmitir, câmera e desligar. Os demais valem com a janela do Dispeaker em foco.'
+                  : 'No navegador, funcionam com esta aba em foco. No app de desktop, atalhos com Ctrl ou Alt funcionam também com um jogo em foco.'}
+              </p>
+              {refused.length > 0 && (
+                <p className="text-xs text-danger" data-testid="refused-shortcuts">
+                  Outro programa já usa:{' '}
+                  {refused
+                    .map((action) => KEYBIND_LABELS[action as KeybindAction] ?? action)
+                    .join(', ')}
+                  . Escolha outra combinação.
+                </p>
+              )}
               <Button
                 className="self-start"
                 onClick={() => {
@@ -679,7 +694,7 @@ export function SettingsPanel({
                   resetKeybinds();
                 }}
               >
-                RESTAURAR PADRÕES
+                REMOVER TODOS
               </Button>
             </>
           )}

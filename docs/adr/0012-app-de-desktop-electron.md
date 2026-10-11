@@ -23,6 +23,11 @@ O que o app acrescenta ao navegador:
 - a dispensa do estrangulamento de temporizadores e do modo de eficiência do Windows para os seus
   processos, e nenhuma economia de energia do Chromium em segundo plano (`src/performance.ts`,
   `src/windows-scheduling.ts`);
+- atalhos de teclado que valem com outro programa em foco (`src/shortcuts.ts`): a página pede o
+  registro pela ponte `window.dispeakerDesktop`, descrita em `packages/shared/src/desktop.ts`. Só
+  combinações com Ctrl ou Alt e as teclas de função, porque um atalho global tira a tecla de
+  todos os outros programas. Não há tecla solta, então "apertar para falar" continua valendo só
+  com a janela em foco;
 - um seletor de tela próprio, porque o Electron não traz um (`src/picker`);
 - o som do sistema sem o som da própria chamada (`loopback` com `restrictOwnAudio`), em qualquer
   tela ou janela.

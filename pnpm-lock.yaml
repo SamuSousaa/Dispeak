@@ -126,6 +126,9 @@ importers:
 
   apps/desktop:
     devDependencies:
+      '@frequencia/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       electron:
         specifier: ^44.7.0
         version: 44.7.0(supports-color@11.0.0)

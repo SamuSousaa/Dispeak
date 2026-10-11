@@ -7,3 +7,4 @@ export * from './permissions';
 export * from './api';
 export * from './gateway';
 export * from './internal';
+export * from './desktop';

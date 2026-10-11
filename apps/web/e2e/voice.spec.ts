@@ -30,7 +30,10 @@ async function join(browser: Browser, channel: string, nickname: string): Promis
   await context.addInitScript(() => {
     localStorage.setItem(
       'frequencia.settings',
-      JSON.stringify({ state: { noiseSuppression: false }, version: 3 }),
+      JSON.stringify({
+        state: { noiseSuppression: false, keybinds: { mute: 'M', deafen: 'D' } },
+        version: 4,
+      }),
     );
   });
   const page = await context.newPage();

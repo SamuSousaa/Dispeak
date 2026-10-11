@@ -7,6 +7,7 @@ import {
   assignKeybind,
   DEFAULT_KEYBINDS,
   KEYBIND_ACTIONS,
+  LEGACY_DEFAULT_KEYBINDS,
   type KeybindAction,
   type Keybinds,
 } from './keybinds';
@@ -105,14 +106,23 @@ export const defaultSettings: Settings = {
 export const useSettingsStore = create<Settings>()(
   persist(() => defaultSettings, {
     name: 'frequencia.settings',
-    version: 3,
-    // Up to version 2 the suppression was a choice among four modes; now it is on or off.
+    version: 4,
     migrate: (persisted, version) => {
-      const stored = persisted as { noiseSuppression?: unknown } | null;
-      if (version < 3 && stored && typeof stored.noiseSuppression === 'string') {
-        return { ...stored, noiseSuppression: stored.noiseSuppression !== 'off' };
+      let stored = persisted as { noiseSuppression?: unknown; keybinds?: unknown } | null;
+      if (!stored) return persisted;
+      // Up to version 2 the suppression was a choice among four modes; now it is on or off.
+      if (version < 3 && typeof stored.noiseSuppression === 'string') {
+        stored = { ...stored, noiseSuppression: stored.noiseSuppression !== 'off' };
       }
-      return persisted;
+      // Up to version 3 everyone had M, D and F without asking. Those go; chosen ones stay.
+      if (version < 4 && stored.keybinds && typeof stored.keybinds === 'object') {
+        const keybinds: Record<string, unknown> = { ...stored.keybinds };
+        for (const [action, binding] of Object.entries(LEGACY_DEFAULT_KEYBINDS)) {
+          if (keybinds[action] === binding) keybinds[action] = null;
+        }
+        stored = { ...stored, keybinds };
+      }
+      return stored;
     },
     // Stored data may be stale or hand-edited: keep only what still validates. Shortcuts are
     // merged one by one, so an action added later starts with its default.
