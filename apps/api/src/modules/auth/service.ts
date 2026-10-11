@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import {
   ApiErrorCode,
   type AuthResponse,
@@ -42,7 +43,19 @@ export interface RequestMeta {
   userAgent?: string;
 }
 
+/** Compares two secrets without telling, by the time it takes, how much of one was right. */
+function sameSecret(given: string, wanted: string): boolean {
+  const a = createHash('sha256').update(given).digest();
+  const b = createHash('sha256').update(wanted).digest();
+  return timingSafeEqual(a, b);
+}
+
 export class AuthService {
+  /** Whether new accounts need the access code. */
+  get accessCodeRequired(): boolean {
+    return this.config.REGISTRATION_CODE !== undefined;
+  }
+
   /** Verified against when the username does not exist, so both paths cost the same. */
   private dummyHash: Promise<string> | undefined;
 
@@ -54,9 +67,13 @@ export class AuthService {
   ) {}
 
   async register(
-    input: { username: string; displayName?: string; password: string },
+    input: { username: string; displayName?: string; password: string; accessCode?: string },
     meta: RequestMeta,
   ): Promise<IssuedSession> {
+    const wanted = this.config.REGISTRATION_CODE;
+    if (wanted !== undefined && !sameSecret(input.accessCode ?? '', wanted)) {
+      throw new AppError(403, ApiErrorCode.AccessCodeInvalid, 'wrong access code');
+    }
     const passwordHash = await hash(input.password, ARGON2);
     const [user] = await this.db
       .insert(users)

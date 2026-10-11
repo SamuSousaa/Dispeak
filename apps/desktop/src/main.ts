@@ -1,10 +1,12 @@
 import path from 'node:path';
+import { DESKTOP_SHARE_ACTION } from '@frequencia/shared';
 import { app, BrowserWindow, session, shell } from 'electron';
 import { config } from './config';
 import { showDiagnostics } from './diagnostics';
 import { isAppUrl, isExternalLink } from './navigation';
 import { applyBackgroundSwitches, keepProcessesResponsive } from './performance';
 import { pickSource } from './picker/picker';
+import { noteShareShortcut, takeShortcutShare } from './share-target';
 import { serveShortcuts } from './shortcuts';
 import { serveUpdates } from './updater';
 
@@ -71,7 +73,9 @@ function createWindow(): BrowserWindow {
     }
   });
 
-  serveShortcuts(window);
+  serveShortcuts(window, (action) => {
+    if (action === DESKTOP_SHARE_ACTION) noteShareShortcut();
+  });
   serveUpdates(window);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });
   void window.loadURL(config.appUrl.href);
@@ -89,14 +93,19 @@ function configureSession(): void {
     (_webContents, permission, origin) => fromApp(origin) && PERMISSIONS.has(permission),
   );
 
-  // `getDisplayMedia` in the page ends up here: our picker, then the system's audio with it.
+  // `getDisplayMedia` in the page ends up here: the game in front when the shortcut asked,
+  // our picker otherwise, then the system's audio with it.
   defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     const window = mainWindow;
     if (!window || !fromApp(request.securityOrigin)) {
       callback({});
       return;
     }
-    void pickSource(window).then(
+    const choose = async () => {
+      const shortcut = await takeShortcutShare();
+      return shortcut?.source ?? pickSource(window, { detached: shortcut !== null });
+    };
+    void choose().then(
       (source) => {
         if (!source) callback({});
         else callback({ video: source, ...(request.audioRequested ? { audio: 'loopback' } : {}) });

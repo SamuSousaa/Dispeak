@@ -168,6 +168,35 @@ passar e de um commit ser feito.
       RNNoise (banda cheia) como padrão e GTCRN como opção, câmera ampliável com tela cheia e
       escolha entre palco e grade com todos quando há transmissão
 
+## Etapa 9 — Amigos, qualidade da transmissão e app de desktop
+
+- [x] Amigos e conversas privadas a dois: pedido pelo nome de usuário, texto e chamada; a conversa
+      é uma guild de `kind = 'dm'` (ADR 0011). Toque de chamada recebida, com atender e recusar
+- [x] Clique esquerdo numa pessoa mostra o perfil, clique direito as ações; "Mencionar" no menu
+- [x] Destaque por clique nos quadros da chamada, controles da transmissão em ícones
+- [x] Painel de voz simétrico, com setas de configuração rápida ao lado do microfone e do fone
+      (dispositivo, volume, nível) e um volume geral do que se ouve
+- [x] Supressão de ruído só com liga e desliga (GTCRN, corte de sons baixos e filtro de graves a
+      100 Hz). DeepFilterNet 3 foi medido e descartado: pior com vento e cortou a voz
+- [x] Transmissão: H.264 pela placa de vídeo quando ela codifica (perfis High e Baseline), uma só
+      camada nos presets de 60 fps, áudio a 256 kbps, preset FILME, aviso de eco
+- [x] Painel de quem transmite com quadros capturados e enviados, codificador e tempo por quadro
+- [x] App de desktop para Windows (ADR 0012): dispensa do estrangulamento de temporizadores do
+      Windows 11, seletor de tela próprio, som do sistema sem a própria chamada
+- [x] Atalhos sem padrão (cada um define os seus) e globais no app; o atalho de transmitir captura
+      direto o jogo em tela cheia que estiver na frente
+- [x] Atualização automática do app, página `/download` e `pnpm release:desktop`
+- [x] Cadastro restrito por código de acesso (`REGISTRATION_CODE`), para servidores fechados
+
+**O que as medições mostraram.** Uma transmissão de jogo chegava a quem assiste com 15 a 30
+quadros por segundo por duas causas independentes. A primeira: três camadas de simulcast dobravam
+o tempo do codificador H.264 da placa AMD (15 + 9 + 6 ms por quadro); com uma camada, a mesma
+máquina foi de 24 para 47 a 58 fps. A segunda: o Windows 11 acorda no tique de 15,6 ms um processo
+cuja janela está coberta, e a captura passa a sair a cada 2, 3 ou 4 tiques (32, 21 ou 16 fps, os
+números exatos que apareceram); a dispensa pedida pelo app levou a captura de 35 para 55 fps.
+Prioridade de processador, classe de agendamento da placa, limite de FPS do jogo e captura por
+janela foram testados e não mudaram nada.
+
 **Único serviço externo.** A busca de GIF depende da GIPHY e por isso é opcional: sem a chave o
 botão não aparece. Não é mídia nem tempo real, então não fere a regra de infraestrutura própria.
 Imagens de links e GIFs são carregadas pelo navegador direto do site de origem (dá para desligar
@@ -190,10 +219,11 @@ desenvolvido (Windows, sem Docker, sem WSL2, sem segundo dispositivo).
 
 ### Depende de você
 
-- **Deploy e demo pública.** Exige uma conta na Oracle Cloud (ou outra VPS), um IP público e um
-  nome DNS (pode ser `sslip.io`). O passo a passo está em `docs/deploy.md`. O README diz
-  explicitamente que ainda não há instância pública; quando houver, falta colocar o link na seção
-  "Demo".
+- **Servidor.** O projeto roda desde 10/10/2026 numa VPS contratada por um mês, com um nome
+  DuckDNS e certificado do Caddy, para um grupo fechado. Falta decidir se a VPS é renovada. Não
+  há demo aberta, de propósito: o cadastro pede um código de acesso.
+- **Assinatura de código do app de desktop.** Sem um certificado pago, o Windows mostra o aviso
+  do SmartScreen na primeira instalação.
 - **Nome.** O app se chama **Dispeaker** (decidido em 10/10/2026). Os pacotes, as chaves de
   armazenamento e os nomes dos serviços continuam `frequencia`, o título de trabalho; trocá-los
   não muda nada para quem usa.
@@ -202,8 +232,11 @@ desenvolvido (Windows, sem Docker, sem WSL2, sem segundo dispositivo).
 
 ### Escrito, mas não executado
 
-- **Os stacks Docker.** O job `docker` do CI constrói as três imagens de produção, mas nenhum
-  container delas foi iniciado: `docker-compose.yml` (dev), `docker-compose.prod.yml` e
+- **Atualização automática até o fim.** Um app instalado encontrou uma versão nova, baixou e
+  avisou a página; o passo de fechar, instalar e reabrir sozinho só acontece num lançamento real.
+- **Os stacks Docker.** O stack de produção roda na VPS desde 10/10/2026 (Caddy, API, mídia,
+  Postgres, Redis e coturn). O de desenvolvimento (`docker-compose.yml`) continua sem ter sido
+  iniciado. O que segue foi escrito antes da primeira subida: `docker-compose.yml` (dev), `docker-compose.prod.yml` e
   `deploy/Caddyfile` só tiveram os YAML validados sintaticamente. Pontos com mais chance de
   precisar de ajuste na primeira subida:
   - o estágio `prod-deps` dos Dockerfiles copia `node_modules` da raiz e do app preservando os
@@ -229,7 +262,9 @@ que deve e libera o que deve. Não prova:
   degradando a rede.
 - **Áudio do sistema na transmissão:** depende do navegador e do sistema (Chrome no Windows entrega
   para tela inteira e abas; Firefox e Safari não). A UI avisa quando a transmissão sai sem áudio.
-- **O preset 1080p60** com conteúdo de verdade (um jogo). A captura sintética produz 20 fps.
+- **O preset 1080p60** foi medido com jogos de verdade em 11/10/2026 (ver a Etapa 9); os presets
+  1440p60 e original continuam sem medição, e numa placa AMD o codificador leva cerca de 16 ms por
+  quadro já em 1080p.
 - **Outros navegadores.** Os testes automatizados só exercitam o Chromium.
 
 **Teste manual com dois dispositivos (10/10/2026).** PC com Chrome no Windows e um iPhone com
@@ -242,6 +277,10 @@ pacotes), o preset 1080p60 com um jogo, Firefox e Safari no desktop.
 
 ### Limitações conhecidas
 
+- **Transmissão de jogo.** Pelo navegador, perto de 30 fps com o jogo em tela cheia; pelo app de
+  desktop, perto de 50 numa máquina com placa AMD. O teto é o capturador do Chromium com um jogo
+  rodando; passar disso pediria um módulo nativo de captura.
+- **"Apertar para falar" e botões do mouse** não são globais no app de desktop.
 - **Resume do gateway entre instâncias.** Eventos, presença e estado de voz atravessam instâncias
   da API pelo Redis (testado com duas). O buffer de replay do `resume` fica na memória da instância
   que atendia o socket; em outra instância o cliente recebe `INVALID_SESSION` e refaz o `identify`

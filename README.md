@@ -16,14 +16,22 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
 - **Canais de voz** roteados por um SFU próprio: mutar, ensurdecer, indicador de quem está falando,
   reconexão automática, atalhos de teclado configuráveis, apertar para falar e volume individual
   por pessoa.
-- **Supressão de ruído** com RNNoise rodando no navegador (WebAssembly), escolha de microfone,
-  saída e câmera.
+- **Supressão de ruído** por rede neural rodando no navegador (GTCRN em WebAssembly, com RNNoise
+  de reserva), um só botão de liga e desliga; microfone, saída e volumes trocados sem abrir as
+  configurações, pelas setas ao lado dos botões de microfone e fone.
 - **Câmera** em simulcast VP8, exibida no quadro de cada participante.
-- **Transmissão de tela** com simulcast VP8 em 3 camadas, presets (720p30, 1080p30, 1080p60,
-  1440p60 e resolução original até 4K), áudio do sistema quando o navegador entrega, várias
-  transmissões ao mesmo tempo, modo foco, tela cheia e janela flutuante (picture-in-picture).
-- **Assistir sob demanda**: o vídeo só é encaminhado para quem clicou em assistir, e a camada de
-  simulcast é escolhida pelo tamanho em que a transmissão aparece na tela de cada espectador.
+- **Transmissão de tela** em H.264 pela placa de vídeo de quem transmite, quando ela codifica
+  (VP8 no processador caso contrário), com presets (720p30, 1080p30, 1080p60, 1440p60, resolução
+  original até 4K e um modo filme), áudio do sistema a 256 kbps, várias transmissões ao mesmo
+  tempo, destaque por clique, tela cheia e janela flutuante (picture-in-picture).
+- **App de desktop para Windows** (Electron): mantém a taxa de quadros de uma transmissão com o
+  jogo em tela cheia, atalhos de teclado que valem com o jogo em foco, transmissão do jogo com
+  um atalho, atualização automática. Ver [App de desktop](#app-de-desktop).
+- **Amigos e conversas privadas**: pedido de amizade pelo nome de usuário, conversa de texto e
+  chamada a dois, com toque de chamada recebida.
+- **Assistir sob demanda**: o vídeo só é encaminhado para quem clicou em assistir. Nos presets
+  de 30 fps e na câmera, a camada de simulcast é escolhida pelo tamanho em que o vídeo aparece
+  na tela de cada espectador.
 - **Servidores, canais e categorias**, convites com expiração e limite de usos; foto de perfil e
   ícone do servidor.
 - **Cargos e permissões** em bitflags, com hierarquia e sobrescritas por canal, aplicadas no
@@ -39,9 +47,9 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
 
 ## Demo
 
-Ainda não há uma instância pública (o deploy depende de uma VM e de um domínio; o guia está em
-[docs/deploy.md](docs/deploy.md)). Para ver funcionando, são dois comandos e nenhum serviço
-externo — nem Docker é obrigatório:
+O projeto roda numa VPS para um grupo fechado de amigos (o cadastro pede um código de acesso),
+então não há demo aberta; o guia de deploy está em [docs/deploy.md](docs/deploy.md). Para ver
+funcionando, são dois comandos e nenhum serviço externo — nem Docker é obrigatório:
 
 ```bash
 pnpm install
@@ -168,6 +176,7 @@ embutidas com dados em `.dev/`), aplica as migrations e inicia web (5173), API (
 | `pnpm e2e`                       | Testes ponta a ponta (sobe o stack sozinho)                     |
 | `pnpm build && pnpm start:local` | Builds de produção rodando localmente, sem Docker               |
 | `pnpm prod:up`                   | Produção com Docker: Caddy, API, mídia, Postgres, Redis, coturn |
+| `pnpm release:desktop`           | Gera o instalador do app de desktop e envia ao servidor         |
 
 Notas de ambiente:
 
@@ -183,12 +192,72 @@ Notas de ambiente:
 Produção é um comando depois de preencher `.env.prod` — passo a passo, portas e firewall em
 [docs/deploy.md](docs/deploy.md).
 
+## App de desktop
+
+`apps/desktop` é uma janela Electron sobre o site publicado: a interface é a mesma, e o que o site
+ganha o app ganha sem reinstalar. O motivo de existir está na
+[ADR 0012](docs/adr/0012-app-de-desktop-electron.md). Em resumo, o Windows 11 desacelera os
+temporizadores de um programa cuja janela está toda coberta, e o capturador de tela do navegador
+passa a entregar um quadro a cada dois ou três tiques de 15,6 ms. Medido com um jogo em tela cheia,
+na mesma máquina e no mesmo preset:
+
+| Onde a transmissão roda | Quadros por segundo que chegam ao servidor |
+| ----------------------- | ------------------------------------------ |
+| Chrome                  | 26 a 31                                    |
+| App de desktop          | 45 a 51                                    |
+
+O que o app acrescenta ao navegador:
+
+- pede ao Windows para ficar fora dessa regra (`SetProcessInformation`), o que um site não pode;
+- atalhos globais para mutar, ensurdecer, transmitir, câmera e desligar. Só combinações com Ctrl
+  ou Alt e as teclas F1 a F24, porque um atalho global tira a tecla de todos os outros programas.
+  Ninguém começa com atalho: cada um define os seus em Configurações → Atalhos;
+- o atalho de transmitir, apertado com um jogo em tela cheia na frente, transmite a janela desse
+  jogo sem abrir o seletor; sem jogo na frente, abre o seletor;
+- um seletor de tela próprio e o som do sistema sem o som da própria chamada;
+- atualização automática a partir do próprio servidor.
+
+```bash
+pnpm --filter @frequencia/desktop start     # abre o app a partir do código
+DISPEAKER_URL=http://localhost:5173 pnpm --filter @frequencia/desktop start   # contra o dev local
+pnpm --filter @frequencia/desktop package   # instalador em apps/desktop/release
+```
+
+Para publicar uma versão: aumente `version` em `apps/desktop/package.json` e rode
+`pnpm release:desktop`. O comando gera o instalador e envia, por SSH, o instalador, o mapa de
+blocos e o `latest.yml` para a pasta que o Caddy serve em `/download/`. Ele lê `.env.release`,
+que não vai para o repositório:
+
+```bash
+# .env.release (modelo em .env.release.example)
+DESKTOP_RELEASE_SSH=root@203.0.113.10
+DESKTOP_RELEASE_DIR=/opt/frequencia/downloads
+DESKTOP_RELEASE_KEY=/home/voce/.ssh/id_ed25519
+```
+
+A página `/download` do site mostra o botão de instalação e a versão atual, lida do mesmo
+`latest.yml`; os apps instalados conferem esse arquivo ao abrir e a cada três horas. O instalador
+não é assinado, então o Windows mostra o aviso do SmartScreen na primeira instalação.
+
+### Servidor só para convidados
+
+Baixar o app não dá acesso a nada: ele só abre o site, e quem usa o servidor é quem tem conta.
+Para que só pessoas escolhidas criem conta, defina um código no `.env.prod`:
+
+```bash
+REGISTRATION_CODE=um-codigo-que-so-seus-amigos-sabem
+```
+
+Com ele, a tela de cadastro pede o "código de acesso" e a API recusa o cadastro sem o código
+certo. As contas que já existem continuam valendo. Sem a variável, qualquer pessoa que chegue ao
+site pode se cadastrar.
+
 ## Testes
 
 ```
-pnpm test    265 testes   permissões, protocolo RPC, API (Postgres e Redis reais),
+pnpm test    392 testes   permissões, protocolo RPC, API (Postgres e Redis reais),
                           SFU (workers mediasoup reais), reducers do cliente
-pnpm e2e       8 testes   Chromium com câmera, microfone e tela sintéticos
+pnpm e2e      12 testes   Chromium com câmera, microfone e tela sintéticos
 ```
 
 Os testes de integração não usam mocks de infraestrutura. Alguns que valem a leitura:
@@ -226,11 +295,12 @@ abortada em vez de seguir só com vídeo.
 
 ```
 apps/
-  web/      React: features/{auth,gateway,guilds,chat,voice,app}, e2e/, load/
+  web/      React: features/{auth,gateway,guilds,chat,voice,friends,desktop,app}, e2e/, load/
   api/      Fastify: modules/{auth,guilds,messages,voice}, gateway/, db/, drizzle/
   media/    mediasoup: rooms/{room,peer,room-manager}, signaling/{voice,internal}-server
+  desktop/  Electron: janela sobre o site, seletor de tela, atalhos globais, atualização
 packages/
-  shared/   schemas Zod: protocolo RPC, sinalização, gateway, REST, permissões
+  shared/   schemas Zod: protocolo RPC, sinalização, gateway, REST, permissões, ponte do desktop
 deploy/     Caddyfile
 docs/       arquitetura, deploy, teste de carga, ADRs
 load/       scripts k6 e resultados brutos
@@ -244,7 +314,11 @@ scripts/    orquestração de dev e de produção local
 - Um canal de voz vive em um worker (um núcleo). Dezenas de pessoas num canal cabem com folga;
   centenas exigiriam encadear routers (`pipeToRouter`).
 - O `resume` do gateway é local à instância da API (ver [ADR 0006](docs/adr/0006-gateway-resume.md)).
-- Sem gravação, sem câmera nos canais de voz, sem mensagens diretas, sem upload de arquivos.
+- Sem gravação e sem conversas privadas em grupo (só a dois).
+- Transmitir um jogo pelo navegador fica perto de 30 fps com o jogo em tela cheia; pelo app de
+  desktop, perto de 50. Sessenta cravados pediriam um capturador próprio.
+- O app de desktop existe só para Windows, sem assinatura de código, e "apertar para falar" não é
+  global (o sistema avisa quando a tecla é apertada, não quando é solta).
 
 O que ainda depende de validação manual ou de infraestrutura externa está em
 [ROADMAP.md](ROADMAP.md), na seção "Pendências".

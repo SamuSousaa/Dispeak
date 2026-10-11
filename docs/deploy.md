@@ -145,19 +145,20 @@ nano .env.prod
 
 ### Variáveis de ambiente
 
-| Variável              | Valor                                                                    |
-| --------------------- | ------------------------------------------------------------------------ |
-| `DOMAIN`              | Nome do passo 2, sem `https://`                                          |
-| `ACME_EMAIL`          | Seu e-mail (avisos de expiração do Let's Encrypt)                        |
-| `PUBLIC_IP`           | IP público da VM                                                         |
-| `PRIVATE_IP`          | IP privado (`hostname -I`). Vazio se a máquina tiver o IP público direto |
-| `POSTGRES_PASSWORD`   | `openssl rand -hex 32`                                                   |
-| `JWT_SECRET`          | `openssl rand -hex 32` — assina os access tokens                         |
-| `MEDIA_SHARED_SECRET` | `openssl rand -hex 32` — tokens de voz e RPC interno API ↔ mídia         |
-| `TURN_SECRET`         | `openssl rand -hex 32` — credenciais temporárias do coturn               |
-| `METRICS_TOKEN`       | Opcional. Se definido, `/metrics` exige `Authorization: Bearer`          |
-| `GIPHY_API_KEY`       | Opcional. Chave gratuita da GIPHY; liga a busca de GIF no chat           |
-| `MEDIA_NUM_WORKERS`   | Número de núcleos da VM (2)                                              |
+| Variável              | Valor                                                                     |
+| --------------------- | ------------------------------------------------------------------------- |
+| `DOMAIN`              | Nome do passo 2, sem `https://`                                           |
+| `ACME_EMAIL`          | Seu e-mail (avisos de expiração do Let's Encrypt)                         |
+| `PUBLIC_IP`           | IP público da VM                                                          |
+| `PRIVATE_IP`          | IP privado (`hostname -I`). Vazio se a máquina tiver o IP público direto  |
+| `POSTGRES_PASSWORD`   | `openssl rand -hex 32`                                                    |
+| `JWT_SECRET`          | `openssl rand -hex 32` — assina os access tokens                          |
+| `MEDIA_SHARED_SECRET` | `openssl rand -hex 32` — tokens de voz e RPC interno API ↔ mídia          |
+| `TURN_SECRET`         | `openssl rand -hex 32` — credenciais temporárias do coturn                |
+| `METRICS_TOKEN`       | Opcional. Se definido, `/metrics` exige `Authorization: Bearer`           |
+| `GIPHY_API_KEY`       | Opcional. Chave gratuita da GIPHY; liga a busca de GIF no chat            |
+| `REGISTRATION_CODE`   | Opcional. Com ele, só cria conta quem souber o código; vazio, qualquer um |
+| `MEDIA_NUM_WORKERS`   | Número de núcleos da VM (2)                                               |
 
 Para gerar os quatro segredos de uma vez:
 

@@ -3,6 +3,7 @@ import {
   authResponseSchema,
   loginRequestSchema,
   registerRequestSchema,
+  registrationInfoSchema,
   changePasswordRequestSchema,
   resetPasswordRequestSchema,
   selfSchema,
@@ -38,6 +39,18 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     return session.response;
   };
   const meta = (request: FastifyRequest) => ({ userAgent: request.headers['user-agent'] });
+
+  app.get(
+    '/auth/registration',
+    {
+      schema: {
+        tags: ['auth'],
+        summary: 'What creating an account on this server takes',
+        response: { 200: registrationInfoSchema },
+      },
+    },
+    () => ({ accessCodeRequired: auth.accessCodeRequired }),
+  );
 
   app.post(
     '/auth/register',

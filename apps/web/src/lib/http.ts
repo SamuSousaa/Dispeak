@@ -72,6 +72,8 @@ export function describeError(
       return 'Usuário ou senha incorretos.';
     case 'username_taken':
       return 'Este nome de usuário já está em uso.';
+    case 'access_code_invalid':
+      return 'Código de acesso incorreto. Peça o código a quem cuida deste servidor.';
     case 'forbidden':
       return 'Você não tem permissão para fazer isso.';
     case 'banned':

@@ -17,6 +17,12 @@ export const DESKTOP_UPDATE_READY = 'desktop:update-ready';
 /** Page → app: restart now and install it. */
 export const DESKTOP_INSTALL_UPDATE = 'desktop:install-update';
 
+/**
+ * The action that starts or stops a screen share. The app treats it apart: pressed with a game
+ * in front, the share captures that game without asking what to share.
+ */
+export const DESKTOP_SHARE_ACTION = 'share';
+
 /** Action name → binding, in the page's own notation (`Ctrl+Shift+M`, `F9`). */
 export const desktopShortcutsSchema = z
   .record(z.string().min(1).max(32), z.string().min(1).max(48))

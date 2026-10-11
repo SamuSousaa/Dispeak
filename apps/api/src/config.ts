@@ -36,6 +36,13 @@ const envSchema = z.object({
   /** Send the refresh cookie only over HTTPS. Defaults to on in production. */
   COOKIE_SECURE: flag.optional(),
 
+  /**
+   * When set, creating an account needs this code: the owner gives it to the people the
+   * server is for. Existing accounts are not affected. Unset, anyone who reaches the site can
+   * register.
+   */
+  REGISTRATION_CODE: z.string().min(6).max(128).optional(),
+
   /** STUN servers handed to browsers for NAT traversal. */
   STUN_URLS: csv.default(['stun:stun.l.google.com:19302']),
   /** TURN servers (coturn), e.g. `turn:turn.example.com:3478?transport=udp`. */

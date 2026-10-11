@@ -56,7 +56,11 @@ export function toAccelerator(binding: string): string | null {
  * Lets the page register shortcuts that work while a game has the focus, and tells it when
  * one is pressed. Only the app's own page, in the main frame of `window`, is listened to.
  */
-export function serveShortcuts(window: BrowserWindow): void {
+export function serveShortcuts(
+  window: BrowserWindow,
+  /** Called first when a shortcut is pressed, before the page hears of it. */
+  onPressed?: (action: string) => void,
+): void {
   const { webContents } = window;
   const clear = () => globalShortcut.unregisterAll();
 
@@ -73,6 +77,7 @@ export function serveShortcuts(window: BrowserWindow): void {
       const registered =
         accelerator !== null &&
         globalShortcut.register(accelerator, () => {
+          onPressed?.(action);
           if (!webContents.isDestroyed()) webContents.send(DESKTOP_SHORTCUT, { action });
         });
       if (!registered) failed.push(action);

@@ -6,9 +6,14 @@ const here = import.meta.dirname;
 
 /**
  * Asks the user what to capture, in a window of our own: Electron has no screen picker.
- * Resolves with `null` when the user cancels or closes it.
+ * Resolves with `null` when the user cancels or closes it. `detached` shows it on its own,
+ * above whatever is in front, instead of bringing the app's window forward with it: for a
+ * share started by a shortcut while another program has the focus.
  */
-export async function pickSource(parent: BrowserWindow): Promise<DesktopCapturerSource | null> {
+export async function pickSource(
+  parent: BrowserWindow,
+  { detached = false }: { detached?: boolean } = {},
+): Promise<DesktopCapturerSource | null> {
   const sources = await desktopCapturer.getSources({
     types: ['window', 'screen'],
     thumbnailSize: { width: 400, height: 225 },
@@ -25,8 +30,7 @@ export async function pickSource(parent: BrowserWindow): Promise<DesktopCapturer
   }));
 
   const window = new BrowserWindow({
-    parent,
-    modal: true,
+    ...(detached ? { alwaysOnTop: true, center: true } : { parent, modal: true }),
     width: 760,
     height: 560,
     minimizable: false,

@@ -94,8 +94,17 @@ export const registerRequestSchema = z.object({
   username: usernameSchema,
   displayName: displayNameSchema.optional(),
   password: passwordSchema,
+  /** Asked for by servers that only take new accounts from people who were given the code. */
+  accessCode: z.string().max(128).optional(),
 });
 export type RegisterRequest = z.input<typeof registerRequestSchema>;
+
+/** What someone about to create an account has to know about this server. */
+export const registrationInfoSchema = z.object({
+  /** New accounts need the access code the owner of the server hands out. */
+  accessCodeRequired: z.boolean(),
+});
+export type RegistrationInfo = z.infer<typeof registrationInfoSchema>;
 
 export const loginRequestSchema = z.object({
   username: usernameSchema,
@@ -639,6 +648,7 @@ export const ApiErrorCode = {
   NotFound: 'not_found',
   Conflict: 'conflict',
   UsernameTaken: 'username_taken',
+  AccessCodeInvalid: 'access_code_invalid',
   InviteInvalid: 'invite_invalid',
   Banned: 'banned',
   RateLimited: 'rate_limited',

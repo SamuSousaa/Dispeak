@@ -1,10 +1,16 @@
-import { APP_NAME, passwordSchema, usernameSchema } from '@frequencia/shared';
+import {
+  APP_NAME,
+  passwordSchema,
+  registrationInfoSchema,
+  usernameSchema,
+} from '@frequencia/shared';
+import { useQuery } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Field, FormError } from '../components/Dialog';
 import { login, register, useAuthStore } from '../features/auth/auth-store';
-import { describeError } from '../lib/http';
+import { api, describeError } from '../lib/http';
 
 /** Where to go after signing in; only same-origin paths are honoured. */
 function useNext(): string {
@@ -19,9 +25,18 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [accessCode, setAccessCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const isRegister = mode === 'register';
+  // Some servers only take new accounts from people who were given a code.
+  const { data: registration } = useQuery({
+    queryKey: ['registration'],
+    queryFn: () => api('GET', '/auth/registration', { schema: registrationInfoSchema }),
+    enabled: isRegister,
+    staleTime: 60_000,
+  });
+  const needsCode = isRegister && registration?.accessCodeRequired === true;
 
   if (status === 'authenticated') return <Navigate to={next} replace />;
 
@@ -41,7 +56,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true);
     try {
       if (isRegister) {
-        await register({ username, password, displayName: displayName.trim() || undefined });
+        await register({
+          username,
+          password,
+          displayName: displayName.trim() || undefined,
+          accessCode: needsCode ? accessCode.trim() : undefined,
+        });
       } else {
         await login({ username, password });
       }
@@ -97,6 +117,23 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               required
             />
           </Field>
+          {needsCode && (
+            <Field
+              label="CÓDIGO DE ACESSO"
+              hint="Este servidor é fechado: quem cuida dele passa o código."
+            >
+              <input
+                className="field"
+                value={accessCode}
+                onChange={(event) => setAccessCode(event.target.value)}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={128}
+                required
+              />
+            </Field>
+          )}
           <FormError message={error} />
           <Button type="submit" variant="primary" disabled={busy || status === 'loading'}>
             {busy ? 'AGUARDE' : isRegister ? 'CRIAR CONTA' : 'ENTRAR'}

@@ -52,6 +52,7 @@ services:
       TURN_SECRET: ${TURN_SECRET:?set TURN_SECRET}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}
+      REGISTRATION_CODE: ${REGISTRATION_CODE:-}
       UPLOADS_DIR: /data/uploads
     volumes:
       # Chat attachments. Back this up together with the database.
