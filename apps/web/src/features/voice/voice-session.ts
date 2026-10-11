@@ -241,9 +241,11 @@ export class VoiceSession {
             }
           : {}),
       } as DisplayMediaStreamOptions);
-    // Dismissing the browser picker is not an error worth showing.
+    // Dismissing the picker is not an error worth showing. The browser's own picker reports
+    // it as `NotAllowedError`, the desktop app's as `AbortError`.
     const wasCancelled = (error: unknown) =>
-      error instanceof DOMException && error.name === 'NotAllowedError';
+      error instanceof DOMException &&
+      (error.name === 'NotAllowedError' || error.name === 'AbortError');
 
     let stream: MediaStream;
     try {

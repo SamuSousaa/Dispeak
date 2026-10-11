@@ -34,6 +34,12 @@
 		respond 404
 	}
 
+	# Installers of the desktop app, copied into ./downloads on the server by hand.
+	handle_path /download/* {
+		root * /downloads
+		file_server
+	}
+
 	# Everything else is the single-page app. Note that /metrics is not proxied either:
 	# Prometheus scrapes the API container directly on the internal network.
 	handle {

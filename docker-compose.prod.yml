@@ -26,6 +26,7 @@ services:
     volumes:
       - caddy-data:/data
       - caddy-config:/config
+      - ./downloads:/downloads:ro
     depends_on:
       api:
         condition: service_healthy

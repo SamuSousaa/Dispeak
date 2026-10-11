@@ -14,6 +14,7 @@ Stages, acceptance criteria and open items live in `ROADMAP.md`. Architecture is
 apps/web        React + Vite + Tailwind 4, mediasoup-client, TanStack Query, Zustand
 apps/api        Fastify REST API + WebSocket gateway, Drizzle (Postgres), Redis
 apps/media      mediasoup SFU, separate service; talks to the API over an internal WS RPC
+apps/desktop    Electron window onto the published web app: own screen picker, process priority
 packages/shared Zod schemas and types: RPC protocol, signaling, gateway, REST, permissions
 deploy/         Caddyfile for production
 docs/           architecture, ADRs, deploy guide, load test results
@@ -37,6 +38,7 @@ tsup and Vite compiles it for the web.
 | `pnpm build && pnpm start:local`            | Production bundles running locally, without Docker               |
 | `pnpm prod:up`                              | Production stack with Docker (needs `.env.prod`)                 |
 | `pnpm --filter @frequencia/api db:generate` | SQL migration from a change in `src/db/schema.ts`                |
+| `pnpm --filter @frequencia/desktop package` | Windows installer of the desktop app, in `apps/desktop/release`  |
 | `pnpm --filter @frequencia/web load:voice`  | Voice load test (see `docs/load-test.md`)                        |
 
 Single package: `pnpm --filter @frequencia/api test`. Single file:

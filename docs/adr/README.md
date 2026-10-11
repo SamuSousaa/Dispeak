@@ -16,3 +16,4 @@ o que se abriu mão. São curtos de propósito.
 | [0009](0009-uuidv7-e-cursor.md)             | UUIDv7 como id e como cursor de paginação                             |
 | [0010](0010-infra-embutida-sem-docker.md)   | Postgres e Redis embutidos para desenvolver e testar sem Docker       |
 | [0011](0011-conversa-privada-como-guild.md) | Conversa privada entre amigos como uma guild oculta de `kind = 'dm'`  |
+| [0012](0012-app-de-desktop-electron.md)     | App de desktop como uma janela Electron sobre o site publicado        |

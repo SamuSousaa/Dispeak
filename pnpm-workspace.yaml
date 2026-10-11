@@ -6,6 +6,10 @@ packages:
 allowBuilds:
   mediasoup: true
   esbuild: true
+  # Downloads the Electron binary for the desktop app.
+  electron: true
+  # Squirrel installers are not used; the desktop app ships an NSIS one.
+  electron-winstaller: false
   '@node-rs/argon2': true
   # Embedded Postgres (Docker-less dev and tests) restores its symlinks after install.
   '@embedded-postgres/windows-x64': true
