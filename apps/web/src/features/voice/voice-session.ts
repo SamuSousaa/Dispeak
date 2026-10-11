@@ -323,7 +323,7 @@ export class VoiceSession {
     this.screenStream = null;
     this.streamSamples.delete(SELF_STREAM);
     const { [SELF_STREAM]: _self, ...streamStats } = get().streamStats;
-    set({ screen: screenOff, streamStats });
+    set({ screen: screenOff, streamStats, screenViewers: [] });
   }
 
   async startCamera(): Promise<void> {
@@ -670,6 +670,7 @@ export class VoiceSession {
     });
 
     rpc.on('speaking', ({ peerIds }) => set({ speaking: peerIds }));
+    rpc.on('stream-viewers', ({ peerIds }) => set({ screenViewers: peerIds }));
     rpc.on('consumer-closed', ({ consumerId }) => this.removeConsumer(consumerId));
     rpc.on('consumer-layers', ({ consumerId, spatialLayer }) => {
       const entry = this.consumers.get(consumerId);

@@ -236,7 +236,7 @@ DESKTOP_RELEASE_KEY=/home/voce/.ssh/id_ed25519
 ```
 
 A página `/download` do site mostra o botão de instalação e a versão atual, lida do mesmo
-`latest.yml`; os apps instalados conferem esse arquivo ao abrir e a cada três horas. O instalador
+`latest.yml`; os apps instalados conferem esse arquivo ao abrir, a cada meia hora e ao recarregar a página. O instalador
 não é assinado, então o Windows mostra o aviso do SmartScreen na primeira instalação.
 
 ### Servidor só para convidados
@@ -255,7 +255,7 @@ site pode se cadastrar.
 ## Testes
 
 ```
-pnpm test    392 testes   permissões, protocolo RPC, API (Postgres e Redis reais),
+pnpm test    393 testes   permissões, protocolo RPC, API (Postgres e Redis reais),
                           SFU (workers mediasoup reais), reducers do cliente
 pnpm e2e      12 testes   Chromium com câmera, microfone e tela sintéticos
 ```

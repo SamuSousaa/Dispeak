@@ -14,11 +14,14 @@ const { autoUpdater } = electronUpdater;
 
 /** First look shortly after the start, so it does not compete with the window loading. */
 const FIRST_CHECK_MS = 15_000;
-const CHECK_EVERY_MS = 3 * 60 * 60 * 1000;
+const CHECK_EVERY_MS = 30 * 60 * 1000;
+/** Reloading the page also looks for an update, but not more often than this. */
+const CHECK_ON_LOAD_GAP_MS = 5 * 60 * 1000;
 
 /**
  * Keeps the app up to date from our own server: `latest.yml` and the installers sit under
- * `config.updateUrl`. A newer version downloads in the background and installs when the app
+ * `config.updateUrl`. It looks shortly after starting, every half hour and when the page is
+ * reloaded. A newer version downloads in the background and installs when the app
  * closes; the page is told, so it can offer to restart right away.
  */
 export function serveUpdates(window: BrowserWindow): void {
@@ -61,10 +64,16 @@ export function serveUpdates(window: BrowserWindow): void {
     console.warn('[desktop] update check failed', error.message);
   });
 
+  let lastCheck = 0;
   const check = () => {
     if (ready) return;
+    lastCheck = Date.now();
     void autoUpdater.checkForUpdates().catch(() => undefined);
   };
   setTimeout(check, FIRST_CHECK_MS).unref();
   setInterval(check, CHECK_EVERY_MS).unref();
+  // People leave the app open for days and reload it when told something changed.
+  webContents.on('did-finish-load', () => {
+    if (Date.now() - lastCheck > CHECK_ON_LOAD_GAP_MS) check();
+  });
 }

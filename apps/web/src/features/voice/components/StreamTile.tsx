@@ -6,6 +6,7 @@ import { cx } from '../../../lib/cx';
 import { registerStreamFullscreen } from '../stream-fullscreen';
 import { setStreamViewport, setStreamVolume } from '../voice-actions';
 import { SELF_STREAM, useVoiceStore, type StreamStats } from '../voice-store';
+import { StreamViewers } from './StreamViewers';
 import { LiveBadge } from './LiveBadge';
 import { useFocusClick } from './use-focus-click';
 import { volumeIsFixed } from './VolumeControl';
@@ -284,6 +285,7 @@ export function StreamTile({
         <span className="label truncate border-r border-b border-line bg-bg px-2 py-0.5 text-fg">
           {isSelf ? 'SUA TRANSMISSÃO' : name}
         </span>
+        {isSelf && <StreamViewers />}
       </div>
 
       {compact ? (

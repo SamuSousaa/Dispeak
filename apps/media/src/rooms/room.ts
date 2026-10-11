@@ -77,6 +77,8 @@ export class Room {
   private readonly handshakes = new WeakMap<types.WebRtcTransport, () => void>();
   readonly peers = new Map<string, Peer>();
   private speaking: string[] = [];
+  /** Who watches each screen share, as last told to its owner: producer id → sorted peer ids. */
+  private readonly viewers = new Map<string, string>();
   private closed = false;
 
   private constructor(
@@ -388,6 +390,7 @@ export class Room {
     consumer.observer.on('close', () => {
       if (!peer.consumers.delete(consumer.id)) return;
       if (!peer.closed) peer.rpc.notify('consumer-closed', { consumerId: consumer.id });
+      this.syncViewers(producerId);
     });
     consumer.on('layerschange', (layers) => {
       if (peer.closed) return;
@@ -413,18 +416,21 @@ export class Room {
     // Deafen holds every audio consumer paused on the server, saving the bandwidth too.
     if (peer.deafened && consumer.kind === 'audio') return;
     await consumer.resume();
+    this.syncViewers(consumer.producerId);
   }
 
   async pauseConsumer(peer: Peer, consumerId: string): Promise<void> {
     const consumer = this.getConsumer(peer, consumerId);
     consumer.appData.wanted = false;
     await consumer.pause();
+    this.syncViewers(consumer.producerId);
   }
 
   closeConsumer(peer: Peer, consumerId: string): void {
     const consumer = this.getConsumer(peer, consumerId);
     peer.consumers.delete(consumer.id);
     consumer.close();
+    this.syncViewers(consumer.producerId);
   }
 
   async setConsumerLayers(peer: Peer, consumerId: string, spatialLayer: number): Promise<void> {
@@ -518,6 +524,32 @@ export class Room {
   private closeTransport(peer: Peer, transport: types.WebRtcTransport<TransportAppData>): void {
     peer.transports.delete(transport.id);
     transport.close();
+  }
+
+  /**
+   * Tells whoever shares a screen who is watching it, when that changed. Watching means
+   * having asked for the video and not paused it; a consumer that only exists does not count.
+   */
+  private syncViewers(producerId: string): void {
+    const peers = [...this.peers.values()];
+    const owner = peers.find((peer) => peer.producers.has(producerId));
+    if (!owner || owner.closed || owner.producers.get(producerId)?.appData.source !== 'screen') {
+      this.viewers.delete(producerId);
+      return;
+    }
+    const peerIds = peers
+      .filter((peer) =>
+        [...peer.consumers.values()].some(
+          (consumer) =>
+            consumer.producerId === producerId && consumer.appData.wanted && !consumer.closed,
+        ),
+      )
+      .map((peer) => peer.id)
+      .sort();
+    const key = peerIds.join(',');
+    if ((this.viewers.get(producerId) ?? '') === key) return;
+    this.viewers.set(producerId, key);
+    owner.rpc.notify('stream-viewers', { peerIds });
   }
 
   private assertJoined(peer: Peer): void {

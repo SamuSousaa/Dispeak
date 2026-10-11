@@ -209,6 +209,11 @@ export const voiceClientSide = defineSide({
       consumerId: z.string(),
       spatialLayer: z.number().int().nullable(),
     }),
+    /**
+     * Sent to someone sharing their screen: the session ids of the peers watching it right
+     * now. Repeated whenever the list changes; empty when the last viewer leaves.
+     */
+    'stream-viewers': z.object({ peerIds: z.array(z.string()) }),
     /** The server dropped a transport (ICE/DTLS failure); the client must reconnect. */
     'transport-closed': z.object({ transportId: z.string() }),
   },

@@ -98,6 +98,17 @@ test('two simultaneous streams; a viewer only receives the one being watched', a
   await carla.getByRole('button', { name: 'Assistir Alice' }).click();
   await expect(stream(carla, 'Alice')).toBeVisible();
   await expect.poll(() => videoWidth(carla, 'Alice')).toBeGreaterThan(0);
+  // Alice sees, on her own share, that one person is watching, and who.
+  const viewers = stream(alice, 'self').getByTestId('stream-viewers');
+  await expect(viewers).toHaveAttribute('data-count', '1');
+  await viewers.click();
+  await expect(
+    stream(alice, 'self').getByRole('list', { name: 'Quem está assistindo' }),
+  ).toHaveText('Carla');
+  await expect(stream(bruno, 'self').getByTestId('stream-viewers')).toHaveAttribute(
+    'data-count',
+    '0',
+  );
 
   // Server statistics: exactly one video consumer, and it is fed by Alice's producer.
   const aliceScreen = (await peerNamed(request, channel, 'Alice'))?.producers.find(

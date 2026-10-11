@@ -98,6 +98,8 @@ export interface VoiceState {
   cameras: Record<string, MediaStream>;
   /** Streams this client chose to watch, keyed by the streamer's session id. */
   watching: Record<string, WatchedStream>;
+  /** Session ids of the people watching the local share, as the media server reports them. */
+  screenViewers: string[];
   /** Keyed by streamer session id, or `SELF_STREAM` for the local share. */
   streamStats: Record<string, StreamStats>;
   /** How loud the microphone is right now, 0 to 1, measured on what is sent to the others. */
@@ -143,6 +145,7 @@ export const initialVoiceState: VoiceState = {
   camera: cameraOff,
   cameras: {},
   watching: {},
+  screenViewers: [],
   streamStats: {},
   micLevel: 0,
   streamVolumes: {},

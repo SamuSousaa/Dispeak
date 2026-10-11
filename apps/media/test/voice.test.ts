@@ -5,6 +5,7 @@ import {
   eventually,
   openTransport,
   opusRtpParameters,
+  simulcastRtpParameters,
   sleep,
   type Harness,
 } from './helpers/harness';
@@ -460,6 +461,37 @@ describe('voice signaling', () => {
       expect(second).not.toBe(first);
       expect(h.server.rooms.stats().totals).toMatchObject({ transports: 1, producers: 0 });
       expect((await workerResources()).transports).toBe(1);
+    });
+
+    it('tells whoever shares a screen who is watching it', async () => {
+      const alice = await h.joinAs({ name: 'Alice' });
+      const bob = await h.joinAs({ name: 'Bob' });
+      const carla = await h.joinAs({ name: 'Carla' });
+      const { producerId } = await alice.rpc.request('produce', {
+        transportId: await openTransport(alice, 'send'),
+        kind: 'video',
+        source: 'screen',
+        rtpParameters: simulcastRtpParameters(),
+      });
+
+      // Having the consumer is not watching yet: it starts paused.
+      await openTransport(bob, 'recv');
+      const bobView = await bob.rpc.request('consume', { producerId });
+      await bob.rpc.request('resumeConsumer', { consumerId: bobView.consumerId });
+      await expect(alice.next('stream-viewers')).resolves.toEqual({ peerIds: [bob.selfId] });
+
+      await openTransport(carla, 'recv');
+      const carlaView = await carla.rpc.request('consume', { producerId });
+      await carla.rpc.request('resumeConsumer', { consumerId: carlaView.consumerId });
+      await expect(alice.next('stream-viewers')).resolves.toEqual({
+        peerIds: [bob.selfId, carla.selfId].sort(),
+      });
+
+      // One stops watching, the other drops out of the call.
+      await bob.rpc.request('closeConsumer', { consumerId: bobView.consumerId });
+      await expect(alice.next('stream-viewers')).resolves.toEqual({ peerIds: [carla.selfId] });
+      carla.socket.close();
+      await expect(alice.next('stream-viewers')).resolves.toEqual({ peerIds: [] });
     });
 
     it('closes a producer on request and notifies its consumers', async () => {
