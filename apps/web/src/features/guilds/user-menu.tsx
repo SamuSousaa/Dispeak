@@ -1,3 +1,4 @@
+import { canMention, requestMention } from '../chat/mention-bus';
 import { hasPermission, outranks, Permissions, type Guild } from '@frequencia/shared';
 import type { MouseEvent } from 'react';
 import {
@@ -100,6 +101,8 @@ export function userMenuEntries(
 
   return [
     { label: 'Perfil', onSelect: () => openUserProfile({ guild, targetId }, point) },
+    // Only while a message is being written in the channel on screen.
+    !isSelf && canMention() && { label: 'Mencionar', onSelect: () => requestMention(name) },
     { type: 'separator' },
     ...(inVoice && !isSelf ? volumeMenuEntries(targetId, name) : []),
     { type: 'separator' },

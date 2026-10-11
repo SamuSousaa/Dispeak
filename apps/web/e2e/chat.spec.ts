@@ -95,6 +95,14 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
   await expect(messages(alice.page).last()).toContainText('linha um\nlinha dois');
 
   // --- mentions -------------------------------------------------------------------------------
+  // From the menu on a person: the mention lands in the message being written.
+  await composer(alice.page).fill('ei');
+  await alice.page.getByTestId('member').filter({ hasText: 'Bruno' }).click({ button: 'right' });
+  await alice.page.getByRole('menuitem', { name: 'Mencionar' }).click();
+  await expect(composer(alice.page)).toHaveValue('ei @Bruno ');
+  await expect(composer(alice.page)).toBeFocused();
+  await composer(alice.page).fill('');
+
   await composer(alice.page).pressSequentially('psiu @br');
   const suggestions = alice.page.getByRole('listbox', { name: 'Mencionar' });
   await expect(suggestions.getByRole('option')).toHaveText([/@Bruno/]);

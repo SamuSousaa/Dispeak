@@ -257,6 +257,7 @@ export function TextChannelView({
             onCreateThread={canOpenThreads ? () => setThreadName('') : undefined}
             gifs={features?.gifs ?? false}
             focusKey={replyTo?.id}
+            acceptsMentions
             onCancel={replyTo ? () => setReplyTo(null) : undefined}
             onSubmit={async (content, files) => {
               stickToBottom.current = true;

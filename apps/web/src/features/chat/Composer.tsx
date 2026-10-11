@@ -13,6 +13,7 @@ import { describeError } from '../../lib/http';
 import { memberName } from '../guilds/permissions';
 import { formatBytes } from './Attachments';
 import { ExpressionPicker, type ExpressionTab } from './ExpressionPicker';
+import { onMentionRequest } from './mention-bus';
 import { mentionQueryAt, toWireContent } from './mentions';
 
 interface ComposerProps {
@@ -38,6 +39,8 @@ interface ComposerProps {
   gifs?: boolean;
   /** Focuses the field whenever this value changes (e.g. the message being answered). */
   focusKey?: unknown;
+  /** Receives the mentions asked for from outside the chat ("Mencionar" on a person). */
+  acceptsMentions?: boolean;
 }
 
 interface Suggestion {
@@ -75,6 +78,7 @@ export function Composer({
   allowEmpty = false,
   gifs = false,
   focusKey,
+  acceptsMentions = false,
 }: ComposerProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -126,6 +130,30 @@ export function Composer({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!acceptsMentions) return;
+    return onMentionRequest((name) => {
+      const element = ref.current;
+      if (!element) return;
+      // Read from the field itself: this listener outlives many renders.
+      const current = element.value;
+      const at = element.selectionStart ?? current.length;
+      const glued = at > 0 && !/s/.test(current.charAt(at - 1));
+      const piece = `${glued ? ' ' : ''}@${name} `;
+      const next = `${current.slice(0, at)}${piece}${current.slice(at)}`.slice(
+        0,
+        MESSAGE_MAX_LENGTH,
+      );
+      const position = Math.min(at + piece.length, next.length);
+      setText(next);
+      setCaret(position);
+      requestAnimationFrame(() => {
+        element.focus();
+        element.setSelectionRange(position, position);
+      });
+    });
+  }, [acceptsMentions]);
 
   const query = dismissed ? null : mentionQueryAt(text, caret);
   const suggestions: Suggestion[] = [];
