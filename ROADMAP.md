@@ -187,6 +187,8 @@ passar e de um commit ser feito.
       direto o jogo em tela cheia que estiver na frente
 - [x] Atualização automática do app, página `/download` e `pnpm release:desktop`
 - [x] Cadastro restrito por código de acesso (`REGISTRATION_CODE`), para servidores fechados
+- [x] Três presets de transmissão (720p30, 1080p60 e 1440p30 para filmes); 1080p30, 1440p60 e
+      resolução original saíram, por não chegarem a 60 fps e por pesarem na banda do servidor
 
 **O que as medições mostraram.** Uma transmissão de jogo chegava a quem assiste com 15 a 30
 quadros por segundo por duas causas independentes. A primeira: três camadas de simulcast dobravam
@@ -262,9 +264,8 @@ que deve e libera o que deve. Não prova:
   degradando a rede.
 - **Áudio do sistema na transmissão:** depende do navegador e do sistema (Chrome no Windows entrega
   para tela inteira e abas; Firefox e Safari não). A UI avisa quando a transmissão sai sem áudio.
-- **O preset 1080p60** foi medido com jogos de verdade em 11/10/2026 (ver a Etapa 9); os presets
-  1440p60 e original continuam sem medição, e numa placa AMD o codificador leva cerca de 16 ms por
-  quadro já em 1080p.
+- **O preset 1080p60** foi medido com jogos de verdade em 11/10/2026 (ver a Etapa 9). Numa placa AMD o codificador leva cerca de 16 ms por quadro já em 1080p, um dos
+  motivos de os presets acima disso a 60 fps terem saído.
 - **Outros navegadores.** Os testes automatizados só exercitam o Chromium.
 
 **Teste manual com dois dispositivos (10/10/2026).** PC com Chrome no Windows e um iPhone com

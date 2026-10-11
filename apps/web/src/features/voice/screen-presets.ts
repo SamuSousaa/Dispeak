@@ -1,13 +1,12 @@
 import { SIMULCAST_LAYERS } from '@frequencia/shared';
 
-export const SCREEN_PRESET_IDS = [
-  '720p30',
-  '1080p30',
-  '1080p60',
-  '1440p60',
-  'source',
-  'film',
-] as const;
+/**
+ * Three on purpose: something light, something for games, something for films. The 1440p60
+ * and source-resolution ones were dropped: a graphics card that needs 16 ms a frame at 1080p
+ * does not reach 60 fps above it, and they were the ones that could eat the server's traffic
+ * allowance.
+ */
+export const SCREEN_PRESET_IDS = ['720p30', '1080p60', 'film'] as const;
 export type ScreenPresetId = (typeof SCREEN_PRESET_IDS)[number];
 
 export interface ScreenPreset {
@@ -40,16 +39,6 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     contentHint: 'detail',
     bitrates: [150_000, 500_000, 2_500_000],
   },
-  '1080p30': {
-    id: '1080p30',
-    label: '1080P30',
-    hint: 'Nítido — código e texto pequeno',
-    width: 1920,
-    height: 1080,
-    frameRate: 30,
-    contentHint: 'detail',
-    bitrates: [250_000, 900_000, 4_000_000],
-  },
   '1080p60': {
     id: '1080p60',
     label: '1080P60',
@@ -60,30 +49,10 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     contentHint: 'motion',
     bitrates: [8_000_000],
   },
-  '1440p60': {
-    id: '1440p60',
-    label: '1440P60',
-    hint: 'Monitor 2K — pede PC e internet bons',
-    width: 2560,
-    height: 1440,
-    frameRate: 60,
-    contentHint: 'motion',
-    bitrates: [14_000_000],
-  },
-  source: {
-    id: 'source',
-    label: 'ORIGINAL',
-    hint: 'Resolução da sua tela (até 4K), 60 fps',
-    width: 3840,
-    height: 2160,
-    frameRate: 60,
-    contentHint: 'motion',
-    bitrates: [20_000_000],
-  },
   film: {
     id: 'film',
-    label: 'FILME',
-    hint: 'Máxima fidelidade para filmes e séries — até 1440p, 30 fps',
+    label: '1440P30',
+    hint: 'Filmes e séries — máxima fidelidade',
     width: 2560,
     height: 1440,
     // Films run at 24 to 30 frames: the bits of the other 30 go into each picture instead.

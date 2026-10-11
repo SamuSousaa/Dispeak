@@ -83,7 +83,7 @@ export const defaultSettings: Settings = {
   userVolumes: {},
   showEmbeds: true,
   desktopNotifications: false,
-  sharePreset: '1080p30',
+  sharePreset: '1080p60',
   soundsEnabled: true,
   soundVolume: 0.5,
   soundEvents: {
@@ -109,9 +109,13 @@ export const defaultSettings: Settings = {
 export const useSettingsStore = create<Settings>()(
   persist(() => defaultSettings, {
     name: 'frequencia.settings',
-    version: 4,
+    version: 5,
     migrate: (persisted, version) => {
-      let stored = persisted as { noiseSuppression?: unknown; keybinds?: unknown } | null;
+      let stored = persisted as {
+        noiseSuppression?: unknown;
+        keybinds?: unknown;
+        sharePreset?: unknown;
+      } | null;
       if (!stored) return persisted;
       // Up to version 2 the suppression was a choice among four modes; now it is on or off.
       if (version < 3 && typeof stored.noiseSuppression === 'string') {
@@ -124,6 +128,14 @@ export const useSettingsStore = create<Settings>()(
           if (keybinds[action] === binding) keybinds[action] = null;
         }
         stored = { ...stored, keybinds };
+      }
+      // Up to version 4 there were six stream presets; the three that went fall back to 1080p60.
+      if (
+        version < 5 &&
+        typeof stored.sharePreset === 'string' &&
+        !(SCREEN_PRESET_IDS as readonly string[]).includes(stored.sharePreset)
+      ) {
+        stored = { ...stored, sharePreset: '1080p60' };
       }
       return stored;
     },

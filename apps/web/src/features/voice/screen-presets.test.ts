@@ -9,7 +9,7 @@ import {
 
 describe('simulcastEncodings', () => {
   it('produces quarter, half and full resolution layers, lowest first', () => {
-    const encodings = simulcastEncodings(SCREEN_PRESETS['1080p30']);
+    const encodings = simulcastEncodings(SCREEN_PRESETS['720p30']);
     expect(encodings.map((encoding) => encoding.rid)).toEqual(['r0', 'r1', 'r2']);
     expect(encodings.map((encoding) => encoding.scaleResolutionDownBy)).toEqual([4, 2, 1]);
     expect(encodings.every((encoding) => encoding.maxFramerate === 30)).toBe(true);

@@ -21,8 +21,8 @@ Nenhum serviço gerenciado de mídia ou de tempo real (LiveKit, Agora, Twilio, F
   configurações, pelas setas ao lado dos botões de microfone e fone.
 - **Câmera** em simulcast VP8, exibida no quadro de cada participante.
 - **Transmissão de tela** em H.264 pela placa de vídeo de quem transmite, quando ela codifica
-  (VP8 no processador caso contrário), com presets (720p30, 1080p30, 1080p60, 1440p60, resolução
-  original até 4K e um modo filme), áudio do sistema a 256 kbps, várias transmissões ao mesmo
+  (VP8 no processador caso contrário), com três presets (720p30, 1080p60 e 1440p30 para
+  filmes), áudio do sistema a 256 kbps, várias transmissões ao mesmo
   tempo, destaque por clique, tela cheia e janela flutuante (picture-in-picture).
 - **App de desktop para Windows** (Electron): mantém a taxa de quadros de uma transmissão com o
   jogo em tela cheia, atalhos de teclado que valem com o jogo em foco, transmissão do jogo com

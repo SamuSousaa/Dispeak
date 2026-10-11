@@ -57,7 +57,7 @@ test('two simultaneous streams; a viewer only receives the one being watched', a
   const carla = await join(browser, channel, 'Carla');
 
   await share(alice, '720P30');
-  await share(bruno, '1080P30');
+  await share(bruno, '720P30');
 
   // Whether system audio comes along depends on the browser and the captured surface. The
   // streamer is warned exactly when the share went out without an audio producer.
