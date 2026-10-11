@@ -27,19 +27,20 @@ tsup and Vite compiles it for the web.
 
 ## Commands
 
-| Command                                     | What it does                                                     |
-| ------------------------------------------- | ---------------------------------------------------------------- |
-| `pnpm dev`                                  | Postgres + Redis, then web/api/media on the host, in watch mode  |
-| `pnpm dev:docker`                           | Same, with the media service in a container                      |
-| `pnpm check`                                | lint + format:check + typecheck + test — run before every commit |
-| `pnpm lint` / `pnpm format`                 | ESLint (zero warnings allowed) / Prettier write                  |
-| `pnpm typecheck` / `pnpm test`              | `tsc --noEmit` / Vitest in every package                         |
-| `pnpm e2e`                                  | Playwright end-to-end tests (starts the stack itself)            |
-| `pnpm build && pnpm start:local`            | Production bundles running locally, without Docker               |
-| `pnpm prod:up`                              | Production stack with Docker (needs `.env.prod`)                 |
-| `pnpm --filter @frequencia/api db:generate` | SQL migration from a change in `src/db/schema.ts`                |
-| `pnpm --filter @frequencia/desktop package` | Windows installer of the desktop app, in `apps/desktop/release`  |
-| `pnpm --filter @frequencia/web load:voice`  | Voice load test (see `docs/load-test.md`)                        |
+| Command                                     | What it does                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------- |
+| `pnpm dev`                                  | Postgres + Redis, then web/api/media on the host, in watch mode     |
+| `pnpm dev:docker`                           | Same, with the media service in a container                         |
+| `pnpm check`                                | lint + format:check + typecheck + test — run before every commit    |
+| `pnpm lint` / `pnpm format`                 | ESLint (zero warnings allowed) / Prettier write                     |
+| `pnpm typecheck` / `pnpm test`              | `tsc --noEmit` / Vitest in every package                            |
+| `pnpm e2e`                                  | Playwright end-to-end tests (starts the stack itself)               |
+| `pnpm build && pnpm start:local`            | Production bundles running locally, without Docker                  |
+| `pnpm prod:up`                              | Production stack with Docker (needs `.env.prod`)                    |
+| `pnpm --filter @frequencia/api db:generate` | SQL migration from a change in `src/db/schema.ts`                   |
+| `pnpm --filter @frequencia/desktop package` | Windows installer of the desktop app, in `apps/desktop/release`     |
+| `pnpm release:desktop`                      | Builds that installer and uploads it to the server (`.env.release`) |
+| `pnpm --filter @frequencia/web load:voice`  | Voice load test (see `docs/load-test.md`)                           |
 
 Single package: `pnpm --filter @frequencia/api test`. Single file:
 `pnpm --filter @frequencia/api exec vitest run test/auth.test.ts`.

@@ -34,9 +34,12 @@
 		respond 404
 	}
 
-	# Installers of the desktop app, copied into ./downloads on the server by hand.
+	# Installers of the desktop app, uploaded into ./downloads by `pnpm release:desktop`.
+	# The page at /download itself is part of the single-page app below.
+	# `latest.yml` there is the update feed of the app: always asked again, never cached.
 	handle_path /download/* {
 		root * /downloads
+		header Cache-Control "no-cache"
 		file_server
 	}
 

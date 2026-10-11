@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../../../components/Button';
+import { desktop } from '../../desktop/desktop';
 import { SCREEN_PRESET_LIST, SCREEN_PRESETS } from '../screen-presets';
 import { startScreenShare, stopScreenShare } from '../voice-actions';
 import { useVoiceStore } from '../voice-store';
@@ -93,6 +95,17 @@ export function ScreenShareButton({ allowed = true }: { allowed?: boolean }) {
               </button>
             </li>
           ))}
+          {!desktop && (
+            <li role="none" className="px-3 py-2">
+              <Link
+                to="/download"
+                role="menuitem"
+                className="text-xs text-muted underline underline-offset-4 transition-colors hover:text-accent"
+              >
+                Vai transmitir um jogo? O app para Windows mantém mais quadros por segundo.
+              </Link>
+            </li>
+          )}
         </ul>
       )}
       {screen.error && (

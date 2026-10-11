@@ -9,6 +9,7 @@ coverage
 .env.*
 !.env.example
 !.env.prod.example
+!.env.release.example
 playwright-report
 test-results
 .dev

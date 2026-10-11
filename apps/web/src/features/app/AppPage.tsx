@@ -27,6 +27,7 @@ import { SettingsPanel, type SettingsTab } from '../settings/SettingsPanel';
 import { startVoiceSounds } from '../sounds/sound-player';
 import { notifyMention } from '../unread/notify';
 import { applyUnreadEvent, useUnreadTitle } from '../unread/unread-store';
+import { UpdateNotice } from '../desktop/UpdateNotice';
 import { useVoiceShortcuts } from '../voice/use-voice-shortcuts';
 import { MobileVoiceBar } from '../voice/components/MobileVoice';
 import { leaveVoice } from '../voice/voice-actions';
@@ -441,6 +442,7 @@ export function AppPage() {
           onClose={closeDialog}
         />
       )}
+      <UpdateNotice />
     </div>
   );
 }

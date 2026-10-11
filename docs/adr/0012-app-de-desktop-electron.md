@@ -39,8 +39,11 @@ sistema, onde `getDisplayMedia` depende da versão instalada.
 ## Consequências
 
 - O instalador tem cerca de 110 MB e não é assinado: o Windows mostra o aviso do SmartScreen.
-- O app não se atualiza sozinho. Como a interface vem do site, só mudanças em `apps/desktop`
-  pedem um instalador novo.
+- O app se atualiza sozinho pelo `electron-updater`, lendo `latest.yml` em `/download/` do
+  próprio servidor (`src/updater.ts`): baixa em segundo plano, instala ao fechar e avisa a página,
+  que oferece reiniciar na hora. Como a interface vem do site, só mudanças em `apps/desktop` pedem
+  uma versão nova, publicada com `pnpm release:desktop`. Sem assinatura, a atualização não tem como
+  conferir quem publicou o instalador: a garantia é o HTTPS do nosso domínio.
 - A captura continua sendo a do Chromium. Prioridade alta de processador e classe de agendamento
   da placa de vídeo foram testadas antes e não mudaram as medições; não são aplicadas.
 - A dispensa é pedida por um script PowerShell passado na linha de comando, porque a chamada

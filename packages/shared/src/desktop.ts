@@ -10,6 +10,13 @@ export const DESKTOP_SET_SHORTCUTS = 'desktop:set-shortcuts';
 /** App → page: one of those shortcuts was pressed. */
 export const DESKTOP_SHORTCUT = 'desktop:shortcut';
 
+/** Page → app: is a downloaded update waiting? */
+export const DESKTOP_GET_UPDATE = 'desktop:get-update';
+/** App → page: an update finished downloading and installs on the next start. */
+export const DESKTOP_UPDATE_READY = 'desktop:update-ready';
+/** Page → app: restart now and install it. */
+export const DESKTOP_INSTALL_UPDATE = 'desktop:install-update';
+
 /** Action name → binding, in the page's own notation (`Ctrl+Shift+M`, `F9`). */
 export const desktopShortcutsSchema = z
   .record(z.string().min(1).max(32), z.string().min(1).max(48))
@@ -22,6 +29,10 @@ export type DesktopShortcutsResult = z.infer<typeof desktopShortcutsResultSchema
 
 export const desktopShortcutEventSchema = z.object({ action: z.string().min(1).max(32) });
 
+/** The version waiting to be installed, or `null` when the app is up to date. */
+export const desktopUpdateSchema = z.object({ version: z.string().min(1).max(32).nullable() });
+export type DesktopUpdate = z.infer<typeof desktopUpdateSchema>;
+
 /** `window.dispeakerDesktop`, as exposed by the app's preload script. */
 export interface DesktopBridge {
   version: string;
@@ -29,6 +40,12 @@ export interface DesktopBridge {
   setShortcuts(bindings: DesktopShortcuts): Promise<DesktopShortcutsResult>;
   /** Returns the function that stops listening. */
   onShortcut(listener: (action: string) => void): () => void;
+  /** The update that is already downloaded, if any. */
+  getUpdate(): Promise<DesktopUpdate>;
+  /** Called when an update finishes downloading. Returns the function that stops listening. */
+  onUpdateReady(listener: (version: string) => void): () => void;
+  /** Closes the app, installs the downloaded update and opens it again. */
+  installUpdate(): Promise<void>;
 }
 
 /**

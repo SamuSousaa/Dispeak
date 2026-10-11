@@ -1,9 +1,14 @@
 import {
+  DESKTOP_GET_UPDATE,
+  DESKTOP_INSTALL_UPDATE,
   DESKTOP_SET_SHORTCUTS,
   DESKTOP_SHORTCUT,
+  DESKTOP_UPDATE_READY,
   desktopShortcutEventSchema,
+  desktopUpdateSchema,
   type DesktopBridge,
   type DesktopShortcutsResult,
+  type DesktopUpdate,
 } from '@frequencia/shared';
 import { contextBridge, ipcRenderer } from 'electron';
 
@@ -26,6 +31,16 @@ const bridge: DesktopBridge = {
     ipcRenderer.on(DESKTOP_SHORTCUT, handler);
     return () => ipcRenderer.removeListener(DESKTOP_SHORTCUT, handler);
   },
+  getUpdate: () => ipcRenderer.invoke(DESKTOP_GET_UPDATE) as Promise<DesktopUpdate>,
+  onUpdateReady: (listener) => {
+    const handler = (_event: unknown, payload: unknown) => {
+      const parsed = desktopUpdateSchema.safeParse(payload);
+      if (parsed.success && parsed.data.version) listener(parsed.data.version);
+    };
+    ipcRenderer.on(DESKTOP_UPDATE_READY, handler);
+    return () => ipcRenderer.removeListener(DESKTOP_UPDATE_READY, handler);
+  },
+  installUpdate: () => ipcRenderer.invoke(DESKTOP_INSTALL_UPDATE) as Promise<void>,
 };
 
 contextBridge.exposeInMainWorld('dispeakerDesktop', bridge);

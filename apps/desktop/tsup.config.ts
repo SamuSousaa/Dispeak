@@ -13,6 +13,10 @@ export default defineConfig([
     ...shared,
     entry: { main: 'src/main.ts' },
     format: ['esm'],
+    // The bundled CommonJS dependencies (electron-updater and what it needs) call `require`.
+    banner: {
+      js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
+    },
     target: 'node22',
     platform: 'node',
   },

@@ -6,6 +6,7 @@ import { isAppUrl, isExternalLink } from './navigation';
 import { applyBackgroundSwitches, keepProcessesResponsive } from './performance';
 import { pickSource } from './picker/picker';
 import { serveShortcuts } from './shortcuts';
+import { serveUpdates } from './updater';
 
 /** What the web app may ask the operating system for. Everything else is refused. */
 const PERMISSIONS = new Set([
@@ -71,6 +72,7 @@ function createWindow(): BrowserWindow {
   });
 
   serveShortcuts(window);
+  serveUpdates(window);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });
   void window.loadURL(config.appUrl.href);
   return window;

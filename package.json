@@ -21,6 +21,7 @@
     "e2e": "pnpm --filter @frequencia/web e2e",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
     "start:local": "node scripts/start-local.mjs",
+    "release:desktop": "node --env-file-if-exists=.env.release scripts/release-desktop.mjs",
     "prod:up": "docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build",
     "prod:down": "docker compose -f docker-compose.prod.yml --env-file .env.prod down",
     "prod:logs": "docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f --tail 100"

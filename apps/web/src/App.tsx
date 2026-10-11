@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppPage } from './features/app/AppPage';
 import { bootstrapAuth, useAuthStore } from './features/auth/auth-store';
 import { AuthPage } from './pages/AuthPage';
+import { DownloadPage } from './pages/DownloadPage';
 import { HomePage } from './pages/HomePage';
 import { InvitePage } from './pages/InvitePage';
 import { LabP2pPage } from './pages/LabP2pPage';
@@ -45,6 +46,7 @@ export function App() {
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
       <Route path="/reset/:token" element={<ResetPasswordPage />} />
+      <Route path="/download" element={<DownloadPage />} />
       <Route
         path="/invite/:code"
         element={
