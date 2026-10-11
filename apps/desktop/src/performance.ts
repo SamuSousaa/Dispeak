@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { app } from 'electron';
+import { raiseGpuPriority } from './gpu-priority';
 
 /** How often the process list is checked for children that started since the last pass. */
 const INTERVAL_MS = 5000;
@@ -17,15 +18,21 @@ export function applyBackgroundSwitches(): void {
 }
 
 /**
- * Raises the scheduling priority of the app's processes. A game that takes every core
+ * Raises the CPU and GPU scheduling priority of the app's processes. A game that takes every core
  * otherwise leaves the capture and the encoder a fraction of the frames they need — the
  * one thing a browser tab cannot do anything about.
  */
 export function keepProcessesResponsive(): void {
   const raised = new Set<number>();
   const raise = () => {
-    for (const { pid } of app.getAppMetrics()) {
+    for (const { pid, type } of app.getAppMetrics()) {
       if (raised.has(pid)) continue;
+      // The GPU process is the one that copies every captured frame off the graphics card.
+      if (type === 'GPU') {
+        void raiseGpuPriority(pid).then((result) => {
+          console.warn(`[desktop] gpu scheduling priority of ${pid}: ${result}`);
+        });
+      }
       try {
         os.setPriority(pid, os.constants.priority.PRIORITY_HIGH);
         raised.add(pid);
