@@ -40,6 +40,14 @@ interface StreamTileProps {
 const dash = (value: number | string | null | undefined, unit = '') =>
   value === null || value === undefined ? '—' : `${value}${unit}`;
 
+/** "MediaFoundationVideoEncodeAccelerator (AMDh264Encoder)" is the graphics card; libvpx is not. */
+function encoderLabel(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const software = /libvpx|openh264|libaom|software/i.test(name);
+  const detail = /\(([^)]+)\)/.exec(name)?.[1] ?? name;
+  return `${software ? 'PROCESSADOR' : 'PLACA DE VÍDEO'} · ${detail.toUpperCase()}`;
+}
+
 function StatsPanel({ id, stats }: { id: string; stats: StreamStats | undefined }) {
   const rttMs = useVoiceStore((state) => state.stats.rttMs);
   const layer = useVoiceStore((state) => state.watching[id]?.spatialLayer ?? null);
@@ -59,6 +67,8 @@ function StatsPanel({ id, stats }: { id: string; stats: StreamStats | undefined 
       ['FPS CAPTURADO', dash(stats?.captureFps)],
       ['FPS ENVIADO', dash(stats?.fps)],
     );
+    rows.push(['COMPRESSOR', dash(encoderLabel(stats?.encoder))]);
+    rows.push(['TEMPO POR QUADRO', dash(stats?.encodeMs, ' MS')]);
     rows.push(['LIMITAÇÃO', dash(stats?.limitation?.toUpperCase() ?? 'NENHUMA')]);
     for (const item of stats?.layers ?? []) {
       rows.push([

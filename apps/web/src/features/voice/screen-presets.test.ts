@@ -9,10 +9,10 @@ import {
 
 describe('simulcastEncodings', () => {
   it('produces quarter, half and full resolution layers, lowest first', () => {
-    const encodings = simulcastEncodings(SCREEN_PRESETS['1080p60']);
+    const encodings = simulcastEncodings(SCREEN_PRESETS['1080p30']);
     expect(encodings.map((encoding) => encoding.rid)).toEqual(['r0', 'r1', 'r2']);
     expect(encodings.map((encoding) => encoding.scaleResolutionDownBy)).toEqual([4, 2, 1]);
-    expect(encodings.every((encoding) => encoding.maxFramerate === 60)).toBe(true);
+    expect(encodings.every((encoding) => encoding.maxFramerate === 30)).toBe(true);
     const bitrates = encodings.map((encoding) => encoding.maxBitrate ?? 0);
     expect(bitrates).toEqual([...bitrates].sort((a, b) => a - b));
   });
@@ -20,6 +20,9 @@ describe('simulcastEncodings', () => {
   it('publishes a single full-size encoding for a preset with one bitrate', () => {
     const encodings = simulcastEncodings(SCREEN_PRESETS.film);
     expect(encodings).toEqual([{ maxBitrate: 18_000_000, maxFramerate: 30 }]);
+    expect(simulcastEncodings(SCREEN_PRESETS['1080p60'])).toEqual([
+      { maxBitrate: 8_000_000, maxFramerate: 60 },
+    ]);
   });
 });
 

@@ -22,7 +22,9 @@ export interface ScreenPreset {
   contentHint: 'detail' | 'motion';
   /**
    * Max bitrate per simulcast layer, lowest resolution first. A single value publishes one
-   * encoding only: every viewer gets the full picture, whatever the size of their tile.
+   * encoding only: every viewer gets the full picture, whatever the size of their tile. The
+   * 60 fps presets do that because the extra layers cost frames: measured on an AMD card, its
+   * H.264 encoder took 15 + 9 + 6 ms a frame for the three, about 30 fps, against 50 for one.
    */
   bitrates: number[];
 }
@@ -56,7 +58,7 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 1080,
     frameRate: 60,
     contentHint: 'motion',
-    bitrates: [400_000, 1_500_000, 8_000_000],
+    bitrates: [8_000_000],
   },
   '1440p60': {
     id: '1440p60',
@@ -66,7 +68,7 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 1440,
     frameRate: 60,
     contentHint: 'motion',
-    bitrates: [500_000, 2_000_000, 14_000_000],
+    bitrates: [14_000_000],
   },
   source: {
     id: 'source',
@@ -76,7 +78,7 @@ export const SCREEN_PRESETS: Record<ScreenPresetId, ScreenPreset> = {
     height: 2160,
     frameRate: 60,
     contentHint: 'motion',
-    bitrates: [700_000, 3_000_000, 20_000_000],
+    bitrates: [20_000_000],
   },
   film: {
     id: 'film',

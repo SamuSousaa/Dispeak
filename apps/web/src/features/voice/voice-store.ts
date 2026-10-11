@@ -62,6 +62,10 @@ export interface StreamStats {
   limitation?: string | null;
   /** Outgoing streams only: frames the browser captures, before the encoder drops any. */
   captureFps?: number | null;
+  /** Outgoing streams only: time the encoder takes per frame, all layers together. */
+  encodeMs?: number | null;
+  /** Outgoing streams only: the encoder in use, as the browser names it. */
+  encoder?: string | null;
 }
 
 /** Key used in `streamStats` for the local user's own screen share. */

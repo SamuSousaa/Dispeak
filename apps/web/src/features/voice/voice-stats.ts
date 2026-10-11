@@ -109,6 +109,9 @@ export interface StreamSample {
   bytes: Record<string, number>;
   packetsReceived: number;
   packetsLost: number;
+  /** Outgoing streams only: seconds spent encoding and frames encoded, all layers added up. */
+  encodeSeconds?: number;
+  framesEncoded?: number;
 }
 
 /** Stats of a stream being watched, from its video consumer. */
@@ -156,7 +159,15 @@ export function collectOutboundStreamStats(
     .sort((a, b) => String(a.rid ?? '').localeCompare(String(b.rid ?? '')));
   const seconds = previous ? (now - previous.at) / 1000 : 0;
 
-  const sample: StreamSample = { at: now, bytes: {}, packetsReceived: 0, packetsLost: 0 };
+  const sample: StreamSample = {
+    at: now,
+    bytes: {},
+    packetsReceived: 0,
+    packetsLost: 0,
+    encodeSeconds: outbound.reduce((sum, entry) => sum + number(entry.totalEncodeTime), 0),
+    // Every layer encodes the same frames; the busiest one counts them.
+    framesEncoded: Math.max(0, ...outbound.map((entry) => number(entry.framesEncoded))),
+  };
   const layers: StreamLayerStats[] = outbound.map((entry, index) => {
     const rid = typeof entry.rid === 'string' ? entry.rid : `r${index}`;
     const bytes = number(entry.bytesSent);
@@ -179,6 +190,12 @@ export function collectOutboundStreamStats(
   const limitation = outbound
     .map((entry) => entry.qualityLimitationReason)
     .find((reason) => typeof reason === 'string' && reason !== 'none');
+  const frames = (sample.framesEncoded ?? 0) - (previous?.framesEncoded ?? 0);
+  const encodeMs =
+    previous && frames > 0
+      ? Math.round((((sample.encodeSeconds ?? 0) - (previous.encodeSeconds ?? 0)) / frames) * 1000)
+      : null;
+  const implementation = outbound.at(-1)?.encoderImplementation;
   const source = entries(report).find(
     (entry) => entry.type === 'media-source' && entry.kind === 'video',
   );
@@ -194,6 +211,8 @@ export function collectOutboundStreamStats(
       codec: codecOf(report, outbound[0]),
       layers,
       limitation: typeof limitation === 'string' ? limitation : null,
+      encodeMs,
+      encoder: typeof implementation === 'string' ? implementation : null,
       captureFps:
         typeof source?.framesPerSecond === 'number' ? Math.round(source.framesPerSecond) : null,
     },
