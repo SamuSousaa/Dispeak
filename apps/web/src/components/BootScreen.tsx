@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 /** Length of one pass of the trace, the same as `boot-trace` in `index.html`. */
-const TRACE_MS = 1800;
+const TRACE_MS = 2000;
 
 /** Things worth knowing, one per start. Every one of them is true of the app as it is. */
 const TIPS = [

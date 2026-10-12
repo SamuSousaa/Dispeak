@@ -121,16 +121,18 @@ export function contextMenu(
 /** The one menu of the app; mount it once, near the root. */
 export function ContextMenuHost() {
   const menu = useMenuStore((state) => state.open);
+  // What is on screen: the open menu, or the one just closed while it plays its way out.
+  const [shown, setShown] = useState(menu);
+  if (menu && menu !== shown) setShown(menu);
+  const closing = !menu && shown !== null;
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
 
   // Keep the menu inside the viewport, whatever corner it was opened in.
   useLayoutEffect(() => {
     const element = ref.current;
-    if (!menu || !element) {
-      setPosition(null);
-      return;
-    }
+    // A menu on its way out stays where it was.
+    if (!menu || !element) return;
     const margin = 8;
     // On a phone the menu is a sheet at the bottom, wherever the finger was.
     if (window.innerWidth < 640) {
@@ -178,27 +180,34 @@ export function ContextMenuHost() {
     };
   }, [menu]);
 
-  if (!menu) return null;
+  if (!shown) return null;
   const sheet = window.innerWidth < 640;
 
   return (
     <div
       ref={ref}
       role="menu"
-      aria-label={menu.title}
+      aria-label={shown.title}
       data-testid="context-menu"
-      style={position ?? (sheet ? undefined : { left: menu.x, top: menu.y, visibility: 'hidden' })}
+      data-closing={closing || undefined}
+      aria-hidden={closing || undefined}
+      onAnimationEnd={(event) => {
+        if (closing && event.target === event.currentTarget) setShown(null);
+      }}
+      style={
+        sheet ? undefined : (position ?? { left: shown.x, top: shown.y, visibility: 'hidden' })
+      }
       className={cx(
         'fixed z-50 overflow-y-auto border border-line-strong bg-surface-2',
         sheet
-          ? 'anim-pop inset-x-2 bottom-2 max-h-[80dvh]'
-          : 'anim-fade max-h-[calc(100dvh-16px)] max-w-[calc(100vw-16px)]',
-        !sheet && (menu.wide ? 'w-[22rem]' : 'w-60'),
+          ? 'anim-sheet inset-x-2 bottom-2 max-h-[80dvh]'
+          : 'anim-menu max-h-[calc(100dvh-16px)] max-w-[calc(100vw-16px)]',
+        !sheet && (shown.wide ? 'w-[22rem]' : 'w-60'),
       )}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <p className="label truncate border-b border-line px-3 py-1.5 text-muted">{menu.title}</p>
-      {menu.entries.map((entry, index) => {
+      <p className="label truncate border-b border-line px-3 py-1.5 text-muted">{shown.title}</p>
+      {shown.entries.map((entry, index) => {
         if (entry.type === 'separator') {
           return <div key={`separator-${index}`} role="separator" className="h-px bg-line" />;
         }

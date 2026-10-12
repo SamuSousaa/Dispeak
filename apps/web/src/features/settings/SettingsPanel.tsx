@@ -367,298 +367,300 @@ export function SettingsPanel({
         ))}
       </div>
 
-      {tab === 'voice' && (
-        <>
-          <Section number="01" title="ENTRADA">
-            <DeviceSelect
-              label="MICROFONE"
-              hint={
-                namesHidden
-                  ? 'Entre em um canal de voz e permita o microfone para ver os nomes dos dispositivos.'
-                  : undefined
-              }
-              value={settings.inputDeviceId}
-              devices={devices.inputs}
-              onChange={(inputDeviceId) => updateSettings({ inputDeviceId })}
-            />
+      <div key={tab} className="anim-view">
+        {tab === 'voice' && (
+          <>
+            <Section number="01" title="ENTRADA">
+              <DeviceSelect
+                label="MICROFONE"
+                hint={
+                  namesHidden
+                    ? 'Entre em um canal de voz e permita o microfone para ver os nomes dos dispositivos.'
+                    : undefined
+                }
+                value={settings.inputDeviceId}
+                devices={devices.inputs}
+                onChange={(inputDeviceId) => updateSettings({ inputDeviceId })}
+              />
 
-            {!touchOnly && (
-              <fieldset className="flex flex-col gap-1.5">
-                <legend className="label mb-1.5 text-muted">MODO DE ENTRADA</legend>
-                <OptionGroup
-                  label="Modo de entrada"
-                  name="input-mode"
-                  value={settings.inputMode}
-                  options={INPUT_OPTIONS}
-                  onChange={(inputMode) => updateSettings({ inputMode })}
+              {!touchOnly && (
+                <fieldset className="flex flex-col gap-1.5">
+                  <legend className="label mb-1.5 text-muted">MODO DE ENTRADA</legend>
+                  <OptionGroup
+                    label="Modo de entrada"
+                    name="input-mode"
+                    value={settings.inputMode}
+                    options={INPUT_OPTIONS}
+                    onChange={(inputMode) => updateSettings({ inputMode })}
+                  />
+                  {settings.inputMode === 'pushToTalk' && (
+                    <>
+                      <ul>
+                        <KeybindRow
+                          action="pushToTalk"
+                          capturing={capturing === 'pushToTalk'}
+                          onCapture={setCapturing}
+                        />
+                      </ul>
+                      <p
+                        className={cx(
+                          'text-xs',
+                          settings.keybinds.pushToTalk ? 'text-muted' : 'text-danger',
+                        )}
+                      >
+                        {settings.keybinds.pushToTalk
+                          ? 'Funciona com esta aba em foco. Uma tecla que também escreve (uma letra, o espaço) não abre o microfone enquanto você digita no chat.'
+                          : 'Escolha a tecla: sem ela, ninguém ouve você neste modo.'}
+                      </p>
+                    </>
+                  )}
+                </fieldset>
+              )}
+
+              <Toggle
+                label="SUPRESSÃO DE RUÍDO"
+                hint="Uma rede neural isola a sua voz e corta teclado, cliques, ventilador e vento. Também liga e desliga pelo botão ao lado de desligar, durante a chamada."
+                checked={settings.noiseSuppression}
+                onChange={(noiseSuppression) => updateSettings({ noiseSuppression })}
+              />
+              {activeNoise && (
+                <p
+                  className={cx('label', fellBack ? 'text-danger' : 'text-muted')}
+                  data-testid="noise-active"
+                >
+                  {fellBack
+                    ? `INDISPONÍVEL NESTE NAVEGADOR — EM USO: ${NOISE_NAMES[activeNoise]}`
+                    : `EM USO AGORA: ${NOISE_NAMES[activeNoise]}`}
+                </p>
+              )}
+
+              <Toggle
+                label="NIVELAR E REFORÇAR A VOZ"
+                hint="Deixa a voz em um volume firme e mais alto para quem ouve, sem estourar quando você fala alto."
+                checked={settings.voiceLeveler}
+                onChange={(voiceLeveler) => updateSettings({ voiceLeveler })}
+              />
+              <label className="flex flex-col gap-1.5">
+                <span className="label text-muted">
+                  VOLUME DO SEU MICROFONE — {Math.round(settings.micGain * 100)}%
+                </span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={2}
+                  step={0.05}
+                  value={settings.micGain}
+                  aria-label="Volume do seu microfone"
+                  className="w-full accent-(--accent)"
+                  onChange={(event) => updateSettings({ micGain: Number(event.target.value) })}
                 />
-                {settings.inputMode === 'pushToTalk' && (
-                  <>
-                    <ul>
-                      <KeybindRow
-                        action="pushToTalk"
-                        capturing={capturing === 'pushToTalk'}
-                        onCapture={setCapturing}
-                      />
-                    </ul>
-                    <p
-                      className={cx(
-                        'text-xs',
-                        settings.keybinds.pushToTalk ? 'text-muted' : 'text-danger',
-                      )}
-                    >
-                      {settings.keybinds.pushToTalk
-                        ? 'Funciona com esta aba em foco. Uma tecla que também escreve (uma letra, o espaço) não abre o microfone enquanto você digita no chat.'
-                        : 'Escolha a tecla: sem ela, ninguém ouve você neste modo.'}
-                    </p>
-                  </>
-                )}
-              </fieldset>
-            )}
+                <span className="text-xs text-muted">
+                  É o volume com que os outros ouvem você. Aumente se disserem que você está baixo.
+                </span>
+              </label>
 
-            <Toggle
-              label="SUPRESSÃO DE RUÍDO"
-              hint="Uma rede neural isola a sua voz e corta teclado, cliques, ventilador e vento. Também liga e desliga pelo botão ao lado de desligar, durante a chamada."
-              checked={settings.noiseSuppression}
-              onChange={(noiseSuppression) => updateSettings({ noiseSuppression })}
-            />
-            {activeNoise && (
-              <p
-                className={cx('label', fellBack ? 'text-danger' : 'text-muted')}
-                data-testid="noise-active"
-              >
-                {fellBack
-                  ? `INDISPONÍVEL NESTE NAVEGADOR — EM USO: ${NOISE_NAMES[activeNoise]}`
-                  : `EM USO AGORA: ${NOISE_NAMES[activeNoise]}`}
+              <Toggle
+                label="CANCELAMENTO DE ECO"
+                hint="Impede que o som das suas caixas volte pelo microfone."
+                checked={settings.echoCancellation}
+                onChange={(echoCancellation) => updateSettings({ echoCancellation })}
+              />
+              <Toggle
+                label="GANHO AUTOMÁTICO"
+                hint="Nivela o volume da sua voz."
+                checked={settings.autoGainControl}
+                onChange={(autoGainControl) => updateSettings({ autoGainControl })}
+              />
+              <MicTest />
+            </Section>
+
+            <Section number="02" title="SAÍDA">
+              {supportsOutputSelection ? (
+                <DeviceSelect
+                  label="FONE / CAIXAS"
+                  value={settings.outputDeviceId}
+                  devices={devices.outputs}
+                  onChange={(outputDeviceId) => updateSettings({ outputDeviceId })}
+                />
+              ) : (
+                <p className="text-sm text-muted">
+                  Este navegador não permite escolher a saída: o som sai pelo dispositivo padrão do
+                  sistema.
+                </p>
+              )}
+              <p className="text-xs text-muted">
+                Para ajustar o volume de uma pessoa só para você, clique com o botão direito (ou
+                segure o dedo) no nome dela.
               </p>
-            )}
+            </Section>
+          </>
+        )}
 
-            <Toggle
-              label="NIVELAR E REFORÇAR A VOZ"
-              hint="Deixa a voz em um volume firme e mais alto para quem ouve, sem estourar quando você fala alto."
-              checked={settings.voiceLeveler}
-              onChange={(voiceLeveler) => updateSettings({ voiceLeveler })}
+        {tab === 'video' && (
+          <Section number="01" title="CÂMERA">
+            <DeviceSelect
+              label="CÂMERA"
+              hint="Os nomes aparecem depois que você liga a câmera uma vez e permite o acesso."
+              value={settings.cameraDeviceId}
+              devices={devices.cameras}
+              onChange={(cameraDeviceId) => updateSettings({ cameraDeviceId })}
             />
-            <label className="flex flex-col gap-1.5">
-              <span className="label text-muted">
-                VOLUME DO SEU MICROFONE — {Math.round(settings.micGain * 100)}%
-              </span>
+          </Section>
+        )}
+
+        {tab === 'chat' && (
+          <>
+            <Section number="01" title="MENSAGENS">
+              <Toggle
+                label="MOSTRAR PRÉVIAS E IMAGENS DE LINKS"
+                hint="GIFs e imagens de links aparecem na conversa. Elas vêm direto do site de origem, que fica sabendo o seu endereço IP."
+                checked={settings.showEmbeds}
+                onChange={(showEmbeds) => updateSettings({ showEmbeds })}
+              />
+            </Section>
+            <Section number="02" title="AVISOS">
+              {typeof Notification === 'undefined' ? (
+                <p className="text-sm text-muted">
+                  Este navegador não mostra notificações do sistema. As menções continuam aparecendo
+                  na lista de canais e no título da aba.
+                </p>
+              ) : (
+                <>
+                  <Toggle
+                    label="NOTIFICAR MENÇÕES"
+                    hint="Aviso do sistema quando alguém menciona ou responde você e esta aba não está em primeiro plano."
+                    checked={settings.desktopNotifications && !notificationsBlocked}
+                    onChange={(enabled) => void toggleNotifications(enabled)}
+                  />
+                  {notificationsBlocked && (
+                    <p className="label text-danger">
+                      AS NOTIFICAÇÕES ESTÃO BLOQUEADAS PARA ESTE SITE NO NAVEGADOR
+                    </p>
+                  )}
+                </>
+              )}
+            </Section>
+          </>
+        )}
+
+        {tab === 'sounds' && (
+          <Section number="01" title="SONS DE NOTIFICAÇÃO">
+            <Toggle
+              label="TOCAR SONS"
+              hint="Avisos sonoros do canal de voz em que você está."
+              checked={settings.soundsEnabled}
+              onChange={(soundsEnabled) => updateSettings({ soundsEnabled })}
+            />
+            <Field label={`VOLUME — ${Math.round(settings.soundVolume * 100)}%`}>
               <input
                 type="range"
-                min={0.5}
-                max={2}
+                min={0}
+                max={1}
                 step={0.05}
-                value={settings.micGain}
-                aria-label="Volume do seu microfone"
                 className="w-full accent-(--accent)"
-                onChange={(event) => updateSettings({ micGain: Number(event.target.value) })}
+                value={settings.soundVolume}
+                onChange={(change) => updateSettings({ soundVolume: Number(change.target.value) })}
               />
-              <span className="text-xs text-muted">
-                É o volume com que os outros ouvem você. Aumente se disserem que você está baixo.
-              </span>
-            </label>
-
-            <Toggle
-              label="CANCELAMENTO DE ECO"
-              hint="Impede que o som das suas caixas volte pelo microfone."
-              checked={settings.echoCancellation}
-              onChange={(echoCancellation) => updateSettings({ echoCancellation })}
-            />
-            <Toggle
-              label="GANHO AUTOMÁTICO"
-              hint="Nivela o volume da sua voz."
-              checked={settings.autoGainControl}
-              onChange={(autoGainControl) => updateSettings({ autoGainControl })}
-            />
-            <MicTest />
-          </Section>
-
-          <Section number="02" title="SAÍDA">
-            {supportsOutputSelection ? (
-              <DeviceSelect
-                label="FONE / CAIXAS"
-                value={settings.outputDeviceId}
-                devices={devices.outputs}
-                onChange={(outputDeviceId) => updateSettings({ outputDeviceId })}
-              />
-            ) : (
-              <p className="text-sm text-muted">
-                Este navegador não permite escolher a saída: o som sai pelo dispositivo padrão do
-                sistema.
-              </p>
-            )}
+            </Field>
+            <ul className="flex flex-col gap-3">
+              {SOUND_EVENTS.map((event) => (
+                <SoundRow key={event} event={event} />
+              ))}
+            </ul>
             <p className="text-xs text-muted">
-              Para ajustar o volume de uma pessoa só para você, clique com o botão direito (ou
-              segure o dedo) no nome dela.
+              Os arquivos escolhidos aqui ficam guardados só neste navegador. Quando o dono de um
+              servidor define um som, é o dele que toca para todos naquele servidor. Sons não tocam
+              enquanto você está ensurdecido.
             </p>
           </Section>
-        </>
-      )}
+        )}
 
-      {tab === 'video' && (
-        <Section number="01" title="CÂMERA">
-          <DeviceSelect
-            label="CÂMERA"
-            hint="Os nomes aparecem depois que você liga a câmera uma vez e permite o acesso."
-            value={settings.cameraDeviceId}
-            devices={devices.cameras}
-            onChange={(cameraDeviceId) => updateSettings({ cameraDeviceId })}
-          />
-        </Section>
-      )}
-
-      {tab === 'chat' && (
-        <>
-          <Section number="01" title="MENSAGENS">
-            <Toggle
-              label="MOSTRAR PRÉVIAS E IMAGENS DE LINKS"
-              hint="GIFs e imagens de links aparecem na conversa. Elas vêm direto do site de origem, que fica sabendo o seu endereço IP."
-              checked={settings.showEmbeds}
-              onChange={(showEmbeds) => updateSettings({ showEmbeds })}
-            />
-          </Section>
-          <Section number="02" title="AVISOS">
-            {typeof Notification === 'undefined' ? (
+        {tab === 'keys' && (
+          <Section number="01" title="ATALHOS DE TECLADO">
+            {touchOnly ? (
               <p className="text-sm text-muted">
-                Este navegador não mostra notificações do sistema. As menções continuam aparecendo
-                na lista de canais e no título da aba.
+                Atalhos precisam de um teclado. Neste aparelho, use os botões de microfone e fone.
               </p>
             ) : (
               <>
-                <Toggle
-                  label="NOTIFICAR MENÇÕES"
-                  hint="Aviso do sistema quando alguém menciona ou responde você e esta aba não está em primeiro plano."
-                  checked={settings.desktopNotifications && !notificationsBlocked}
-                  onChange={(enabled) => void toggleNotifications(enabled)}
-                />
-                {notificationsBlocked && (
-                  <p className="label text-danger">
-                    AS NOTIFICAÇÕES ESTÃO BLOQUEADAS PARA ESTE SITE NO NAVEGADOR
+                <ul className="flex flex-col gap-2">
+                  {KEYBIND_ACTIONS.map((action) => (
+                    <KeybindRow
+                      key={action}
+                      action={action}
+                      capturing={capturing === action}
+                      onCapture={setCapturing}
+                    />
+                  ))}
+                </ul>
+                <p className="text-xs text-muted">
+                  Nenhum atalho vem definido: clique em um e pressione a tecla (Esc cancela).
+                  Atalhos de uma tecla só não valem enquanto você digita; combine com Ctrl ou Alt
+                  para valerem sempre. “Apertar para falar” só vale com esse modo ligado na aba VOZ.
+                </p>
+                <p className="text-xs text-muted">
+                  {desktop
+                    ? 'No app, atalhos com Ctrl ou Alt e as teclas F1 a F24 funcionam também com um jogo em foco, para mutar, ensurdecer, transmitir, câmera e desligar. Os demais valem com a janela do Dispeaker em foco.'
+                    : 'No navegador, funcionam com esta aba em foco. No app de desktop, atalhos com Ctrl ou Alt funcionam também com um jogo em foco.'}
+                </p>
+                {refused.length > 0 && (
+                  <p className="text-xs text-danger" data-testid="refused-shortcuts">
+                    Outro programa já usa:{' '}
+                    {refused
+                      .map((action) => KEYBIND_LABELS[action as KeybindAction] ?? action)
+                      .join(', ')}
+                    . Escolha outra combinação.
                   </p>
                 )}
+                <Button
+                  className="self-start"
+                  onClick={() => {
+                    setCapturing(null);
+                    resetKeybinds();
+                  }}
+                >
+                  REMOVER TODOS
+                </Button>
               </>
             )}
           </Section>
-        </>
-      )}
+        )}
 
-      {tab === 'sounds' && (
-        <Section number="01" title="SONS DE NOTIFICAÇÃO">
-          <Toggle
-            label="TOCAR SONS"
-            hint="Avisos sonoros do canal de voz em que você está."
-            checked={settings.soundsEnabled}
-            onChange={(soundsEnabled) => updateSettings({ soundsEnabled })}
-          />
-          <Field label={`VOLUME — ${Math.round(settings.soundVolume * 100)}%`}>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              className="w-full accent-(--accent)"
-              value={settings.soundVolume}
-              onChange={(change) => updateSettings({ soundVolume: Number(change.target.value) })}
+        {tab === 'app' && desktop && (
+          <Section number="01" title="JANELA">
+            <Toggle
+              label="O BOTÃO X MINIMIZA PARA A BANDEJA"
+              hint="Fechar a janela esconde o Dispeaker nos ícones ao lado do relógio em vez de sair: a chamada continua e os atalhos seguem valendo. Clique no ícone para voltar; para sair de vez, clique nele com o botão direito e escolha Sair."
+              checked={settings.closeToTray}
+              onChange={(closeToTray) => updateSettings({ closeToTray })}
             />
-          </Field>
-          <ul className="flex flex-col gap-3">
-            {SOUND_EVENTS.map((event) => (
-              <SoundRow key={event} event={event} />
-            ))}
-          </ul>
-          <p className="text-xs text-muted">
-            Os arquivos escolhidos aqui ficam guardados só neste navegador. Quando o dono de um
-            servidor define um som, é o dele que toca para todos naquele servidor. Sons não tocam
-            enquanto você está ensurdecido.
-          </p>
-        </Section>
-      )}
-
-      {tab === 'keys' && (
-        <Section number="01" title="ATALHOS DE TECLADO">
-          {touchOnly ? (
-            <p className="text-sm text-muted">
-              Atalhos precisam de um teclado. Neste aparelho, use os botões de microfone e fone.
+            <p className="label text-muted" data-testid="desktop-version">
+              VERSÃO DO APP: {desktop.version}
             </p>
-          ) : (
-            <>
-              <ul className="flex flex-col gap-2">
-                {KEYBIND_ACTIONS.map((action) => (
-                  <KeybindRow
-                    key={action}
-                    action={action}
-                    capturing={capturing === action}
-                    onCapture={setCapturing}
-                  />
-                ))}
-              </ul>
-              <p className="text-xs text-muted">
-                Nenhum atalho vem definido: clique em um e pressione a tecla (Esc cancela). Atalhos
-                de uma tecla só não valem enquanto você digita; combine com Ctrl ou Alt para valerem
-                sempre. “Apertar para falar” só vale com esse modo ligado na aba VOZ.
-              </p>
-              <p className="text-xs text-muted">
-                {desktop
-                  ? 'No app, atalhos com Ctrl ou Alt e as teclas F1 a F24 funcionam também com um jogo em foco, para mutar, ensurdecer, transmitir, câmera e desligar. Os demais valem com a janela do Dispeaker em foco.'
-                  : 'No navegador, funcionam com esta aba em foco. No app de desktop, atalhos com Ctrl ou Alt funcionam também com um jogo em foco.'}
-              </p>
-              {refused.length > 0 && (
-                <p className="text-xs text-danger" data-testid="refused-shortcuts">
-                  Outro programa já usa:{' '}
-                  {refused
-                    .map((action) => KEYBIND_LABELS[action as KeybindAction] ?? action)
-                    .join(', ')}
-                  . Escolha outra combinação.
-                </p>
-              )}
-              <Button
-                className="self-start"
-                onClick={() => {
-                  setCapturing(null);
-                  resetKeybinds();
-                }}
-              >
-                REMOVER TODOS
-              </Button>
-            </>
-          )}
-        </Section>
-      )}
-
-      {tab === 'app' && desktop && (
-        <Section number="01" title="JANELA">
-          <Toggle
-            label="O BOTÃO X MINIMIZA PARA A BANDEJA"
-            hint="Fechar a janela esconde o Dispeaker nos ícones ao lado do relógio em vez de sair: a chamada continua e os atalhos seguem valendo. Clique no ícone para voltar; para sair de vez, clique nele com o botão direito e escolha Sair."
-            checked={settings.closeToTray}
-            onChange={(closeToTray) => updateSettings({ closeToTray })}
-          />
-          <p className="label text-muted" data-testid="desktop-version">
-            VERSÃO DO APP: {desktop.version}
-          </p>
-        </Section>
-      )}
-
-      {tab === 'profile' && <ProfileTab key={user.id} user={user} guild={guild} />}
-
-      {tab === 'account' && (
-        <>
-          <Section number="01" title="SENHA">
-            <PasswordForm onChanged={onSignOut} />
           </Section>
-          <Section number="02" title="SESSÃO">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="label-lg truncate text-fg">{user.displayName}</p>
-                <p className="label truncate text-muted">@{user.username}</p>
+        )}
+
+        {tab === 'profile' && <ProfileTab key={user.id} user={user} guild={guild} />}
+
+        {tab === 'account' && (
+          <>
+            <Section number="01" title="SENHA">
+              <PasswordForm onChanged={onSignOut} />
+            </Section>
+            <Section number="02" title="SESSÃO">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="label-lg truncate text-fg">{user.displayName}</p>
+                  <p className="label truncate text-muted">@{user.username}</p>
+                </div>
+                <Button variant="danger" onClick={onSignOut}>
+                  SAIR DA CONTA
+                </Button>
               </div>
-              <Button variant="danger" onClick={onSignOut}>
-                SAIR DA CONTA
-              </Button>
-            </div>
-          </Section>
-        </>
-      )}
+            </Section>
+          </>
+        )}
+      </div>
     </Dialog>
   );
 }

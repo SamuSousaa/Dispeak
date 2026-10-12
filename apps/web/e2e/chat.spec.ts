@@ -57,6 +57,8 @@ test('text chat: live messages, typing, mentions, edit, delete and history', asy
   await bruno.page.goto(`/app/${guild.id}/${channelId}`);
   for (const page of [alice.page, bruno.page]) {
     await expect(page.getByTestId('gateway-status')).toHaveText('CONECTADO');
+    // Acting under the opening screen would scroll the history, which loads the older page.
+    await expect(page.getByTestId('boot-screen')).toHaveCount(0);
   }
 
   // --- cursor pagination ----------------------------------------------------------------------

@@ -58,6 +58,13 @@ type Drawer = 'channels' | 'members' | null;
  * The application shell, laid out like an IDE: server rail, channel panel, main area and
  * member list, separated by 1px rules. On small screens the side panels become drawers.
  */
+/**
+ * How long the opening screen stays at least: counted from the page load, so the trace is drawn
+ * once and stands whole when the screen lets go, and a shorter stay after signing in.
+ */
+const BOOT_FROM_LOAD_MS = 1500;
+const BOOT_MIN_MS = 800;
+
 export function AppPage() {
   const { guildId, channelId } = useParams();
   const navigate = useNavigate();
@@ -69,6 +76,12 @@ export function AppPage() {
   const [drawer, setDrawer] = useState<Drawer>(null);
   // The opening screen stays until the first data arrives, then takes a moment to switch off.
   const [booted, setBooted] = useState(false);
+  const [bootHeld, setBootHeld] = useState(true);
+  useEffect(() => {
+    const wait = Math.max(BOOT_MIN_MS, BOOT_FROM_LOAD_MS - performance.now());
+    const timer = window.setTimeout(() => setBootHeld(false), wait);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useVoiceShortcuts();
   useCloseToTray();
@@ -425,7 +438,7 @@ export function AppPage() {
               done: hasLoaded,
             },
           ]}
-          leaving={hasLoaded}
+          leaving={hasLoaded && !bootHeld}
           onGone={() => setBooted(true)}
         />
       )}

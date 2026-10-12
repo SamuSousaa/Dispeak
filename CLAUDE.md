@@ -82,7 +82,7 @@ corners (0–2px); no shadows, no gradients; a single accent (`--accent`) reserv
 outline, active item, hover, primary action and the live indicator; labels/nav/buttons/metadata in
 JetBrains Mono uppercase 11–13px (`.label`, `.label-lg`); numbered channels (`01. GERAL`); bracketed
 buttons (`[ TRANSMITIR ]`, use `<Button>`); system-layer data must be real (RTT, bitrate, codec,
-participant count, connection status); transitions 150–250ms; respect `prefers-reduced-motion`;
+participant count, connection status); transitions 150–320ms, exits quicker than entrances; respect `prefers-reduced-motion`;
 visible keyboard focus; AA contrast (`--muted` is the darkest text color allowed on `--bg`).
 
 Motion: the opening screen (`BootScreen`, styled in `apps/web/index.html` so it paints before any

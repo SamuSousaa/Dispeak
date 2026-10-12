@@ -22,6 +22,8 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
   /* Arrivals: quick off the mark, long settle. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Departures: no lingering. */
+  --ease-in: cubic-bezier(0.5, 0, 0.9, 0.4);
   --duration: 180ms;
 }
 
@@ -141,15 +143,29 @@
 @layer base {
   /* Dialogs rise into place; the side panel slides in from its edge. */
   dialog[open] {
-    animation: rise-in 200ms var(--ease);
+    animation: rise-in 280ms var(--ease-out);
   }
 
   dialog[open][data-side] {
-    animation: slide-in 220ms var(--ease);
+    animation: slide-in 320ms var(--ease-out);
   }
 
   dialog[open]::backdrop {
-    animation: fade-in 200ms var(--ease);
+    animation: fade-in 240ms var(--ease);
+  }
+
+  /* Leaving is quicker than arriving, and goes back the way it came. */
+  dialog[open][data-closing] {
+    pointer-events: none;
+    animation: rise-out 160ms var(--ease-in) forwards;
+  }
+
+  dialog[open][data-side][data-closing] {
+    animation: slide-out 200ms var(--ease-in) forwards;
+  }
+
+  dialog[open][data-closing]::backdrop {
+    animation: fade-out 200ms var(--ease) forwards;
   }
 }
 
@@ -159,31 +175,80 @@
   }
 }
 
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: scale(0.97);
+    transform: translateY(12px) scale(0.95);
+  }
+}
+
+@keyframes rise-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
   }
 }
 
 @keyframes slide-in {
   from {
     opacity: 0;
-    transform: translateX(24px);
+    transform: translateX(64px);
+  }
+}
+
+@keyframes slide-out {
+  to {
+    opacity: 0;
+    transform: translateX(48px);
   }
 }
 
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(10px) scale(0.97);
   }
 }
 
 @keyframes drop-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-10px) scale(0.97);
+  }
+}
+
+/* A menu grows out of the point it was asked for. */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes menu-out {
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    transform: translateY(16px);
   }
 }
 
@@ -197,7 +262,7 @@
 @keyframes view-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(12px);
   }
 }
 
@@ -222,7 +287,7 @@
 
   /* The main area, when what it shows is swapped for something else. */
   .anim-view {
-    animation: view-in 240ms var(--ease-out);
+    animation: view-in 320ms var(--ease-out);
   }
 
   /* Three bars rising in turn, for anything on its way: loading, typing. */
@@ -287,22 +352,43 @@
     transform: scale(0.94);
   }
 
-  /* Entrance animations, 150-250ms. The reduced-motion rule above switches them all off. */
+  /* Entrance animations, 200-320ms. The reduced-motion rule above switches them all off. */
   .anim-fade {
     animation: fade-in var(--duration) var(--ease);
   }
 
   .anim-rise {
-    animation: rise-in 200ms var(--ease);
+    animation: rise-in 280ms var(--ease-out);
   }
 
   /* Menus that open upwards, and menus that drop down. */
   .anim-pop {
-    animation: pop-in var(--duration) var(--ease);
+    animation: pop-in 240ms var(--ease-out);
   }
 
   .anim-drop {
-    animation: drop-in var(--duration) var(--ease);
+    animation: drop-in 240ms var(--ease-out);
+  }
+
+  /* The menu of actions, from the corner under the pointer; on a phone it is a sheet. */
+  .anim-menu {
+    transform-origin: top left;
+    animation: menu-in 200ms var(--ease-out);
+  }
+
+  .anim-menu[data-closing] {
+    pointer-events: none;
+    animation: menu-out 120ms var(--ease-in) forwards;
+  }
+
+  /* It comes up from the edge it rests on, and keeps its width while it does. */
+  .anim-sheet {
+    animation: sheet-in 260ms var(--ease-out);
+  }
+
+  .anim-sheet[data-closing] {
+    pointer-events: none;
+    animation: sheet-out 160ms var(--ease-in) forwards;
   }
 
   /* Buttons give a little under the pointer. */

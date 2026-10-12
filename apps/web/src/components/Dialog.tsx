@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cx } from '../lib/cx';
 
 interface DialogProps {
@@ -15,7 +15,8 @@ interface DialogProps {
 
 /**
  * Modal built on the native <dialog>: the browser traps focus, closes on Escape and keeps
- * the rest of the page inert.
+ * the rest of the page inert. Closed by the user, it plays its way out before telling the
+ * parent, which then removes it.
  */
 export function Dialog({
   title,
@@ -28,6 +29,19 @@ export function Dialog({
   const ref = useRef<HTMLDialogElement>(null);
   /** Whether the press that may become a click started on the backdrop. */
   const pressedOutside = useRef(false);
+  const [closing, setClosing] = useState(false);
+  const told = useRef(false);
+  const finish = () => {
+    if (told.current) return;
+    told.current = true;
+    onClose();
+  };
+  // The animation normally ends it; the timer covers a dialog that cannot animate.
+  useEffect(() => {
+    if (!closing) return;
+    const timer = window.setTimeout(finish, 400);
+    return () => window.clearTimeout(timer);
+  });
 
   useEffect(() => {
     // No cleanup on purpose: unmounting removes the element, and closing it here would fire
@@ -41,7 +55,16 @@ export function Dialog({
       ref={ref}
       aria-label={title}
       data-side={side || undefined}
-      onClose={onClose}
+      data-closing={closing || undefined}
+      // Escape: the browser would close it at once.
+      onCancel={(event) => {
+        event.preventDefault();
+        setClosing(true);
+      }}
+      onClose={finish}
+      onAnimationEnd={(event) => {
+        if (closing && event.target === ref.current) finish();
+      }}
       // A click on the backdrop lands on the dialog element itself. So does the end of a drag
       // that started inside (selecting text and letting go outside): only a press that began
       // on the backdrop closes the dialog.
@@ -49,7 +72,7 @@ export function Dialog({
         pressedOutside.current = event.target === ref.current;
       }}
       onClick={(event) => {
-        if (event.target === ref.current && pressedOutside.current) onClose();
+        if (event.target === ref.current && pressedOutside.current) setClosing(true);
         pressedOutside.current = false;
       }}
       className={cx(
@@ -75,7 +98,7 @@ export function Dialog({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => setClosing(true)}
             aria-label="Fechar"
             className="label -m-2 shrink-0 p-2 text-muted transition-colors hover:text-accent"
           >
