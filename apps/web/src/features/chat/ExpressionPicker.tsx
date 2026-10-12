@@ -138,10 +138,11 @@ export function ExpressionPicker({
     };
   }, [onClose]);
 
-  // Each tab searches its own thing: start clean, with the field ready to type in.
+  // Each tab searches its own thing: start clean, with the field ready to type in. Not on a
+  // touch screen, where focusing it would raise the keyboard over what was just opened.
   useEffect(() => {
     setText('');
-    search.current?.focus();
+    if (!window.matchMedia('(pointer: coarse)').matches) search.current?.focus();
   }, [current]);
 
   // Closing takes the panel away at once: a copy plays its way out.

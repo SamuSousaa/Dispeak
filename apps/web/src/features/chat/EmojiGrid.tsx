@@ -199,7 +199,8 @@ function ReactionPanel({ onPick }: { onPick: (emoji: string) => void }) {
         <input
           type="search"
           className="field"
-          autoFocus
+          // On a touch screen this would raise the keyboard over the emojis.
+          autoFocus={!window.matchMedia('(pointer: coarse)').matches}
           value={query}
           placeholder="Buscar emoji"
           aria-label="Buscar emoji"
