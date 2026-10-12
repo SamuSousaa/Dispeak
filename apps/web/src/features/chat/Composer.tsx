@@ -1,3 +1,4 @@
+import { ghostDown } from '../../lib/exit-ghost';
 import {
   ATTACHMENT_MAX_BYTES,
   ATTACHMENT_MAX_PER_MESSAGE,
@@ -317,6 +318,7 @@ export function Composer({
     >
       {suggestions.length > 0 && (
         <ul
+          ref={ghostDown}
           role="listbox"
           aria-label="Mencionar"
           className="anim-pop absolute bottom-full left-0 z-10 mb-1 w-72 max-w-full border border-line-strong bg-surface-2"

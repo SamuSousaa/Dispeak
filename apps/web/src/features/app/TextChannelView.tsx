@@ -1,3 +1,4 @@
+import { ghostDown } from '../../lib/exit-ghost';
 import {
   hasPermission,
   Permissions,
@@ -234,6 +235,7 @@ export function TextChannelView({
       <div className="shrink-0 border-t border-line bg-surface px-3 pt-2 pb-1">
         {canSend && replyTo && (
           <div
+            ref={ghostDown}
             className="anim-pop mb-1.5 flex items-center gap-2 border border-line-strong bg-surface-2 px-2 py-1"
             data-testid="replying-to"
           >

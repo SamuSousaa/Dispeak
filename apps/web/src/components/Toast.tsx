@@ -1,3 +1,4 @@
+import { ghostDown } from '../lib/exit-ghost';
 import { create } from 'zustand';
 import { describeError } from '../lib/http';
 
@@ -34,6 +35,7 @@ export function ToastHost() {
   if (!message) return null;
   return (
     <p
+      ref={ghostDown}
       role={tone === 'danger' ? 'alert' : 'status'}
       data-testid="toast"
       className={`anim-pop label fixed bottom-10 left-1/2 z-50 max-w-[calc(100vw-32px)] -translate-x-1/2 border bg-bg px-3 py-2 ${

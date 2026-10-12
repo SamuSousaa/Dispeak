@@ -1,3 +1,4 @@
+import { ghostDown } from '../../../lib/exit-ghost';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../../components/Button';
@@ -130,6 +131,7 @@ export function ScreenShareButton({
       )}
       {open && (
         <ul
+          ref={ghostDown}
           role="menu"
           aria-label="Qualidade da transmissão"
           className={cx(

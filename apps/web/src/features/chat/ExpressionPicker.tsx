@@ -1,6 +1,7 @@
+import { exitGhost } from '../../lib/exit-ghost';
 import type { Gif } from '@frequencia/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cx } from '../../lib/cx';
 import { chatApi } from './chat-store';
 import { EmojiBrowser } from './EmojiGrid';
@@ -142,6 +143,12 @@ export function ExpressionPicker({
     setText('');
     search.current?.focus();
   }, [current]);
+
+  // Closing takes the panel away at once: a copy plays its way out.
+  useLayoutEffect(() => {
+    const element = ref.current;
+    return element ? exitGhost(element, 'down') : undefined;
+  }, []);
 
   const tabs: Array<{ id: ExpressionTab; label: string }> = [
     ...(gifs ? [{ id: 'gif' as const, label: 'GIFS' }] : []),

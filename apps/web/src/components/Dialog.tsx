@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { exitGhost } from '../lib/exit-ghost';
 import { cx } from '../lib/cx';
 
 interface DialogProps {
@@ -16,7 +17,8 @@ interface DialogProps {
 /**
  * Modal built on the native <dialog>: the browser traps focus, closes on Escape and keeps
  * the rest of the page inert. Closed by the user, it plays its way out before telling the
- * parent, which then removes it.
+ * parent, which then removes it; removed by the parent on its own (after saving, say), a
+ * copy of it plays the same way out.
  */
 export function Dialog({
   title,
@@ -36,6 +38,14 @@ export function Dialog({
     told.current = true;
     onClose();
   };
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    return exitGhost(dialog, side ? 'side' : 'scale', {
+      backdrop: true,
+      skip: () => told.current,
+    });
+  }, [side]);
   // The animation normally ends it; the timer covers a dialog that cannot animate.
   useEffect(() => {
     if (!closing) return;

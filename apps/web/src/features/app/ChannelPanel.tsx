@@ -1,3 +1,4 @@
+import { ghostUp } from '../../lib/exit-ghost';
 import { hasPermission, Permissions, type Channel, type Guild } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
@@ -125,6 +126,7 @@ function ServerHeader({
       )}
       {open && (
         <ul
+          ref={ghostUp}
           role="menu"
           aria-label={`Ações de ${guild.name}`}
           className="anim-drop absolute top-full right-0 left-0 z-10 border-b border-line-strong bg-surface-2"

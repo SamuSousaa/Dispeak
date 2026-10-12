@@ -1,3 +1,4 @@
+import { ghostDown } from '../../lib/exit-ghost';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
@@ -86,6 +87,7 @@ export function IncomingCalls({ selfId }: { selfId: string }) {
       {calls.map(({ guild, friend, voice }) => (
         <aside
           key={guild.id}
+          ref={ghostDown}
           role="alertdialog"
           aria-label={`Chamada de ${friend.user.displayName}`}
           data-testid="incoming-call"

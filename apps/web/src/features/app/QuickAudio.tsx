@@ -1,3 +1,4 @@
+import { ghostDown } from '../../lib/exit-ghost';
 import { Button } from '../../components/Button';
 import { DeviceSelect, supportsOutputSelection, useAudioDevices } from '../settings/audio-devices';
 import { updateSettings, useSettingsStore } from '../settings/settings-store';
@@ -89,6 +90,7 @@ export function QuickAudio({
 
   return (
     <div
+      ref={ghostDown}
       role="dialog"
       aria-label={kind === 'input' ? 'Entrada de áudio' : 'Saída de áudio'}
       data-testid={`quick-audio-${kind}`}

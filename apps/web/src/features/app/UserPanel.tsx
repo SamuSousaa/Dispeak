@@ -1,3 +1,4 @@
+import { ghostDown } from '../../lib/exit-ghost';
 import { hasPermission, Permissions, type PresenceMode, type Self } from '@frequencia/shared';
 import { useCallback, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
@@ -118,7 +119,7 @@ export function UserPanel({
   return (
     <div className="shrink-0 border-t border-line bg-surface">
       {inVoice && (
-        <div className="anim-pop border-b border-line" data-testid="voice-panel">
+        <div ref={ghostDown} className="anim-pop border-b border-line" data-testid="voice-panel">
           <div className="flex items-center gap-2 px-3 pt-2">
             <div className="min-w-0 flex-1">
               <p

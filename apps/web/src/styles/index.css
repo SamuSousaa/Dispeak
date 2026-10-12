@@ -474,3 +474,50 @@
     resize: none;
   }
 }
+
+/*
+ * Copies left behind by `exitGhost` while they play their way out. Outside the layers on
+ * purpose: whatever positioned the original must not position its copy.
+ */
+[data-ghost] {
+  position: fixed !important;
+  z-index: 70;
+  margin: 0 !important;
+  pointer-events: none;
+  animation: sheet-out 160ms var(--ease-in) forwards !important;
+}
+
+[data-ghost='up'] {
+  animation-name: ghost-up !important;
+}
+
+[data-ghost='scale'] {
+  animation-name: rise-out !important;
+}
+
+[data-ghost='side'] {
+  animation-name: slide-out !important;
+  animation-duration: 200ms !important;
+}
+
+/* Nothing inside starts over: entrances would replay in a copy. */
+[data-ghost] * {
+  animation: none !important;
+  transition: none !important;
+}
+
+[data-ghost-backdrop] {
+  position: fixed;
+  inset: 0;
+  z-index: 69;
+  background: rgb(0 0 0 / 0.7);
+  pointer-events: none;
+  animation: fade-out 200ms var(--ease) forwards;
+}
+
+@keyframes ghost-up {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
