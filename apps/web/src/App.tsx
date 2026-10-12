@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BootScreen } from './components/BootScreen';
 import { AppPage } from './features/app/AppPage';
 import { bootstrapAuth, useAuthStore } from './features/auth/auth-store';
 import { AuthPage } from './pages/AuthPage';
@@ -17,9 +18,12 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
   if (status === 'loading') {
     return (
-      <div className="grid-bg flex h-dvh items-center justify-center">
-        <p className="label text-muted">CARREGANDO</p>
-      </div>
+      <BootScreen
+        steps={[
+          { name: 'SESSÃO', state: 'VERIFICANDO', done: false },
+          { name: 'GATEWAY', state: 'AGUARDANDO', done: false },
+        ]}
+      />
     );
   }
   if (status === 'anonymous') {

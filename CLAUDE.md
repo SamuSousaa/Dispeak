@@ -85,6 +85,11 @@ buttons (`[ TRANSMITIR ]`, use `<Button>`); system-layer data must be real (RTT,
 participant count, connection status); transitions 150–250ms; respect `prefers-reduced-motion`;
 visible keyboard focus; AA contrast (`--muted` is the darkest text color allowed on `--bg`).
 
+Motion: the opening screen (`BootScreen`, styled in `apps/web/index.html` so it paints before any
+script) is the one authored moment; everything else is feedback or continuity. A wait is said with
+`<Loading>` (the three-bar `Signal`), never a bare label. New badges use `.anim-badge`, a swapped
+main view `.anim-view`. No bounce, no looping decoration.
+
 ## Environment notes
 
 - mediasoup ships prebuilt workers for Linux, macOS and Windows x64, so the media service runs

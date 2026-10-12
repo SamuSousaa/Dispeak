@@ -16,3 +16,6 @@ test-results
 .dev-*.log
 .DS_Store
 *.tsbuildinfo
+
+# Local agent tooling (design skills, hooks)
+.claude

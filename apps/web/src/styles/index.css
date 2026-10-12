@@ -20,6 +20,8 @@
   --font-mono:
     'JetBrains Mono Variable', 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* Arrivals: quick off the mark, long settle. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --duration: 180ms;
 }
 
@@ -128,6 +130,11 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
     }
+
+    /* Left mid-pulse they would freeze dim: bars stand full, nothing moves. */
+    .signal > i {
+      animation: none !important;
+    }
   }
 }
 
@@ -180,7 +187,106 @@
   }
 }
 
+@keyframes badge-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes signal-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+    opacity: 0.5;
+  }
+
+  40% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
 @layer components {
+  /* A count or a dot that was not there a moment ago. */
+  .anim-badge {
+    animation: badge-in 220ms var(--ease-out);
+  }
+
+  /* The main area, when what it shows is swapped for something else. */
+  .anim-view {
+    animation: view-in 240ms var(--ease-out);
+  }
+
+  /* Three bars rising in turn, for anything on its way: loading, typing. */
+  .signal {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 10px;
+    flex-shrink: 0;
+  }
+
+  .signal > i {
+    width: 3px;
+    height: 100%;
+    background: currentColor;
+    transform-origin: bottom;
+    animation: signal-bar 900ms var(--ease) infinite;
+  }
+
+  .signal > i:nth-child(2) {
+    animation-delay: 150ms;
+  }
+
+  .signal > i:nth-child(3) {
+    animation-delay: 300ms;
+  }
+
+  /*
+   * Server rail: a bar on the edge says where you are. It reaches out on hover and stands
+   * tall on the server on screen.
+   */
+  .rail-item::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    width: 3px;
+    height: 28px;
+    background: var(--accent);
+    transform: translateY(-50%) scaleY(0);
+    transition: transform 220ms var(--ease-out);
+  }
+
+  .rail-item:hover::before,
+  .rail-item:focus-visible::before {
+    transform: translateY(-50%) scaleY(0.35);
+  }
+
+  .rail-item[aria-current='page']::before,
+  .rail-item[data-current='true']::before {
+    transform: translateY(-50%) scaleY(1);
+  }
+
+  .rail-item {
+    transition:
+      color var(--duration) var(--ease),
+      border-color var(--duration) var(--ease),
+      transform 120ms var(--ease);
+  }
+
+  .rail-item:active {
+    transform: scale(0.94);
+  }
+
   /* Entrance animations, 150-250ms. The reduced-motion rule above switches them all off. */
   .anim-fade {
     animation: fade-in var(--duration) var(--ease);

@@ -43,8 +43,9 @@ export function ServerRail({ onAdd }: { onAdd: () => void }) {
         }
         data-testid="home-link"
         data-unread={waiting > 0}
+        data-current={atHome}
         className={cx(
-          'relative flex h-10 w-10 shrink-0 items-center justify-center border transition-colors',
+          'rail-item relative flex h-10 w-10 shrink-0 items-center justify-center border',
           atHome
             ? 'border-accent text-accent'
             : 'border-line-strong text-muted hover:border-accent hover:text-fg',
@@ -52,7 +53,7 @@ export function ServerRail({ onAdd }: { onAdd: () => void }) {
       >
         <Icon name="chat" size={18} />
         {waiting > 0 && (
-          <span className="label absolute -right-1 -bottom-1 bg-fg px-1 text-bg">
+          <span className="label anim-badge absolute -right-1 -bottom-1 bg-fg px-1 text-bg">
             {waiting > 99 ? '99+' : waiting}
           </span>
         )}
@@ -88,7 +89,7 @@ export function ServerRail({ onAdd }: { onAdd: () => void }) {
             ])}
             className={({ isActive }) =>
               cx(
-                'display relative flex h-10 w-10 shrink-0 items-center justify-center border text-sm transition-colors',
+                'rail-item display relative flex h-10 w-10 shrink-0 items-center justify-center border text-sm',
                 isActive
                   ? 'border-accent text-accent'
                   : 'border-line-strong text-muted hover:border-accent hover:text-fg',
@@ -107,12 +108,12 @@ export function ServerRail({ onAdd }: { onAdd: () => void }) {
               initials(guild.name)
             )}
             {pending.mentions > 0 ? (
-              <span className="label absolute -right-1 -bottom-1 bg-fg px-1 text-bg">
+              <span className="label anim-badge absolute -right-1 -bottom-1 bg-fg px-1 text-bg">
                 {pending.mentions > 99 ? '99+' : pending.mentions}
               </span>
             ) : (
               pending.count > 0 && (
-                <span className="absolute -right-0.5 -bottom-0.5 h-2 w-2 bg-fg" />
+                <span className="anim-badge absolute -right-0.5 -bottom-0.5 h-2 w-2 bg-fg" />
               )
             )}
           </NavLink>
@@ -123,7 +124,7 @@ export function ServerRail({ onAdd }: { onAdd: () => void }) {
         onClick={onAdd}
         title="Criar ou entrar em um servidor"
         aria-label="Criar ou entrar em um servidor"
-        className="label-lg flex h-10 w-10 shrink-0 items-center justify-center border border-dashed border-line-strong text-muted transition-colors hover:border-accent hover:text-accent"
+        className="rail-item label-lg relative flex h-10 w-10 shrink-0 items-center justify-center border border-dashed border-line-strong text-muted hover:border-accent hover:text-accent"
       >
         +
       </button>

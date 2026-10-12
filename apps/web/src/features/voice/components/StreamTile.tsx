@@ -1,6 +1,7 @@
 import { SIMULCAST_LAYERS } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
 import { IconButton } from '../../../components/IconButton';
+import { Loading } from '../../../components/Loading';
 import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
 import { registerStreamFullscreen } from '../stream-fullscreen';
@@ -275,8 +276,8 @@ export function StreamTile({
         {...focusClick}
       />
       {!stream && (
-        <div className="label absolute inset-0 flex items-center justify-center text-muted">
-          CARREGANDO TRANSMISSÃO
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loading label="CARREGANDO TRANSMISSÃO" />
         </div>
       )}
 

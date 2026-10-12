@@ -382,7 +382,7 @@ export function ChannelPanel({
                               </span>
                             ) : (
                               <span
-                                className="ml-auto h-1.5 w-1.5 shrink-0 bg-fg"
+                                className="anim-badge ml-auto h-1.5 w-1.5 shrink-0 bg-fg"
                                 data-testid="unread-dot"
                                 role="img"
                                 aria-label="Mensagens não lidas"

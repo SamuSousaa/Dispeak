@@ -16,6 +16,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/Button';
 import { Dialog, Field, FormError } from '../../../components/Dialog';
+import { Loading } from '../../../components/Loading';
 import { PictureField } from '../../../components/PictureField';
 import { cx } from '../../../lib/cx';
 import { describeError } from '../../../lib/http';
@@ -568,7 +569,7 @@ function BansTab({ guild, run, busy }: TabProps) {
     queryFn: () => guildApi.bans(guild.id),
   });
 
-  if (bans.isPending) return <p className="label p-4 text-muted">CARREGANDO</p>;
+  if (bans.isPending) return <Loading label="CARREGANDO" className="p-4" />;
   if (bans.isError) {
     return (
       <p role="alert" className="label p-4 text-danger">
@@ -638,7 +639,7 @@ function InvitesTab({ guild, run, busy }: TabProps) {
   const queryKey = ['invites', guild.id];
   const invites = useQuery({ queryKey, queryFn: () => guildApi.listInvites(guild.id) });
 
-  if (invites.isPending) return <p className="label p-4 text-muted">CARREGANDO</p>;
+  if (invites.isPending) return <Loading label="CARREGANDO" className="p-4" />;
   if (invites.isError)
     return <p className="label p-4 text-danger">{describeError(invites.error)}</p>;
   if (invites.data.length === 0)

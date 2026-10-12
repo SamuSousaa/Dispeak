@@ -13,6 +13,7 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/coverage/**',
       '.dev/**',
+      '.claude/**',
     ],
   },
   js.configs.recommended,

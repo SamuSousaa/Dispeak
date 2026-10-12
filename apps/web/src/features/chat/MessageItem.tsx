@@ -251,7 +251,7 @@ export function MessageItem({
             const mine = reaction.userIds.includes(userId);
             const names = reaction.userIds.map((id) => memberName(guild, id)).join(', ');
             return (
-              <li key={reaction.emoji}>
+              <li key={reaction.emoji} className="anim-badge">
                 <button
                   type="button"
                   data-testid="reaction"

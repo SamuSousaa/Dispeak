@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { openContextMenu } from '../../components/ContextMenu';
+import { Loading } from '../../components/Loading';
 import { cx } from '../../lib/cx';
 import { rememberEmoji, useUiStore } from '../app/ui-store';
 import { loadEmojis, searchEmojis, type EmojiEntry, type EmojiGroup } from './emoji-data';
@@ -98,7 +99,7 @@ export function EmojiBrowser({
       </p>
     );
   }
-  if (!groups) return <p className="label p-3 text-muted">CARREGANDO EMOJIS</p>;
+  if (!groups) return <Loading label="CARREGANDO EMOJIS" className="p-3" />;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

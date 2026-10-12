@@ -2,6 +2,7 @@ import { APP_NAME } from '@frequencia/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { BootScreen } from '../../components/BootScreen';
 import { Button } from '../../components/Button';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { LinkDialogHost } from '../../components/LinkDialog';
@@ -66,6 +67,8 @@ export function AppPage() {
   const order = useGatewayStore((state) => state.guildOrder);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
+  // The opening screen stays until the first data arrives, then takes a moment to switch off.
+  const [booted, setBooted] = useState(false);
 
   useVoiceShortcuts();
   useCloseToTray();
@@ -338,11 +341,13 @@ export function AppPage() {
             />
           )}
 
-          <div className="min-h-0 flex-1">
+          {/* Keyed by what is on screen, so a change of channel arrives instead of blinking. */}
+          <div
+            key={`${guildId ?? ''}/${current?.channel.id ?? ''}`}
+            className="anim-view min-h-0 flex-1"
+          >
             {!hasLoaded ? (
-              <div className="grid-bg flex h-full items-center justify-center">
-                <p className="label text-muted">CONECTANDO AO GATEWAY</p>
-              </div>
+              <div className="grid-bg h-full" />
             ) : guildId === HOME ? (
               <FriendsView userId={user.id} />
             ) : !guild ? (
@@ -409,6 +414,21 @@ export function AppPage() {
           </aside>
         )}
       </div>
+
+      {!booted && (
+        <BootScreen
+          steps={[
+            { name: 'SESSÃO', state: 'OK', done: true },
+            {
+              name: 'GATEWAY',
+              state: hasLoaded ? 'OK' : status === 'reconnecting' ? 'RECONECTANDO' : 'CONECTANDO',
+              done: hasLoaded,
+            },
+          ]}
+          leaving={hasLoaded}
+          onGone={() => setBooted(true)}
+        />
+      )}
 
       <SystemBar />
       <ContextMenuHost />

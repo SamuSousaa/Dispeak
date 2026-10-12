@@ -8,6 +8,7 @@ import {
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Loading, Signal } from '../../components/Loading';
 import { Button } from '../../components/Button';
 import { CreatePollDialog, CreateThreadDialog } from '../chat/ChatDialogs';
 import { chatApi, flattenMessages, messagesKey, useTypingStore } from '../chat/chat-store';
@@ -60,7 +61,12 @@ function TypingIndicator({
   else if (names.length > 2) text = 'VÁRIAS PESSOAS ESTÃO DIGITANDO';
 
   return (
-    <p className="label h-4 text-muted" aria-live="polite" data-testid="typing">
+    <p
+      className="label flex h-4 items-center gap-2 text-muted"
+      aria-live="polite"
+      data-testid="typing"
+    >
+      {text && <Signal className="anim-fade" />}
       {text}
     </p>
   );
@@ -167,7 +173,7 @@ export function TextChannelView({
         aria-label={`Mensagens de ${channel.name}`}
       >
         <div ref={contentRef} className="flex min-h-full flex-col justify-end py-3">
-          {history.isPending && <p className="label px-4 text-muted">CARREGANDO MENSAGENS</p>}
+          {history.isPending && <Loading label="CARREGANDO MENSAGENS" className="px-4" />}
           {history.isError && (
             <p role="alert" className="label px-4 text-danger">
               NÃO FOI POSSÍVEL CARREGAR AS MENSAGENS

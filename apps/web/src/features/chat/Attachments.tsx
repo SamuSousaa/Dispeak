@@ -2,6 +2,8 @@ import { IMAGE_CONTENT_TYPES, type Attachment } from '@frequencia/shared';
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Dialog } from '../../components/Dialog';
+import { Signal } from '../../components/Loading';
+import { cx } from '../../lib/cx';
 import { toast } from '../../components/Toast';
 import { chatApi } from './chat-store';
 
@@ -65,7 +67,10 @@ function AttachmentImage({ attachment }: { attachment: Attachment }) {
             draggable={false}
           />
         ) : (
-          <span className={isError ? 'label text-danger' : 'label text-muted'}>
+          <span
+            className={cx('label flex items-center gap-2', isError ? 'text-danger' : 'text-muted')}
+          >
+            {!isError && <Signal />}
             {isError ? 'IMAGEM INDISPONÍVEL' : 'CARREGANDO'}
           </span>
         )}
