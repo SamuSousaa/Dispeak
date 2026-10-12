@@ -187,6 +187,8 @@ passar e de um commit ser feito.
       direto o jogo em tela cheia que estiver na frente
 - [x] Atualização automática do app, página `/download` e `pnpm release:desktop`
 - [x] Cadastro restrito por código de acesso (`REGISTRATION_CODE`), para servidores fechados
+- [x] App: opção de o X esconder a janela na bandeja do sistema em vez de sair
+- [x] "Adicionar amigo" no menu de uma pessoa (botão direito), sem digitar o nome de usuário
 - [x] Três presets de transmissão (720p30, 1080p60 e 1440p30 para filmes); 1080p30, 1440p60 e
       resolução original saíram, por não chegarem a 60 fps e por pesarem na banda do servidor
 

@@ -48,4 +48,4 @@ for (const file of files) {
 // The fixed name the download page links to.
 run('ssh', [...identity, target, `cp ${directory}/${installer} ${directory}/Dispeaker-Setup.exe`]);
 
-console.log(`\nVersion ${version} is published. Installed apps pick it up within a few hours.`);
+console.log(`\nVersion ${version} is published. Installed apps pick it up within half an hour.`);

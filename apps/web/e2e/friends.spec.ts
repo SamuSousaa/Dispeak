@@ -108,3 +108,60 @@ test('friends: a request, a private conversation, a call and the end of it', asy
 
   for (const { context } of [alice, bruno]) await context.close();
 });
+
+test('friends: asking from the menu on a person met in a server', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const alice = await register(browser, 'Alice');
+  const bruno = await register(browser, 'Bruno');
+
+  // The two meet in a server of Alice's.
+  const post = async (page: Page, path: string, data?: unknown) => {
+    const refreshed = await page.context().request.post('/api/auth/refresh');
+    const { accessToken } = (await refreshed.json()) as { accessToken: string };
+    const result = await page.context().request.post(`/api${path}`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+      data,
+    });
+    expect(result.ok(), `${path} -> ${result.status()}`).toBe(true);
+    return result.json() as Promise<unknown>;
+  };
+  const guild = (await post(alice.page, '/guilds', { name: 'Encontro e2e' })) as { id: string };
+  const invite = (await post(alice.page, `/guilds/${guild.id}/invites`, {})) as { code: string };
+  await post(bruno.page, `/invites/${invite.code}/accept`);
+  for (const { page } of [alice, bruno]) {
+    await page.goto(`/app/${guild.id}`);
+    await expect(page.getByTestId('gateway-status')).toHaveText('CONECTADO');
+  }
+  const member = (page: Page, name: string) => page.getByTestId('member').filter({ hasText: name });
+
+  // --- Alice asks; the menu then says the request is on its way -----------------------------
+  await member(alice.page, 'Bruno').click({ button: 'right' });
+  await alice.page.getByRole('menuitem', { name: 'Adicionar amigo' }).click();
+  await expect(alice.page.getByTestId('toast')).toContainText('Pedido de amizade enviado');
+  await member(alice.page, 'Bruno').click({ button: 'right' });
+  await expect(alice.page.getByRole('menuitem', { name: /Adicionar amigo/ })).toBeDisabled();
+  await expect(alice.page.getByTestId('context-menu')).toContainText('PEDIDO ENVIADO');
+  await alice.page.keyboard.press('Escape');
+  // Nobody adds themselves.
+  await member(alice.page, 'Alice').click({ button: 'right' });
+  await expect(alice.page.getByRole('menuitem', { name: /amigo|amizade/ })).toHaveCount(0);
+  await alice.page.keyboard.press('Escape');
+
+  // --- Bruno accepts from the same menu, and the entry is gone for both ----------------------
+  await expect(home(bruno.page)).toHaveAttribute('data-unread', 'true');
+  await member(bruno.page, 'Alice').click({ button: 'right' });
+  await bruno.page.getByRole('menuitem', { name: 'Aceitar pedido de amizade' }).click();
+  await expect(bruno.page.getByTestId('toast')).toContainText('agora são amigos');
+  await expect(home(bruno.page)).toHaveAttribute('data-unread', 'false');
+  for (const [page, name] of [
+    [alice.page, 'Bruno'],
+    [bruno.page, 'Alice'],
+  ] as const) {
+    await member(page, name).click({ button: 'right' });
+    await expect(page.getByTestId('context-menu')).toContainText('Perfil');
+    await expect(page.getByRole('menuitem', { name: /amigo|amizade/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  }
+
+  for (const { context } of [alice, bruno]) await context.close();
+});

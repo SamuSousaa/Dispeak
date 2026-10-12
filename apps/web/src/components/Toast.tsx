@@ -3,15 +3,19 @@ import { describeError } from '../lib/http';
 
 interface ToastState {
   message: string | null;
+  tone: 'danger' | 'info';
 }
 
-const useToastStore = create<ToastState>(() => ({ message: null }));
+const useToastStore = create<ToastState>(() => ({ message: null, tone: 'danger' }));
 let timer: number | undefined;
 
-/** Shows a short notice at the bottom of the screen; a new one replaces the previous. */
-export function toast(message: string): void {
+/**
+ * Shows a short notice at the bottom of the screen; a new one replaces the previous. It reads
+ * as a failure unless `tone` says it is only news.
+ */
+export function toast(message: string, tone: ToastState['tone'] = 'danger'): void {
   window.clearTimeout(timer);
-  useToastStore.setState({ message });
+  useToastStore.setState({ message, tone });
   timer = window.setTimeout(() => useToastStore.setState({ message: null }), 4500);
 }
 
@@ -26,12 +30,15 @@ export function attempt(action: () => Promise<unknown>): void {
 /** Mount once, near the root. */
 export function ToastHost() {
   const message = useToastStore((state) => state.message);
+  const tone = useToastStore((state) => state.tone);
   if (!message) return null;
   return (
     <p
-      role="alert"
+      role={tone === 'danger' ? 'alert' : 'status'}
       data-testid="toast"
-      className="anim-pop label fixed bottom-10 left-1/2 z-50 max-w-[calc(100vw-32px)] -translate-x-1/2 border border-danger bg-bg px-3 py-2 text-danger"
+      className={`anim-pop label fixed bottom-10 left-1/2 z-50 max-w-[calc(100vw-32px)] -translate-x-1/2 border bg-bg px-3 py-2 ${
+        tone === 'danger' ? 'border-danger text-danger' : 'border-line-strong text-fg'
+      }`}
     >
       {message}
     </p>

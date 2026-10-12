@@ -17,6 +17,9 @@ export const DESKTOP_UPDATE_READY = 'desktop:update-ready';
 /** Page → app: restart now and install it. */
 export const DESKTOP_INSTALL_UPDATE = 'desktop:install-update';
 
+/** Page → app: whether the window's close button hides the app in the notification area. */
+export const DESKTOP_SET_CLOSE_TO_TRAY = 'desktop:set-close-to-tray';
+
 /**
  * The action that starts or stops a screen share. The app treats it apart: pressed with a game
  * in front, the share captures that game without asking what to share.
@@ -39,6 +42,8 @@ export const desktopShortcutEventSchema = z.object({ action: z.string().min(1).m
 export const desktopUpdateSchema = z.object({ version: z.string().min(1).max(32).nullable() });
 export type DesktopUpdate = z.infer<typeof desktopUpdateSchema>;
 
+export const desktopCloseToTraySchema = z.object({ enabled: z.boolean() });
+
 /** `window.dispeakerDesktop`, as exposed by the app's preload script. */
 export interface DesktopBridge {
   version: string;
@@ -52,6 +57,11 @@ export interface DesktopBridge {
   onUpdateReady(listener: (version: string) => void): () => void;
   /** Closes the app, installs the downloaded update and opens it again. */
   installUpdate(): Promise<void>;
+  /**
+   * Whether closing the window keeps the app running in the notification area instead of
+   * quitting. Absent in apps older than 0.6.0.
+   */
+  setCloseToTray?(enabled: boolean): Promise<void>;
 }
 
 /**

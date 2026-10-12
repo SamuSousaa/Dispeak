@@ -27,6 +27,7 @@ import { SettingsPanel, type SettingsTab } from '../settings/SettingsPanel';
 import { startVoiceSounds } from '../sounds/sound-player';
 import { notifyMention } from '../unread/notify';
 import { applyUnreadEvent, useUnreadTitle } from '../unread/unread-store';
+import { useCloseToTray } from '../desktop/desktop';
 import { UpdateNotice } from '../desktop/UpdateNotice';
 import { IncomingCalls } from '../friends/IncomingCalls';
 import { useVoiceShortcuts } from '../voice/use-voice-shortcuts';
@@ -67,6 +68,7 @@ export function AppPage() {
   const [drawer, setDrawer] = useState<Drawer>(null);
 
   useVoiceShortcuts();
+  useCloseToTray();
   useUnreadTitle();
   useEffect(() => startVoiceSounds(), []);
 

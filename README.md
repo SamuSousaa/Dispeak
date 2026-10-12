@@ -215,7 +215,9 @@ O que o app acrescenta ao navegador:
 - o atalho de transmitir, apertado com um jogo em tela cheia na frente, transmite a janela desse
   jogo sem abrir o seletor; sem jogo na frente, abre o seletor;
 - um seletor de tela próprio e o som do sistema sem o som da própria chamada;
-- atualização automática a partir do próprio servidor.
+- atualização automática a partir do próprio servidor;
+- opção de o X da janela esconder o app na bandeja do sistema, com a chamada em andamento
+  (Configurações → APP).
 
 ```bash
 pnpm --filter @frequencia/desktop start     # abre o app a partir do código

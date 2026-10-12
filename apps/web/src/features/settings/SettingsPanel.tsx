@@ -10,7 +10,7 @@ import {
   playSound,
   setCustomSound,
 } from '../sounds/sound-player';
-import { desktop, useRefusedShortcuts } from '../desktop/desktop';
+import { canCloseToTray, desktop, useRefusedShortcuts } from '../desktop/desktop';
 import type { NoiseEngine } from '../voice/microphone';
 import { useVoiceStore } from '../voice/voice-store';
 import { DeviceSelect, supportsOutputSelection, useAudioDevices } from './audio-devices';
@@ -38,7 +38,8 @@ const INPUT_OPTIONS: Array<{ value: InputMode; label: string; hint: string }> = 
   },
 ];
 
-export type SettingsTab = 'profile' | 'voice' | 'video' | 'chat' | 'sounds' | 'keys' | 'account';
+export type SettingsTab =
+  'profile' | 'voice' | 'video' | 'chat' | 'sounds' | 'keys' | 'app' | 'account';
 type Tab = SettingsTab;
 
 const NOISE_NAMES: Record<NoiseEngine, string> = {
@@ -326,6 +327,8 @@ export function SettingsPanel({
     { id: 'chat', label: 'CHAT' },
     { id: 'sounds', label: 'SONS' },
     { id: 'keys', label: 'ATALHOS' },
+    // Only inside the desktop app: a browser tab has nothing of the kind to offer.
+    ...(canCloseToTray ? [{ id: 'app' as const, label: 'APP' }] : []),
     { id: 'account', label: 'CONTA' },
   ];
   const notificationsBlocked =
@@ -619,6 +622,20 @@ export function SettingsPanel({
               </Button>
             </>
           )}
+        </Section>
+      )}
+
+      {tab === 'app' && desktop && (
+        <Section number="01" title="JANELA">
+          <Toggle
+            label="O BOTÃO X MINIMIZA PARA A BANDEJA"
+            hint="Fechar a janela esconde o Dispeaker nos ícones ao lado do relógio em vez de sair: a chamada continua e os atalhos seguem valendo. Clique no ícone para voltar; para sair de vez, clique nele com o botão direito e escolha Sair."
+            checked={settings.closeToTray}
+            onChange={(closeToTray) => updateSettings({ closeToTray })}
+          />
+          <p className="label text-muted" data-testid="desktop-version">
+            VERSÃO DO APP: {desktop.version}
+          </p>
         </Section>
       )}
 

@@ -1,6 +1,6 @@
 {
   "name": "@frequencia/desktop",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "description": "Dispeaker para desktop",
   "author": "Dispeaker",
@@ -32,6 +32,7 @@
     "files": [
       "dist/**",
       "static/**",
+      "build/icon.png",
       "package.json"
     ],
     "win": {

@@ -8,6 +8,7 @@ import { applyBackgroundSwitches, keepProcessesResponsive } from './performance'
 import { pickSource } from './picker/picker';
 import { noteShareShortcut, takeShortcutShare } from './share-target';
 import { serveShortcuts } from './shortcuts';
+import { serveCloseToTray } from './tray';
 import { serveUpdates } from './updater';
 
 /** What the web app may ask the operating system for. Everything else is refused. */
@@ -21,6 +22,8 @@ const PERMISSIONS = new Set([
 ]);
 
 let mainWindow: BrowserWindow | null = null;
+/** Puts the main window in front, also when it is hidden in the notification area. */
+let revealWindow: (() => void) | null = null;
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -77,6 +80,7 @@ function createWindow(): BrowserWindow {
     if (action === DESKTOP_SHARE_ACTION) noteShareShortcut();
   });
   serveUpdates(window);
+  revealWindow = serveCloseToTray(window);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });
   void window.loadURL(config.appUrl.href);
   return window;
@@ -124,9 +128,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    // Opening the app again while it sits in the notification area brings it back.
+    revealWindow?.();
   });
 
   app.on('window-all-closed', () => app.quit());
@@ -136,6 +139,7 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow = createWindow();
     mainWindow.on('closed', () => {
       mainWindow = null;
+      revealWindow = null;
     });
     keepProcessesResponsive();
   });

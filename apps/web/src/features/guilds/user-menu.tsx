@@ -1,5 +1,11 @@
 import { canMention, requestMention } from '../chat/mention-bus';
-import { hasPermission, outranks, Permissions, type Guild } from '@frequencia/shared';
+import {
+  hasPermission,
+  outranks,
+  Permissions,
+  type FriendRequest,
+  type Guild,
+} from '@frequencia/shared';
 import type { MouseEvent } from 'react';
 import {
   contextMenu,
@@ -8,7 +14,11 @@ import {
   type MenuEntry,
 } from '../../components/ContextMenu';
 import { showLink } from '../../components/LinkDialog';
-import { attempt } from '../../components/Toast';
+import { attempt, toast } from '../../components/Toast';
+import { ApiError } from '../../lib/http';
+import { queryClient } from '../../lib/query-client';
+import { FRIEND_REQUESTS_KEY, friendsApi } from '../friends/friends-api';
+import { useGatewayStore } from '../gateway/gateway-store';
 import { ProfileCard } from '../profile/ProfileCard';
 import { volumeMenuEntries } from '../voice/components/VolumeControl';
 import { guildApi } from './guild-api';
@@ -37,6 +47,55 @@ function confirm(
     { label, danger: true, onSelect: () => attempt(action) },
     { label: 'Cancelar', onSelect: () => undefined },
   ]);
+}
+
+/**
+ * The entry that makes a friend of someone met in a server, or `false` when they already are
+ * one. Being friends is having a private conversation with the person.
+ */
+function friendEntry(targetId: string, username: string, name: string): MenuEntry | false {
+  const friends = Object.values(useGatewayStore.getState().guilds).some(
+    (guild) => guild.kind === 'dm' && guild.members.some((member) => member.user.id === targetId),
+  );
+  if (friends) return false;
+  // Loaded with the app and kept current by the gateway; without it the server still decides.
+  const pending = queryClient
+    .getQueryData<FriendRequest[]>(FRIEND_REQUESTS_KEY)
+    ?.find((request) => request.user.id === targetId);
+  if (pending?.direction === 'outgoing') {
+    return {
+      label: 'Adicionar amigo',
+      hint: 'PEDIDO ENVIADO',
+      disabled: true,
+      onSelect: () => undefined,
+    };
+  }
+  if (pending) {
+    return {
+      label: 'Aceitar pedido de amizade',
+      onSelect: () =>
+        attempt(async () => {
+          await friendsApi.accept(pending.id);
+          toast(`Você e ${name} agora são amigos.`, 'info');
+        }),
+    };
+  }
+  return {
+    label: 'Adicionar amigo',
+    onSelect: () =>
+      void friendsApi.ask(username).then(
+        // The other person had already asked: the two requests met.
+        ({ guild }) =>
+          toast(
+            guild ? `Você e ${name} agora são amigos.` : `Pedido de amizade enviado para ${name}.`,
+            'info',
+          ),
+        (error: unknown) =>
+          error instanceof ApiError && error.status === 409
+            ? toast(`Você já enviou um pedido para ${name}.`, 'info')
+            : attempt(() => Promise.reject(error)),
+      ),
+  };
 }
 
 /** The card a person made for themselves, on its own: what a plain click on their name shows. */
@@ -103,6 +162,7 @@ export function userMenuEntries(
     { label: 'Perfil', onSelect: () => openUserProfile({ guild, targetId }, point) },
     // Only while a message is being written in the channel on screen.
     !isSelf && canMention() && { label: 'Mencionar', onSelect: () => requestMention(name) },
+    !isSelf && friendEntry(targetId, member.user.username, name),
     { type: 'separator' },
     ...(inVoice && !isSelf ? volumeMenuEntries(targetId, name) : []),
     { type: 'separator' },

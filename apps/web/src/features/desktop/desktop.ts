@@ -1,5 +1,7 @@
 import type { DesktopBridge } from '@frequencia/shared';
+import { useEffect } from 'react';
 import { create } from 'zustand';
+import { useSettingsStore } from '../settings/settings-store';
 
 declare global {
   interface Window {
@@ -14,3 +16,16 @@ export const desktop: DesktopBridge | null =
 
 /** Actions whose global shortcut the system refused, as last reported by the app. */
 export const useRefusedShortcuts = create<string[]>(() => []);
+
+/** Whether this app can stay in the notification area when its window is closed. */
+export const canCloseToTray = Boolean(desktop?.setCloseToTray);
+
+/** Tells the app what its close button should do, now and whenever the setting changes. */
+export function useCloseToTray(): void {
+  const enabled = useSettingsStore((state) => state.closeToTray);
+  useEffect(() => {
+    desktop
+      ?.setCloseToTray?.(enabled)
+      .catch((error: unknown) => console.warn('[desktop] close to tray unavailable', error));
+  }, [enabled]);
+}

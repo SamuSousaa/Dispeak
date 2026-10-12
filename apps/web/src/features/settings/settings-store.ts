@@ -41,6 +41,8 @@ const settingsSchema = z.object({
   showEmbeds: z.boolean(),
   /** System notification when someone mentions the user while the tab is in the background. */
   desktopNotifications: z.boolean(),
+  /** Desktop app: the close button hides the window in the notification area. */
+  closeToTray: z.boolean(),
   /** Last quality picked for a screen share; the share shortcut starts with it. */
   sharePreset: z.enum(SCREEN_PRESET_IDS),
   /** Notification sounds: joining, leaving, a stream starting or ending. */
@@ -83,6 +85,7 @@ export const defaultSettings: Settings = {
   userVolumes: {},
   showEmbeds: true,
   desktopNotifications: false,
+  closeToTray: false,
   sharePreset: '1080p60',
   soundsEnabled: true,
   soundVolume: 0.5,
