@@ -11,6 +11,7 @@ import type {
 import type { types } from 'mediasoup';
 
 export type TransportAppData = { peerId: string; direction: TransportDirection };
+export type IngestAppData = { peerId: string };
 export type ProducerAppData = { peerId: string; source: ProducerSource };
 export type ConsumerAppData = {
   peerId: string;
@@ -28,6 +29,8 @@ export type VoiceRpc = RpcPeer<typeof voiceServerSide, typeof voiceClientSide>;
 export class Peer {
   readonly id = randomUUID();
   readonly transports = new Map<string, types.WebRtcTransport<TransportAppData>>();
+  /** Plain transports receiving a native capture, one per ingest. */
+  readonly ingests = new Map<string, types.PlainTransport<IngestAppData>>();
   readonly producers = new Map<string, types.Producer<ProducerAppData>>();
   readonly consumers = new Map<string, types.Consumer<ConsumerAppData>>();
   readonly timers = new Set<NodeJS.Timeout>();
@@ -69,6 +72,8 @@ export class Peer {
     this.timers.clear();
     for (const transport of this.transports.values()) transport.close();
     this.transports.clear();
+    for (const ingest of this.ingests.values()) ingest.close();
+    this.ingests.clear();
     this.producers.clear();
     this.consumers.clear();
   }

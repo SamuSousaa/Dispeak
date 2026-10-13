@@ -1,10 +1,15 @@
 import {
   DESKTOP_GET_UPDATE,
   DESKTOP_INSTALL_UPDATE,
+  DESKTOP_NATIVE_CAPTURE_ENDED,
+  DESKTOP_NATIVE_CAPTURE_PROBE,
+  DESKTOP_NATIVE_CAPTURE_START,
+  DESKTOP_NATIVE_CAPTURE_STOP,
   DESKTOP_SET_CLOSE_TO_TRAY,
   DESKTOP_SET_SHORTCUTS,
   DESKTOP_SHORTCUT,
   DESKTOP_UPDATE_READY,
+  desktopNativeCaptureProbeSchema,
   desktopShortcutEventSchema,
   desktopUpdateSchema,
   type DesktopBridge,
@@ -44,6 +49,18 @@ const bridge: DesktopBridge = {
   installUpdate: () => ipcRenderer.invoke(DESKTOP_INSTALL_UPDATE) as Promise<void>,
   setCloseToTray: (enabled) =>
     ipcRenderer.invoke(DESKTOP_SET_CLOSE_TO_TRAY, { enabled }) as Promise<void>,
+  nativeCapture: {
+    probe: async () =>
+      desktopNativeCaptureProbeSchema.parse(await ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_PROBE))
+        .codec,
+    start: (options) => ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_START, options) as Promise<void>,
+    stop: () => ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_STOP) as Promise<void>,
+    onEnded: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(DESKTOP_NATIVE_CAPTURE_ENDED, handler);
+      return () => ipcRenderer.removeListener(DESKTOP_NATIVE_CAPTURE_ENDED, handler);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('dispeakerDesktop', bridge);

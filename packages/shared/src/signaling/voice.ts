@@ -119,6 +119,27 @@ export const voicePeerSchema = z.object({
 });
 export type VoicePeer = z.infer<typeof voicePeerSchema>;
 
+/** Codecs the desktop app's native capture can send. */
+export const ingestCodecSchema = z.enum(['av1', 'h264']);
+export type IngestCodec = z.infer<typeof ingestCodecSchema>;
+
+const udpPort = z.number().int().min(1).max(65535);
+
+/**
+ * Where a native capture sends its video, outside WebRTC: SRTP over UDP to `address`, RTP and
+ * RTCP on separate ports, with exactly this SSRC, payload type and key.
+ */
+export const voiceIngestSchema = z.object({
+  producerId: z.string(),
+  address: z.string(),
+  rtpPort: udpPort,
+  rtcpPort: udpPort,
+  ssrc: z.number().int().positive(),
+  payloadType: z.number().int().min(0).max(127),
+  srtp: z.object({ cryptoSuite: z.string(), keyBase64: z.string() }),
+});
+export type VoiceIngest = z.infer<typeof voiceIngestSchema>;
+
 const consumerRef = z.object({ consumerId: z.string() });
 const producerRef = z.object({ producerId: z.string() });
 
@@ -158,6 +179,12 @@ export const voiceServerSide = defineSide({
       }),
       response: producerRef,
     },
+    /**
+     * Publishes the screen from a native capture instead of the browser: the server opens a
+     * plain transport, announces the producer like any other screen share and answers where
+     * to send. `closeProducer` ends it.
+     */
+    createIngest: { request: z.object({ codec: ingestCodecSchema }), response: voiceIngestSchema },
     closeProducer: { request: producerRef, response: empty },
     consume: {
       request: producerRef,

@@ -6,6 +6,7 @@ import {
   VoiceErrorCode,
   voiceClientSide,
   voiceServerSide,
+  type IngestCodec,
   type ProducerSource,
   type TransportDirection,
   type VoicePeer,
@@ -13,6 +14,7 @@ import {
 } from '@frequencia/shared';
 import { Device, type types } from 'mediasoup-client';
 import { connectRpc, type RpcConnection } from '../../lib/rpc-client';
+import { desktop } from '../desktop/desktop';
 import { useSettingsStore, type Settings } from '../settings/settings-store';
 import { CAMERA, openCamera } from './camera';
 import { meterTrack } from './level-meter';
@@ -22,6 +24,7 @@ import {
   SCREEN_PRESETS,
   simulcastEncodings,
   type ScreenPresetId,
+  type ScreenPreset,
 } from './screen-presets';
 import { pickScreenCodec } from './video-codec';
 import {
@@ -127,6 +130,12 @@ export class VoiceSession {
   private screenStream: MediaStream | null = null;
   private screenProducer: types.Producer | null = null;
   private screenAudioProducer: types.Producer | null = null;
+  /** Set while the desktop app itself captures the screen, not this page: the codec it sends. */
+  private nativeShare: IngestCodec | null = null;
+  private nativeProducerId: string | null = null;
+  /** The system's audio that goes with a native share, captured by the browser. */
+  private nativeAudio: { track: MediaStreamTrack; echoRisk: boolean } | null = null;
+  private unsubscribeNative: (() => void) | null = null;
   private cameraStream: MediaStream | null = null;
   private cameraProducer: types.Producer | null = null;
 
@@ -217,36 +226,8 @@ export class VoiceSession {
     if (get().screen.status !== 'off' || get().status !== 'connected') return;
     const preset = SCREEN_PRESETS[presetId];
     set({ screen: { ...screenOff, status: 'starting', preset: presetId } });
+    if (await this.startNativeShare()) return;
 
-    const capture = (withAudio: boolean) =>
-      navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: preset.width, max: preset.width },
-          height: { ideal: preset.height, max: preset.height },
-          // Asked for exactly 60, the browser's screen capturer delivers about 57 (measured on
-          // a 180 Hz display); given headroom it holds 60, its own ceiling. The encoder caps
-          // the stream at the preset's rate either way.
-          frameRate: {
-            ideal: preset.frameRate,
-            max: preset.frameRate >= 60 ? preset.frameRate * 1.5 : preset.frameRate,
-          },
-        },
-        // System/tab audio is only offered by some browsers and capture surfaces.
-        ...(withAudio
-          ? {
-              audio: {
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-                // Keeps the call itself out of the captured system audio. Without it the
-                // viewers get their own voices back through the stream. Browsers that do
-                // not know the option ignore it.
-                restrictOwnAudio: true,
-              },
-              systemAudio: 'include',
-            }
-          : {}),
-      } as DisplayMediaStreamOptions);
     // Dismissing the picker is not an error worth showing. The browser's own picker reports
     // it as `NotAllowedError`, the desktop app's as `AbortError`.
     const wasCancelled = (error: unknown) =>
@@ -255,7 +236,7 @@ export class VoiceSession {
 
     let stream: MediaStream;
     try {
-      stream = await capture(true);
+      stream = await this.captureDisplay(preset, true);
     } catch (error) {
       if (wasCancelled(error)) {
         set({ screen: screenOff });
@@ -265,7 +246,7 @@ export class VoiceSession {
       // without sound is better than no stream, and the UI says that it has no audio.
       console.warn('[voice] screen capture with audio failed, retrying without it', error);
       try {
-        stream = await capture(false);
+        stream = await this.captureDisplay(preset, false);
       } catch (retryError) {
         if (!wasCancelled(retryError)) console.warn('[voice] screen capture failed', retryError);
         set({
@@ -308,7 +289,50 @@ export class VoiceSession {
     }
   }
 
+  /** Asks the browser (or the app's picker) for the screen, with the system's audio or without. */
+  private captureDisplay(preset: ScreenPreset, withAudio: boolean): Promise<MediaStream> {
+    return navigator.mediaDevices.getDisplayMedia({
+      video: {
+        width: { ideal: preset.width, max: preset.width },
+        height: { ideal: preset.height, max: preset.height },
+        // Asked for exactly 60, the browser's screen capturer delivers about 57 (measured on
+        // a 180 Hz display); given headroom it holds 60, its own ceiling. The encoder caps
+        // the stream at the preset's rate either way.
+        frameRate: {
+          ideal: preset.frameRate,
+          max: preset.frameRate >= 60 ? preset.frameRate * 1.5 : preset.frameRate,
+        },
+      },
+      // System/tab audio is only offered by some browsers and capture surfaces.
+      ...(withAudio
+        ? {
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              // Keeps the call itself out of the captured system audio. Without it the
+              // viewers get their own voices back through the stream. Browsers that do
+              // not know the option ignore it.
+              restrictOwnAudio: true,
+            },
+            systemAudio: 'include',
+          }
+        : {}),
+    } as DisplayMediaStreamOptions);
+  }
+
   async stopScreenShare(): Promise<void> {
+    if (this.nativeShare) {
+      const producerId = this.nativeProducerId;
+      this.nativeShare = null;
+      this.nativeProducerId = null;
+      this.nativeAudio?.track.stop();
+      this.nativeAudio = null;
+      await desktop?.nativeCapture?.stop().catch(() => undefined);
+      if (producerId) {
+        await this.connection?.rpc.request('closeProducer', { producerId }).catch(() => undefined);
+      }
+    }
     const producers = [this.screenProducer, this.screenAudioProducer];
     this.screenProducer = null;
     this.screenAudioProducer = null;
@@ -509,6 +533,13 @@ export class VoiceSession {
       await Promise.all([
         this.publishMicrophone(),
         this.screenStream ? this.publishScreen().catch(() => this.stopScreenShare()) : undefined,
+        // The ingest of the previous connection went with it: ask for a new one.
+        this.nativeShare
+          ? this.publishNative().then(
+              (live) => (live ? undefined : this.stopScreenShare()),
+              () => this.stopScreenShare(),
+            )
+          : undefined,
         this.cameraStream ? this.publishCamera().catch(() => this.stopCamera()) : undefined,
         ...joined.peers.flatMap((peer) =>
           peer.producers
@@ -614,6 +645,13 @@ export class VoiceSession {
     this.micTrack = null;
     for (const track of this.screenStream?.getTracks() ?? []) track.stop();
     this.screenStream = null;
+    if (this.nativeShare) void desktop?.nativeCapture?.stop().catch(() => undefined);
+    this.nativeShare = null;
+    this.nativeProducerId = null;
+    this.nativeAudio?.track.stop();
+    this.nativeAudio = null;
+    this.unsubscribeNative?.();
+    this.unsubscribeNative = null;
     for (const track of this.cameraStream?.getTracks() ?? []) track.stop();
     this.cameraStream = null;
     this.watched.clear();
@@ -978,20 +1016,7 @@ export class VoiceSession {
     });
 
     if (audioTrack?.readyState === 'live') {
-      this.screenAudioProducer = await sendTransport.produce({
-        track: audioTrack,
-        stopTracks: false,
-        // Music, films and game audio: stereo, no DTX, at a bitrate where Opus is transparent.
-        codecOptions: {
-          opusStereo: true,
-          opusDtx: false,
-          opusFec: true,
-          opusMaxAverageBitrate: SCREEN_AUDIO_BITRATE,
-          opusMaxPlaybackRate: 48_000,
-        },
-        encodings: [{ maxBitrate: SCREEN_AUDIO_BITRATE }],
-        appData: { source: 'screen-audio' satisfies ProducerSource },
-      });
+      this.screenAudioProducer = await this.produceScreenAudio(sendTransport, audioTrack);
     }
 
     set({
@@ -1004,6 +1029,122 @@ export class VoiceSession {
         error: null,
       },
     });
+  }
+
+  private produceScreenAudio(
+    transport: types.Transport,
+    track: MediaStreamTrack,
+  ): Promise<types.Producer> {
+    return transport.produce({
+      track,
+      stopTracks: false,
+      // Music, films and game audio: stereo, no DTX, at a bitrate where Opus is transparent.
+      codecOptions: {
+        opusStereo: true,
+        opusDtx: false,
+        opusFec: true,
+        opusMaxAverageBitrate: SCREEN_AUDIO_BITRATE,
+        opusMaxPlaybackRate: 48_000,
+      },
+      encodings: [{ maxBitrate: SCREEN_AUDIO_BITRATE }],
+      appData: { source: 'screen-audio' satisfies ProducerSource },
+    });
+  }
+
+  /**
+   * Hands the share to the desktop app's own capture when this machine has one: behind a game
+   * that takes the whole graphics card it keeps the frames the browser's capture loses.
+   * Experimental and chosen in the settings: the main monitor, no preview. Answers `false`
+   * when the browser should capture instead.
+   */
+  private async startNativeShare(): Promise<boolean> {
+    const native = useSettingsStore.getState().nativeCapture ? desktop?.nativeCapture : undefined;
+    const codec = await native?.probe().catch(() => null);
+    if (!native || !codec) return false;
+    this.nativeShare = codec;
+    try {
+      if (await this.publishNative()) {
+        this.unsubscribeNative ??= native.onEnded(() => {
+          if (!this.nativeShare) return;
+          void this.stopScreenShare().then(() =>
+            set({ screen: { ...screenOff, error: 'A captura nativa parou.' } }),
+          );
+        });
+        return true;
+      }
+    } catch (error) {
+      console.warn('[voice] native capture failed, capturing in the browser', error);
+    }
+    // Releases whatever the attempt left behind; the state stays `starting` for the caller.
+    const preset = get().screen.preset;
+    await this.stopScreenShare();
+    set({ screen: { ...screenOff, status: 'starting', preset } });
+    return false;
+  }
+
+  /** Asks the media service for an ingest and points the app's capture at it. */
+  private async publishNative(): Promise<boolean> {
+    const native = desktop?.nativeCapture;
+    const rpc = this.connection?.rpc;
+    const presetId = get().screen.preset;
+    const codec = this.nativeShare;
+    if (!native || !rpc || !presetId || !codec) return false;
+
+    const preset = SCREEN_PRESETS[presetId];
+    const ingest = await rpc.request('createIngest', { codec });
+    this.nativeProducerId = ingest.producerId;
+    await native.start({
+      ingest,
+      codec,
+      frameRate: preset.frameRate,
+      bitrate: Math.max(...preset.bitrates),
+    });
+    // The sound still comes through the browser: the app answers this request with the same
+    // monitor and no picker, and only the audio track is kept.
+    this.nativeAudio ??= await this.captureNativeAudio(preset);
+    if (!this.nativeShare) {
+      this.nativeAudio?.track.stop();
+      this.nativeAudio = null;
+      return false;
+    }
+    const { sendTransport } = this;
+    if (sendTransport && this.nativeAudio?.track.readyState === 'live') {
+      this.screenAudioProducer = await this.produceScreenAudio(
+        sendTransport,
+        this.nativeAudio.track,
+      ).catch((error: unknown) => {
+        console.warn('[voice] failed to publish the system audio', error);
+        return null;
+      });
+    }
+    set({
+      screen: {
+        status: 'live',
+        preset: presetId,
+        hasAudio: Boolean(this.screenAudioProducer),
+        echoRisk: Boolean(this.screenAudioProducer) && Boolean(this.nativeAudio?.echoRisk),
+        stream: null,
+        error: null,
+      },
+    });
+    return true;
+  }
+
+  private async captureNativeAudio(
+    preset: ScreenPreset,
+  ): Promise<{ track: MediaStreamTrack; echoRisk: boolean } | null> {
+    try {
+      const stream = await this.captureDisplay(preset, true);
+      const [video] = stream.getVideoTracks();
+      const [audio] = stream.getAudioTracks();
+      const echoRisk = video ? capturesOwnAudio(video, audio) : false;
+      // The picture is the app's job; a second capture of it would cost what this path saves.
+      for (const track of stream.getVideoTracks()) track.stop();
+      return audio ? { track: audio, echoRisk } : null;
+    } catch (error) {
+      console.warn('[voice] system audio unavailable for the native capture', error);
+      return null;
+    }
   }
 
   // --- camera -------------------------------------------------------------------------------

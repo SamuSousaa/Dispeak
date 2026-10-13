@@ -10,7 +10,12 @@ import {
   playSound,
   setCustomSound,
 } from '../sounds/sound-player';
-import { canCloseToTray, desktop, useRefusedShortcuts } from '../desktop/desktop';
+import {
+  canCloseToTray,
+  desktop,
+  useNativeCaptureCodec,
+  useRefusedShortcuts,
+} from '../desktop/desktop';
 import type { NoiseEngine } from '../voice/microphone';
 import { useVoiceStore } from '../voice/voice-store';
 import { DeviceSelect, supportsOutputSelection, useAudioDevices } from './audio-devices';
@@ -69,6 +74,29 @@ function Section({
       </h3>
       <div className="flex flex-col gap-4 p-4">{children}</div>
     </section>
+  );
+}
+
+/** Experimental: the desktop app captures the screen itself instead of the browser. */
+function NativeCaptureSection() {
+  const enabled = useSettingsStore((state) => state.nativeCapture);
+  const codec = useNativeCaptureCodec();
+  return (
+    <Section number="02" title="TRANSMISSÃO">
+      <Toggle
+        label="CAPTURA NATIVA (EXPERIMENTAL)"
+        hint="O app captura e comprime a tela direto na placa de vídeo, sem passar pelo navegador: com jogo pesado, mantém os quadros que a captura comum perde. Transmite sempre o monitor principal inteiro, na resolução dele, e você não vê a prévia da própria transmissão. Quem assiste precisa de um aparelho que reproduza AV1."
+        checked={enabled}
+        onChange={(nativeCapture) => updateSettings({ nativeCapture })}
+      />
+      {codec !== undefined && (
+        <p className="label text-muted" data-testid="native-capture-status">
+          {codec
+            ? `DISPONÍVEL NESTE PC: ${codec.toUpperCase()}`
+            : 'INDISPONÍVEL NESTE PC: PRECISA DE PLACA AMD OU NVIDIA E DO FFMPEG BAIXADO PELO TESTE DE CAPTURA'}
+        </p>
+      )}
+    </Section>
   );
 }
 
@@ -639,6 +667,7 @@ export function SettingsPanel({
             </p>
           </Section>
         )}
+        {tab === 'app' && desktop?.nativeCapture && <NativeCaptureSection />}
 
         {tab === 'profile' && <ProfileTab key={user.id} user={user} guild={guild} />}
 

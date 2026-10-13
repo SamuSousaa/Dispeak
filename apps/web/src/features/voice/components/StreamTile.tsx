@@ -277,7 +277,12 @@ export function StreamTile({
       />
       {!stream && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Loading label="CARREGANDO TRANSMISSÃO" />
+          {isSelf ? (
+            // A native capture never reaches this page: there is nothing to preview.
+            <p className="label text-muted">CAPTURA NATIVA · SEM PRÉVIA</p>
+          ) : (
+            <Loading label="CARREGANDO TRANSMISSÃO" />
+          )}
         </div>
       )}
 

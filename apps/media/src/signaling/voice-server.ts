@@ -160,6 +160,8 @@ export class VoiceServer {
       }),
     }));
 
+    rpc.handle('createIngest', async ({ codec }) => (await room()).createIngest(peer, codec));
+
     rpc.handle('closeProducer', async ({ producerId }) => {
       (await room()).closeProducer(peer, producerId);
       return {};

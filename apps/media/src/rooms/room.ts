@@ -1,12 +1,15 @@
+import { randomBytes, randomInt } from 'node:crypto';
 import {
   RpcError,
   VoiceCloseCode,
   VoiceErrorCode,
   type EventInput,
+  type IngestCodec,
   type MediaKind,
   type ProducerSource,
   type TransportDirection,
   type voiceClientSide,
+  type VoiceIngest,
   type VoicePeer,
   type VoiceProducer,
 } from '@frequencia/shared';
@@ -14,8 +17,14 @@ import type { types } from 'mediasoup';
 import type { Config } from '../config';
 import type { Logger } from '../logger';
 import type { PooledWorker } from '../worker-pool';
-import { AUDIO_LEVEL_OBSERVER, mediaCodecs, TRANSPORT_BITRATE } from './media-codecs';
-import type { ConsumerAppData, Peer, ProducerAppData, TransportAppData } from './peer';
+import { AUDIO_LEVEL_OBSERVER, INGEST, mediaCodecs, TRANSPORT_BITRATE } from './media-codecs';
+import type {
+  ConsumerAppData,
+  IngestAppData,
+  Peer,
+  ProducerAppData,
+  TransportAppData,
+} from './peer';
 
 type ClientEvent = keyof (typeof voiceClientSide)['events'];
 
@@ -309,13 +318,7 @@ export class Room {
         `source "${options.source}" is not ${options.kind}`,
       );
     }
-    const allowed = options.source === 'mic' ? peer.claims.speak : peer.claims.stream;
-    if (!allowed) throw new RpcError(VoiceErrorCode.Forbidden, 'missing permission');
-    for (const existing of peer.producers.values()) {
-      if (existing.appData.source === options.source) {
-        throw new RpcError(VoiceErrorCode.LimitReached, `already producing "${options.source}"`);
-      }
-    }
+    this.assertMayPublish(peer, options.source);
 
     const producer = await this.guard(() =>
       transport.produce<ProducerAppData>({
@@ -327,23 +330,93 @@ export class Room {
     );
     if (transport.closed) throw new RpcError(VoiceErrorCode.InvalidState, 'transport closed');
 
-    peer.producers.set(producer.id, producer);
-    const info: VoiceProducer = { id: producer.id, kind: producer.kind, source: options.source };
-
-    producer.observer.on('close', () => {
-      if (!peer.producers.delete(producer.id)) return;
-      if (!this.peers.has(peer.id)) return;
-      this.broadcast('producer-removed', { peerId: peer.id, producerId: producer.id }, peer.id);
-      this.hooks.onProducerRemoved?.(this, peer, info);
-    });
-
+    const info = this.registerProducer(peer, producer);
     if (options.source === 'mic') {
       await this.audioLevelObserver.addProducer({ producerId: producer.id }).catch(() => undefined);
     }
-
-    this.broadcast('producer-added', { peerId: peer.id, producer: info }, peer.id);
-    this.hooks.onProducerAdded?.(this, peer, info);
+    this.announceProducer(peer, info);
     return producer.id;
+  }
+
+  /**
+   * Publishes the screen from a native capture: a plain transport of its own receives the
+   * video outside WebRTC, and the producer on it is a screen share like any other. Transport
+   * and producer live and die together.
+   */
+  async createIngest(peer: Peer, codec: IngestCodec): Promise<VoiceIngest> {
+    this.assertJoined(peer);
+    this.assertMayPublish(peer, 'screen');
+
+    const { rtc, numWorkers } = this.config;
+    const [announcedAddress] = rtc.announcedAddresses;
+    // The WebRtcServers hold the first ports of the range; ingests share what is left.
+    const portRange = {
+      min: rtc.minPort + numWorkers * rtc.announcedAddresses.length,
+      max: rtc.maxPort,
+    };
+    if (!announcedAddress || portRange.min >= portRange.max) {
+      throw new RpcError(VoiceErrorCode.LimitReached, 'no ports left for an ingest');
+    }
+
+    let transport: types.PlainTransport<IngestAppData>;
+    try {
+      transport = await this.router.createPlainTransport<IngestAppData>({
+        listenInfo: { protocol: 'udp', ip: rtc.listenIp, announcedAddress, portRange },
+        // The sender has one socket for RTP and another for RTCP, and behind a home router
+        // its address is only known when the first packet of each arrives.
+        rtcpMux: false,
+        comedia: true,
+        enableSrtp: true,
+        srtpCryptoSuite: INGEST.srtpCryptoSuite,
+        appData: { peerId: peer.id },
+      });
+    } catch (error) {
+      if (error instanceof Error && /port/i.test(error.message)) {
+        throw new RpcError(VoiceErrorCode.LimitReached, 'no ports left for an ingest');
+      }
+      throw error;
+    }
+    if (peer.closed || this.closed) {
+      transport.close();
+      throw new RpcError(VoiceErrorCode.InvalidState, 'peer left while creating the ingest');
+    }
+    peer.ingests.set(transport.id, transport);
+    transport.observer.on('close', () => peer.ingests.delete(transport.id));
+
+    const keyBase64 = randomBytes(INGEST.srtpKeyLength).toString('base64');
+    // Kept below 2^31: the sender takes it as a signed number.
+    const ssrc = randomInt(1, 0x7fffffff);
+    try {
+      await transport.connect({
+        srtpParameters: { cryptoSuite: INGEST.srtpCryptoSuite, keyBase64 },
+      });
+      const producer = await transport.produce<ProducerAppData>({
+        kind: 'video',
+        rtpParameters: {
+          codecs: [{ ...INGEST.codecs[codec], payloadType: INGEST.payloadType, rtcpFeedback: [] }],
+          encodings: [{ ssrc }],
+        },
+        appData: { peerId: peer.id, source: 'screen' },
+      });
+      // Two requests at once both pass the first check.
+      this.assertMayPublish(peer, 'screen');
+      producer.observer.on('close', () => transport.close());
+      this.announceProducer(peer, this.registerProducer(peer, producer));
+
+      return {
+        producerId: producer.id,
+        address: announcedAddress,
+        rtpPort: transport.tuple.localPort,
+        // Set whenever RTCP is not multiplexed, as asked above.
+        rtcpPort: transport.rtcpTuple?.localPort ?? transport.tuple.localPort + 1,
+        ssrc,
+        payloadType: INGEST.payloadType,
+        srtp: { cryptoSuite: INGEST.srtpCryptoSuite, keyBase64 },
+      };
+    } catch (error) {
+      transport.close();
+      throw error;
+    }
   }
 
   closeProducer(peer: Peer, producerId: string): void {
@@ -478,7 +551,7 @@ export class Room {
         name: peer.claims.name,
         muted: peer.muted,
         deafened: peer.deafened,
-        transports: peer.transports.size,
+        transports: peer.transports.size + peer.ingests.size,
         producers: [...peer.producers.values()].map((producer) => ({
           id: producer.id,
           kind: producer.kind,
@@ -550,6 +623,39 @@ export class Room {
     if ((this.viewers.get(producerId) ?? '') === key) return;
     this.viewers.set(producerId, key);
     owner.rpc.notify('stream-viewers', { peerIds });
+  }
+
+  /** Hands a producer to its peer and reports its end to the room. */
+  private registerProducer(peer: Peer, producer: types.Producer<ProducerAppData>): VoiceProducer {
+    peer.producers.set(producer.id, producer);
+    const info: VoiceProducer = {
+      id: producer.id,
+      kind: producer.kind,
+      source: producer.appData.source,
+    };
+    producer.observer.on('close', () => {
+      if (!peer.producers.delete(producer.id)) return;
+      if (!this.peers.has(peer.id)) return;
+      this.broadcast('producer-removed', { peerId: peer.id, producerId: producer.id }, peer.id);
+      this.hooks.onProducerRemoved?.(this, peer, info);
+    });
+    return info;
+  }
+
+  private announceProducer(peer: Peer, info: VoiceProducer): void {
+    this.broadcast('producer-added', { peerId: peer.id, producer: info }, peer.id);
+    this.hooks.onProducerAdded?.(this, peer, info);
+  }
+
+  /** The permission for that source, and one producer of each per peer. */
+  private assertMayPublish(peer: Peer, source: ProducerSource): void {
+    const allowed = source === 'mic' ? peer.claims.speak : peer.claims.stream;
+    if (!allowed) throw new RpcError(VoiceErrorCode.Forbidden, 'missing permission');
+    for (const existing of peer.producers.values()) {
+      if (existing.appData.source === source) {
+        throw new RpcError(VoiceErrorCode.LimitReached, `already producing "${source}"`);
+      }
+    }
   }
 
   private assertJoined(peer: Peer): void {

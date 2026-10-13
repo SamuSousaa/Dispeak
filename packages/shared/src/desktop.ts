@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ingestCodecSchema, voiceIngestSchema, type IngestCodec } from './signaling/voice';
 
 /**
  * What the desktop app (Electron) and the web page it shows say to each other. The page is the
@@ -19,6 +20,15 @@ export const DESKTOP_INSTALL_UPDATE = 'desktop:install-update';
 
 /** Page → app: whether the window's close button hides the app in the notification area. */
 export const DESKTOP_SET_CLOSE_TO_TRAY = 'desktop:set-close-to-tray';
+
+/** Page → app: the codec this machine's native capture would send, if it has one. */
+export const DESKTOP_NATIVE_CAPTURE_PROBE = 'desktop:native-capture-probe';
+/** Page → app: capture the screen and send it to this ingest, replacing a running capture. */
+export const DESKTOP_NATIVE_CAPTURE_START = 'desktop:native-capture-start';
+/** Page → app: stop the running capture. */
+export const DESKTOP_NATIVE_CAPTURE_STOP = 'desktop:native-capture-stop';
+/** App → page: the capture stopped on its own. */
+export const DESKTOP_NATIVE_CAPTURE_ENDED = 'desktop:native-capture-ended';
 
 /**
  * The action that starts or stops a screen share. The app treats it apart: pressed with a game
@@ -44,6 +54,30 @@ export type DesktopUpdate = z.infer<typeof desktopUpdateSchema>;
 
 export const desktopCloseToTraySchema = z.object({ enabled: z.boolean() });
 
+export const desktopNativeCaptureProbeSchema = z.object({ codec: ingestCodecSchema.nullable() });
+
+export const desktopNativeCaptureStartSchema = z.object({
+  ingest: voiceIngestSchema,
+  codec: ingestCodecSchema,
+  frameRate: z.number().int().min(1).max(120),
+  /** Bits per second. */
+  bitrate: z.number().int().min(100_000).max(50_000_000),
+});
+export type DesktopNativeCaptureStart = z.infer<typeof desktopNativeCaptureStartSchema>;
+
+/**
+ * The app capturing and encoding the screen on the graphics card, outside the browser, and
+ * sending it to an ingest of the media service. Experimental: video only, main monitor only.
+ */
+export interface DesktopNativeCapture {
+  /** The codec this machine would send, or `null` when it cannot capture natively. */
+  probe(): Promise<IngestCodec | null>;
+  start(options: DesktopNativeCaptureStart): Promise<void>;
+  stop(): Promise<void>;
+  /** Called when the capture stops on its own. Returns the function that stops listening. */
+  onEnded(listener: () => void): () => void;
+}
+
 /** `window.dispeakerDesktop`, as exposed by the app's preload script. */
 export interface DesktopBridge {
   version: string;
@@ -62,6 +96,8 @@ export interface DesktopBridge {
    * quitting. Absent in apps older than 0.6.0.
    */
   setCloseToTray?(enabled: boolean): Promise<void>;
+  /** Absent in apps older than 0.7.0; its `probe` answers `null` where the experiment is off. */
+  nativeCapture?: DesktopNativeCapture;
 }
 
 /**

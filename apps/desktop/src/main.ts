@@ -1,8 +1,9 @@
 import path from 'node:path';
 import { DESKTOP_SHARE_ACTION } from '@frequencia/shared';
-import { app, BrowserWindow, session, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, screen, session, shell } from 'electron';
 import { config } from './config';
 import { showDiagnostics } from './diagnostics';
+import { serveNativeCapture } from './native-capture';
 import { isAppUrl, isExternalLink } from './navigation';
 import { applyBackgroundSwitches, keepProcessesResponsive } from './performance';
 import { pickSource } from './picker/picker';
@@ -24,6 +25,18 @@ const PERMISSIONS = new Set([
 let mainWindow: BrowserWindow | null = null;
 /** Puts the main window in front, also when it is hidden in the notification area. */
 let revealWindow: (() => void) | null = null;
+/** Whether the app itself is capturing the screen for a share (the experimental native path). */
+let nativeCapturing: (() => boolean) | null = null;
+
+/** The main monitor as a capture source: what the native capture sends. */
+async function primaryScreen() {
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: 0, height: 0 },
+  });
+  const primary = String(screen.getPrimaryDisplay().id);
+  return sources.find((source) => source.display_id === primary) ?? sources[0] ?? null;
+}
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -81,6 +94,7 @@ function createWindow(): BrowserWindow {
   });
   serveUpdates(window);
   revealWindow = serveCloseToTray(window);
+  nativeCapturing = serveNativeCapture(window);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });
   void window.loadURL(config.appUrl.href);
   return window;
@@ -106,6 +120,10 @@ function configureSession(): void {
       return;
     }
     const choose = async () => {
+      // The picture already goes out through the native capture. This request is the page
+      // asking for the system's audio, which only comes along with a capture: the same
+      // monitor, no picker.
+      if (nativeCapturing?.()) return primaryScreen();
       const shortcut = await takeShortcutShare();
       return shortcut?.source ?? pickSource(window, { detached: shortcut !== null });
     };
@@ -140,6 +158,7 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.on('closed', () => {
       mainWindow = null;
       revealWindow = null;
+      nativeCapturing = null;
     });
     keepProcessesResponsive();
   });

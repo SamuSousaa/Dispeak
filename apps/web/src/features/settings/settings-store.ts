@@ -43,6 +43,8 @@ const settingsSchema = z.object({
   desktopNotifications: z.boolean(),
   /** Desktop app: the close button hides the window in the notification area. */
   closeToTray: z.boolean(),
+  /** Desktop app, experimental: screen shares captured by the app itself, not the browser. */
+  nativeCapture: z.boolean(),
   /** Last quality picked for a screen share; the share shortcut starts with it. */
   sharePreset: z.enum(SCREEN_PRESET_IDS),
   /** Notification sounds: joining, leaving, a stream starting or ending. */
@@ -86,6 +88,7 @@ export const defaultSettings: Settings = {
   showEmbeds: true,
   desktopNotifications: false,
   closeToTray: false,
+  nativeCapture: false,
   sharePreset: '1080p60',
   soundsEnabled: true,
   soundVolume: 0.5,
