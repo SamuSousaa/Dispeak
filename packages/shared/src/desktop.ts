@@ -30,6 +30,13 @@ export const DESKTOP_NATIVE_CAPTURE_STOP = 'desktop:native-capture-stop';
 /** App → page: the capture stopped on its own. */
 export const DESKTOP_NATIVE_CAPTURE_ENDED = 'desktop:native-capture-ended';
 
+/** Page → app: capture the sound of the program being shared, if one can be told apart. */
+export const DESKTOP_GAME_AUDIO_START = 'desktop:game-audio-start';
+/** Page → app: stop that capture. */
+export const DESKTOP_GAME_AUDIO_STOP = 'desktop:game-audio-stop';
+/** App → page: a piece of that sound, 48 kHz stereo signed 16-bit PCM. */
+export const DESKTOP_GAME_AUDIO_DATA = 'desktop:game-audio-data';
+
 /**
  * The action that starts or stops a screen share. The app treats it apart: pressed with a game
  * in front, the share captures that game without asking what to share.
@@ -78,6 +85,23 @@ export interface DesktopNativeCapture {
   onEnded(listener: () => void): () => void;
 }
 
+/** The program whose sound is being captured, or `null` when no single program could be. */
+export const desktopGameAudioSchema = z.object({ name: z.string().max(200) }).nullable();
+export type DesktopGameAudioSource = z.infer<typeof desktopGameAudioSchema>;
+
+/**
+ * The sound of one program instead of everything the PC plays: the window picked for the
+ * share or, when a whole screen is shared, the program that covers one (a game, in practice).
+ * Voice chats, music and notifications of other programs stay out of the stream.
+ */
+export interface DesktopGameAudio {
+  /** Starts the capture, replacing a running one. `null`: share the system's sound instead. */
+  start(): Promise<DesktopGameAudioSource>;
+  stop(): Promise<void>;
+  /** Pieces of 48 kHz stereo signed 16-bit PCM. Returns the function that stops listening. */
+  onData(listener: (pcm: Uint8Array) => void): () => void;
+}
+
 /** `window.dispeakerDesktop`, as exposed by the app's preload script. */
 export interface DesktopBridge {
   version: string;
@@ -98,6 +122,8 @@ export interface DesktopBridge {
   setCloseToTray?(enabled: boolean): Promise<void>;
   /** Absent in apps older than 0.7.0; its `probe` answers `null` where the experiment is off. */
   nativeCapture?: DesktopNativeCapture;
+  /** Absent in apps older than 0.8.0. */
+  gameAudio?: DesktopGameAudio;
 }
 
 /**

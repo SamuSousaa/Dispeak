@@ -203,6 +203,16 @@ export function UserPanel({
                 TRANSMISSÃO SEM ÁUDIO DO SISTEMA
               </p>
             )}
+            {screen.status === 'live' && screen.audioSource !== null && (
+              <p
+                role="status"
+                className="label mt-1.5 truncate text-muted"
+                data-testid="screen-audio-source"
+                title="Só o som deste programa vai para a transmissão"
+              >
+                SOM: SÓ {screen.audioSource || 'O PROGRAMA TRANSMITIDO'}
+              </p>
+            )}
             {screen.status === 'live' && screen.echoRisk && (
               <p role="status" className="label mt-1.5 text-danger" data-testid="screen-echo-risk">
                 QUEM ASSISTE PODE OUVIR A PRÓPRIA VOZ — TRANSMITA UMA ABA EM VEZ DA TELA INTEIRA

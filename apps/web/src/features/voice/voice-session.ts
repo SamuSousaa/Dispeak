@@ -17,6 +17,7 @@ import { connectRpc, type RpcConnection } from '../../lib/rpc-client';
 import { desktop } from '../desktop/desktop';
 import { useSettingsStore, type Settings } from '../settings/settings-store';
 import { CAMERA, openCamera } from './camera';
+import { startGameAudio, type GameAudio } from './game-audio';
 import { meterTrack } from './level-meter';
 import { openMicrophone, type Microphone } from './microphone';
 import {
@@ -136,6 +137,8 @@ export class VoiceSession {
   /** The system's audio that goes with a native share, captured by the browser. */
   private nativeAudio: { track: MediaStreamTrack; echoRisk: boolean } | null = null;
   private unsubscribeNative: (() => void) | null = null;
+  /** The sound of the shared program alone (desktop app), in place of the system's. */
+  private gameAudio: GameAudio | null = null;
   private cameraStream: MediaStream | null = null;
   private cameraProducer: types.Producer | null = null;
 
@@ -272,6 +275,19 @@ export class VoiceSession {
     videoTrack.addEventListener('ended', () => void this.stopScreenShare());
     this.screenStream = stream;
 
+    const gameAudio = await startGameAudio();
+    if (this.screenStream !== stream) {
+      gameAudio?.stop();
+      return;
+    }
+    if (gameAudio) {
+      this.gameAudio = gameAudio;
+      for (const track of stream.getAudioTracks()) {
+        track.stop();
+        stream.removeTrack(track);
+      }
+    }
+
     try {
       await this.publishScreen();
     } catch (error) {
@@ -345,6 +361,8 @@ export class VoiceSession {
     }
     for (const track of this.screenStream?.getTracks() ?? []) track.stop();
     this.screenStream = null;
+    this.gameAudio?.stop();
+    this.gameAudio = null;
     this.streamSamples.delete(SELF_STREAM);
     const { [SELF_STREAM]: _self, ...streamStats } = get().streamStats;
     set({ screen: screenOff, streamStats, screenViewers: [] });
@@ -652,6 +670,8 @@ export class VoiceSession {
     this.nativeAudio = null;
     this.unsubscribeNative?.();
     this.unsubscribeNative = null;
+    this.gameAudio?.stop();
+    this.gameAudio = null;
     for (const track of this.cameraStream?.getTracks() ?? []) track.stop();
     this.cameraStream = null;
     this.watched.clear();
@@ -992,7 +1012,7 @@ export class VoiceSession {
     const presetId = get().screen.preset;
     if (!sendTransport || !device || !screenStream || !presetId) return;
     const [videoTrack] = screenStream.getVideoTracks();
-    const [audioTrack] = screenStream.getAudioTracks();
+    const audioTrack = this.gameAudio?.track ?? screenStream.getAudioTracks()[0];
     if (!videoTrack || videoTrack.readyState !== 'live') throw new Error('screen track ended');
 
     const preset = SCREEN_PRESETS[presetId];
@@ -1024,7 +1044,11 @@ export class VoiceSession {
         status: 'live',
         preset: presetId,
         hasAudio: Boolean(this.screenAudioProducer),
-        echoRisk: Boolean(this.screenAudioProducer) && capturesOwnAudio(videoTrack, audioTrack),
+        echoRisk:
+          Boolean(this.screenAudioProducer) &&
+          !this.gameAudio &&
+          capturesOwnAudio(videoTrack, audioTrack),
+        audioSource: this.screenAudioProducer ? (this.gameAudio?.name ?? null) : null,
         stream: screenStream,
         error: null,
       },
@@ -1099,23 +1123,29 @@ export class VoiceSession {
       frameRate: preset.frameRate,
       bitrate: Math.max(...preset.bitrates),
     });
-    // The sound still comes through the browser: the app answers this request with the same
-    // monitor and no picker, and only the audio track is kept.
-    this.nativeAudio ??= await this.captureNativeAudio(preset);
+    // The sound of the game alone when one covers the screen. Otherwise the system's, which
+    // still comes through the browser: the app answers that request with the same monitor and
+    // no picker, and only the audio track is kept.
+    if (!this.gameAudio && !this.nativeAudio) {
+      this.gameAudio = await startGameAudio();
+      if (!this.gameAudio) this.nativeAudio = await this.captureNativeAudio(preset);
+    }
     if (!this.nativeShare) {
+      this.gameAudio?.stop();
+      this.gameAudio = null;
       this.nativeAudio?.track.stop();
       this.nativeAudio = null;
       return false;
     }
     const { sendTransport } = this;
-    if (sendTransport && this.nativeAudio?.track.readyState === 'live') {
-      this.screenAudioProducer = await this.produceScreenAudio(
-        sendTransport,
-        this.nativeAudio.track,
-      ).catch((error: unknown) => {
-        console.warn('[voice] failed to publish the system audio', error);
-        return null;
-      });
+    const audioTrack = this.gameAudio?.track ?? this.nativeAudio?.track;
+    if (sendTransport && audioTrack?.readyState === 'live') {
+      this.screenAudioProducer = await this.produceScreenAudio(sendTransport, audioTrack).catch(
+        (error: unknown) => {
+          console.warn('[voice] failed to publish the system audio', error);
+          return null;
+        },
+      );
     }
     set({
       screen: {
@@ -1123,6 +1153,7 @@ export class VoiceSession {
         preset: presetId,
         hasAudio: Boolean(this.screenAudioProducer),
         echoRisk: Boolean(this.screenAudioProducer) && Boolean(this.nativeAudio?.echoRisk),
+        audioSource: this.screenAudioProducer ? (this.gameAudio?.name ?? null) : null,
         stream: null,
         error: null,
       },

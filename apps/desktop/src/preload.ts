@@ -1,4 +1,7 @@
 import {
+  DESKTOP_GAME_AUDIO_DATA,
+  DESKTOP_GAME_AUDIO_START,
+  DESKTOP_GAME_AUDIO_STOP,
   DESKTOP_GET_UPDATE,
   DESKTOP_INSTALL_UPDATE,
   DESKTOP_NATIVE_CAPTURE_ENDED,
@@ -9,6 +12,7 @@ import {
   DESKTOP_SET_SHORTCUTS,
   DESKTOP_SHORTCUT,
   DESKTOP_UPDATE_READY,
+  desktopGameAudioSchema,
   desktopNativeCaptureProbeSchema,
   desktopShortcutEventSchema,
   desktopUpdateSchema,
@@ -59,6 +63,18 @@ const bridge: DesktopBridge = {
       const handler = () => listener();
       ipcRenderer.on(DESKTOP_NATIVE_CAPTURE_ENDED, handler);
       return () => ipcRenderer.removeListener(DESKTOP_NATIVE_CAPTURE_ENDED, handler);
+    },
+  },
+  gameAudio: {
+    start: async () =>
+      desktopGameAudioSchema.parse(await ipcRenderer.invoke(DESKTOP_GAME_AUDIO_START)),
+    stop: () => ipcRenderer.invoke(DESKTOP_GAME_AUDIO_STOP) as Promise<void>,
+    onData: (listener) => {
+      const handler = (_event: unknown, payload: unknown) => {
+        if (payload instanceof Uint8Array) listener(payload);
+      };
+      ipcRenderer.on(DESKTOP_GAME_AUDIO_DATA, handler);
+      return () => ipcRenderer.removeListener(DESKTOP_GAME_AUDIO_DATA, handler);
     },
   },
 };

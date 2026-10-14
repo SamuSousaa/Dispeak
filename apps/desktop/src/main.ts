@@ -3,6 +3,7 @@ import { DESKTOP_SHARE_ACTION } from '@frequencia/shared';
 import { app, BrowserWindow, desktopCapturer, screen, session, shell } from 'electron';
 import { config } from './config';
 import { showDiagnostics } from './diagnostics';
+import { serveGameAudio } from './game-audio';
 import { serveNativeCapture } from './native-capture';
 import { isAppUrl, isExternalLink } from './navigation';
 import { applyBackgroundSwitches, keepProcessesResponsive } from './performance';
@@ -27,6 +28,9 @@ let mainWindow: BrowserWindow | null = null;
 let revealWindow: (() => void) | null = null;
 /** Whether the app itself is capturing the screen for a share (the experimental native path). */
 let nativeCapturing: (() => boolean) | null = null;
+
+/** Handle of the window last picked for a share; `null` when it was a whole screen. */
+let pickedWindow: string | null = null;
 
 /** The main monitor as a capture source: what the native capture sends. */
 async function primaryScreen() {
@@ -95,6 +99,8 @@ function createWindow(): BrowserWindow {
   serveUpdates(window);
   revealWindow = serveCloseToTray(window);
   nativeCapturing = serveNativeCapture(window);
+  // The native capture sends a whole monitor, whatever was picked the time before.
+  serveGameAudio(window, () => (nativeCapturing?.() ? null : pickedWindow));
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });
   void window.loadURL(config.appUrl.href);
   return window;
@@ -129,6 +135,8 @@ function configureSession(): void {
     };
     void choose().then(
       (source) => {
+        // On Windows a window source is named `window:<handle>:<n>`.
+        pickedWindow = source?.id.startsWith('window:') ? (source.id.split(':')[1] ?? null) : null;
         if (!source) callback({});
         else callback({ video: source, ...(request.audioRequested ? { audio: 'loopback' } : {}) });
       },

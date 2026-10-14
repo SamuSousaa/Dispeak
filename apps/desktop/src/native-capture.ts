@@ -1,6 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
 import {
   DESKTOP_NATIVE_CAPTURE_ENDED,
   DESKTOP_NATIVE_CAPTURE_PROBE,
@@ -12,6 +11,7 @@ import {
 } from '@frequencia/shared';
 import { app, ipcMain, type BrowserWindow } from 'electron';
 import { config } from './config';
+import { findBundled } from './bundled';
 import { isAppUrl } from './navigation';
 import { keepTimersFine } from './windows-scheduling';
 
@@ -19,14 +19,9 @@ import { keepTimersFine } from './windows-scheduling';
 const AMD = 0x1002;
 const NVIDIA = 0x10de;
 
-/** The ffmpeg that comes with the app: beside the installed app, or in the sources. */
 function findFfmpeg(): string | null {
   if (config.ffmpeg) return fs.existsSync(config.ffmpeg) ? config.ffmpeg : null;
-  const candidates = [
-    path.join(process.resourcesPath, 'ffmpeg', 'ffmpeg.exe'),
-    path.join(app.getAppPath(), 'vendor', 'ffmpeg', 'ffmpeg.exe'),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+  return findBundled('ffmpeg', 'ffmpeg.exe');
 }
 
 /**

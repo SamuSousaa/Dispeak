@@ -1,6 +1,6 @@
 {
   "name": "@frequencia/desktop",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "private": true,
   "description": "Dispeaker para desktop",
   "author": "Dispeaker",
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "tsup && electron .",
     "build": "tsup",
-    "package": "node ../../scripts/fetch-ffmpeg.mjs && tsup && electron-builder --win --x64",
+    "package": "node ../../scripts/fetch-ffmpeg.mjs && node ../../scripts/build-game-audio.mjs && tsup && electron-builder --win --x64",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
@@ -39,6 +39,10 @@
       {
         "from": "vendor/ffmpeg",
         "to": "ffmpeg"
+      },
+      {
+        "from": "vendor/game-audio",
+        "to": "game-audio"
       }
     ],
     "win": {
