@@ -100,14 +100,17 @@ export interface DesktopNativeCapture {
   onEnded(listener: () => void): () => void;
 }
 
-/** The program whose sound is being captured, or `null` when no single program could be. */
-export const desktopGameAudioSchema = z.object({ name: z.string().max(200) }).nullable();
+/**
+ * What is being captured: one program (`name`), or everything that plays except voice chats
+ * (`name: null`). `null` when the app cannot capture sound itself.
+ */
+export const desktopGameAudioSchema = z.object({ name: z.string().max(200).nullable() }).nullable();
 export type DesktopGameAudioSource = z.infer<typeof desktopGameAudioSchema>;
 
 /**
- * The sound of one program instead of everything the PC plays: the window picked for the
- * share or, when a whole screen is shared, the program that covers one (a game, in practice).
- * Voice chats, music and notifications of other programs stay out of the stream.
+ * The sound of a share without voice chats: the program of the window picked for it or, when a
+ * whole screen is shared, the program covering one (a game, in practice); failing that,
+ * everything that plays except voice chats (Discord, this app).
  */
 export interface DesktopGameAudio {
   /** Starts the capture, replacing a running one. `null`: share the system's sound instead. */
@@ -137,7 +140,7 @@ export interface DesktopBridge {
   setCloseToTray?(enabled: boolean): Promise<void>;
   /** Absent in apps older than 0.7.0; its `probe` answers `null` where the experiment is off. */
   nativeCapture?: DesktopNativeCapture;
-  /** Absent in apps older than 0.8.0. */
+  /** Absent in apps older than 0.8.0; the mix without voice chats needs 0.10.0. */
   gameAudio?: DesktopGameAudio;
 }
 

@@ -208,9 +208,9 @@ export function UserPanel({
                 role="status"
                 className="label mt-1.5 truncate text-muted"
                 data-testid="screen-audio-source"
-                title="Só o som deste programa vai para a transmissão"
+                title="O que vai como som da transmissão"
               >
-                SOM: SÓ {screen.audioSource || 'O PROGRAMA TRANSMITIDO'}
+                SOM: {screen.audioSource}
               </p>
             )}
             {screen.status === 'live' && screen.echoRisk && (

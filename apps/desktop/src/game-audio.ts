@@ -16,15 +16,19 @@ const START_TIMEOUT_MS = 6000;
 /** Stereo, 16 bits: a piece handed to the page never splits a frame. */
 const FRAME_BYTES = 4;
 
-/** The first line the helper writes: the program it found. */
-const startedSchema = z.object({ processId: z.number().int().positive(), name: z.string() });
+/** The first line the helper writes: the program it found, or that it mixes several. */
+const startedSchema = z.union([
+  z.object({ processId: z.number().int().positive(), name: z.string() }),
+  z.object({ mix: z.literal(true) }),
+]);
 
 /**
- * The sound of the shared program alone, instead of everything the PC plays: a helper that
- * comes with the app (`native/game-audio.cs`) asks Windows for the audio of one process tree
- * and writes it out as PCM, which goes to the page piece by piece. The program is the window
- * picked for the share (`pickedWindow`) or, for a whole screen, the one covering a monitor.
- * When there is no such program, or Windows is too old, the page shares the system's sound.
+ * The sound of a share without the voice chats: a helper that comes with the app
+ * (`native/game-audio.cs`) asks Windows for the audio of process trees and writes it out as
+ * PCM, which goes to the page piece by piece. It is the program of the window picked for the
+ * share (`pickedWindow`) or, for a whole screen, the one covering a monitor; without one,
+ * everything that plays except voice chats (Discord, this app). On a Windows too old for it,
+ * the page shares the system's sound.
  */
 export function serveGameAudio(window: BrowserWindow, pickedWindow: () => string | null): void {
   const { webContents } = window;
@@ -48,7 +52,10 @@ export function serveGameAudio(window: BrowserWindow, pickedWindow: () => string
     const own = [process.pid, ...app.getAppMetrics().map((metric) => metric.pid)];
     const child = spawn(
       helper,
-      [...(handle ? ['--window', handle] : ['--covering']), '--exclude', own.join(',')],
+      [
+        ...(handle ? ['--window', handle] : ['--covering']),
+        ...['--or-mix', '--exclude', own.join(',')],
+      ],
       { windowsHide: true },
     );
     current = child;
@@ -77,7 +84,8 @@ export function serveGameAudio(window: BrowserWindow, pickedWindow: () => string
         try {
           const started = startedSchema.safeParse(JSON.parse(said.slice(0, end)));
           if (!started.success) console.warn(`[desktop] game audio: ${said.trim()}`);
-          answer(started.success ? { name: started.data.name.slice(0, 200) } : null);
+          if (!started.success) answer(null);
+          else answer({ name: 'name' in started.data ? started.data.name.slice(0, 200) : null });
         } catch {
           answer(null);
         }

@@ -402,6 +402,20 @@ export class Room {
       this.assertMayPublish(peer, 'screen');
       producer.observer.on('close', () => transport.close());
       this.announceProducer(peer, this.registerProducer(peer, producer));
+      const where = { room: this.id, peer: peer.id, user: peer.userId, codec };
+      this.log.info({ ...where, port: transport.tuple.localPort }, 'ingest opened');
+      // The sender shows as live either way: whether its packets arrive is only known here.
+      setTimeout(() => {
+        if (transport.closed) return;
+        void transport.getStats().then(
+          ([stats]) => {
+            const bytes = stats?.bytesReceived ?? 0;
+            if (bytes > 0) this.log.info({ ...where, bytes }, 'ingest receiving');
+            else this.log.warn(where, 'ingest received nothing in 5 s');
+          },
+          () => undefined,
+        );
+      }, 5000).unref();
 
       return {
         producerId: producer.id,

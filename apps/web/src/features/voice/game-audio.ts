@@ -4,16 +4,16 @@ import playerWorkletUrl from './pcm-player.worklet.js?url';
 /** The sound of one program, as a track ready to be published with a screen share. */
 export interface GameAudio {
   track: MediaStreamTrack;
-  /** What the program calls itself, for the interface. */
-  name: string;
+  /** What the program calls itself; `null` for everything except voice chats. */
+  name: string | null;
   stop(): void;
 }
 
 /**
- * Asks the desktop app for the sound of the program being shared alone, so that voice chats,
- * music and notifications of other programs stay out of the stream. The app sends PCM, a
- * worklet plays it into a track. `null` when there is no app, or no single program to capture
- * (a desktop with several windows): the caller shares the system's sound instead.
+ * Asks the desktop app for the sound of the share without voice chats: the shared program
+ * alone, or everything except Discord and this app. The app sends PCM, a worklet plays it into
+ * a track. `null` when the app cannot (a browser, an old app or an old Windows): the caller
+ * shares the system's sound instead.
  */
 export async function startGameAudio(): Promise<GameAudio | null> {
   const bridge = desktop?.gameAudio;

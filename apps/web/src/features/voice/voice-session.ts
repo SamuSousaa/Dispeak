@@ -99,6 +99,12 @@ function capturesOwnAudio(video: MediaStreamTrack, audio: MediaStreamTrack | und
   return supported !== true || applied === false;
 }
 
+/** What the panel says goes out as the stream's sound. */
+function audioSourceOf(gameAudio: GameAudio | null): string | null {
+  if (!gameAudio) return null;
+  return gameAudio.name ? `SÓ ${gameAudio.name}` : 'O PC, SEM CHAMADAS DE VOZ';
+}
+
 /** Close codes after which reconnecting would be wrong. */
 const FATAL_CLOSE: Record<number, string> = {
   [VoiceCloseCode.Replaced]: 'Você entrou neste canal em outra aba ou dispositivo.',
@@ -1048,7 +1054,7 @@ export class VoiceSession {
           Boolean(this.screenAudioProducer) &&
           !this.gameAudio &&
           capturesOwnAudio(videoTrack, audioTrack),
-        audioSource: this.screenAudioProducer ? (this.gameAudio?.name ?? null) : null,
+        audioSource: this.screenAudioProducer ? audioSourceOf(this.gameAudio) : null,
         stream: screenStream,
         error: null,
       },
@@ -1097,16 +1103,14 @@ export class VoiceSession {
       if (choice === 'browser') return false;
     }
     this.nativeShare = codec;
+    this.unsubscribeNative ??= native.onEnded(() => {
+      if (!this.nativeShare) return;
+      void this.stopScreenShare().then(() =>
+        set({ screen: { ...screenOff, error: 'A captura nativa parou.' } }),
+      );
+    });
     try {
-      if (await this.publishNative()) {
-        this.unsubscribeNative ??= native.onEnded(() => {
-          if (!this.nativeShare) return;
-          void this.stopScreenShare().then(() =>
-            set({ screen: { ...screenOff, error: 'A captura nativa parou.' } }),
-          );
-        });
-        return true;
-      }
+      if (await this.publishNative()) return true;
     } catch (error) {
       console.warn('[voice] native capture failed, capturing in the browser', error);
     }
@@ -1164,7 +1168,7 @@ export class VoiceSession {
         preset: presetId,
         hasAudio: Boolean(this.screenAudioProducer),
         echoRisk: Boolean(this.screenAudioProducer) && Boolean(this.nativeAudio?.echoRisk),
-        audioSource: this.screenAudioProducer ? (this.gameAudio?.name ?? null) : null,
+        audioSource: this.screenAudioProducer ? audioSourceOf(this.gameAudio) : null,
         stream: null,
         error: null,
       },

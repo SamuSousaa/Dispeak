@@ -21,7 +21,7 @@ export interface ScreenShareState {
   hasAudio: boolean;
   /** The captured sound includes the call itself: viewers may hear their own voices back. */
   echoRisk: boolean;
-  /** The one program whose sound goes out; `null` when it is everything the PC plays. */
+  /** What goes out as sound, for the panel; `null` when it is everything the PC plays. */
   audioSource: string | null;
   /** Local capture, shown as the streamer's own preview. */
   stream: MediaStream | null;
