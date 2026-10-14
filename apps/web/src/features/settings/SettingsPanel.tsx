@@ -77,7 +77,7 @@ function Section({
   );
 }
 
-/** Experimental: the desktop app captures the screen itself instead of the browser. */
+/** The desktop app captures the screen itself instead of the browser; on unless turned off. */
 function NativeCaptureSection() {
   const enabled = useSettingsStore((state) => state.nativeCapture);
   const codec = useNativeCaptureCodec();
@@ -85,7 +85,7 @@ function NativeCaptureSection() {
     <Section number="02" title="TRANSMISSÃO">
       <Toggle
         label="CAPTURA NATIVA (EXPERIMENTAL)"
-        hint="O app captura e comprime a tela direto na placa de vídeo, sem passar pelo navegador: com jogo pesado, mantém os quadros que a captura comum perde. Transmite sempre o monitor principal inteiro, na resolução dele, e você não vê a prévia da própria transmissão. Quem assiste precisa de um aparelho que reproduza AV1."
+        hint="O app captura e comprime a tela direto na placa de vídeo, sem passar pelo navegador: com jogo pesado, mantém os quadros que a captura comum perde. Transmite sempre o monitor principal inteiro, na resolução dele, e você não vê a prévia da própria transmissão. Quem assiste precisa de um aparelho que reproduza AV1. Desligada, volta a captura comum, com escolha de janela ou monitor."
         checked={enabled}
         onChange={(nativeCapture) => updateSettings({ nativeCapture })}
       />

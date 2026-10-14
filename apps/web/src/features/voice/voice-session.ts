@@ -1054,7 +1054,7 @@ export class VoiceSession {
   /**
    * Hands the share to the desktop app's own capture when this machine has one: behind a game
    * that takes the whole graphics card it keeps the frames the browser's capture loses.
-   * Experimental and chosen in the settings: the main monitor, no preview. Answers `false`
+   * Experimental, on unless turned off in the settings: the main monitor, no preview. Answers `false`
    * when the browser should capture instead.
    */
   private async startNativeShare(): Promise<boolean> {

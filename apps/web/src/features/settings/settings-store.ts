@@ -43,7 +43,7 @@ const settingsSchema = z.object({
   desktopNotifications: z.boolean(),
   /** Desktop app: the close button hides the window in the notification area. */
   closeToTray: z.boolean(),
-  /** Desktop app, experimental: screen shares captured by the app itself, not the browser. */
+  /** Desktop app: screen shares captured by the app itself, not the browser, where it can. */
   nativeCapture: z.boolean(),
   /** Last quality picked for a screen share; the share shortcut starts with it. */
   sharePreset: z.enum(SCREEN_PRESET_IDS),
@@ -88,7 +88,7 @@ export const defaultSettings: Settings = {
   showEmbeds: true,
   desktopNotifications: false,
   closeToTray: false,
-  nativeCapture: false,
+  nativeCapture: true,
   sharePreset: '1080p60',
   soundsEnabled: true,
   soundVolume: 0.5,
@@ -115,12 +115,13 @@ export const defaultSettings: Settings = {
 export const useSettingsStore = create<Settings>()(
   persist(() => defaultSettings, {
     name: 'frequencia.settings',
-    version: 5,
+    version: 6,
     migrate: (persisted, version) => {
       let stored = persisted as {
         noiseSuppression?: unknown;
         keybinds?: unknown;
         sharePreset?: unknown;
+        nativeCapture?: unknown;
       } | null;
       if (!stored) return persisted;
       // Up to version 2 the suppression was a choice among four modes; now it is on or off.
@@ -143,6 +144,8 @@ export const useSettingsStore = create<Settings>()(
       ) {
         stored = { ...stored, sharePreset: '1080p60' };
       }
+      // Up to version 5 the app's own capture was off until asked for; now it is the usual one.
+      if (version < 6) stored = { ...stored, nativeCapture: true };
       return stored;
     },
     // Stored data may be stale or hand-edited: keep only what still validates. Shortcuts are
