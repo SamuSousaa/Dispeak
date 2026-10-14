@@ -195,6 +195,52 @@ impl Pipeline {
         }
     }
 
+    /// Converts the newest picture once and reports which colour convention came out.
+    pub fn color_check(&mut self, bars: bool) -> Result<()> {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline {
+            if let Grab::Fresh = self.duplication.grab(&self.gpu, 100)? {
+                break;
+            }
+        }
+        if bars {
+            // Saturated colour bars instead of the screen: every convention gives clearly different numbers.
+            let (w, h) = (
+                self.duplication.width as usize,
+                self.duplication.height as usize,
+            );
+            let colours: [[u8; 4]; 8] = [
+                [255, 255, 255, 255],
+                [0, 255, 255, 255],
+                [255, 255, 0, 255],
+                [0, 255, 0, 255],
+                [255, 0, 255, 255],
+                [0, 0, 255, 255],
+                [255, 0, 0, 255],
+                [40, 120, 200, 255],
+            ];
+            let mut pixels = vec![0u8; w * h * 4];
+            for y in 0..h {
+                for x in 0..w {
+                    let c = colours[x * 8 / w];
+                    pixels[(y * w + x) * 4..(y * w + x) * 4 + 4].copy_from_slice(&c);
+                }
+            }
+            unsafe {
+                self.gpu.context.UpdateSubresource(
+                    &self.duplication.latest,
+                    0,
+                    None,
+                    pixels.as_ptr() as _,
+                    (w * 4) as u32,
+                    0,
+                )
+            };
+        }
+        let nv12 = self.converter.convert(0)?.clone();
+        crate::colorcheck::report(&self.gpu, &self.duplication.latest, &nv12, self.size)
+    }
+
     pub fn take_counters(&mut self) -> Counters {
         std::mem::take(&mut self.counters)
     }

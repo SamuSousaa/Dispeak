@@ -3,6 +3,7 @@
 //! docs/adr/0013-motor-de-transmissao-nativo.md.
 
 mod capture;
+mod colorcheck;
 mod encoder;
 mod pipeline;
 mod rtp;
@@ -295,6 +296,14 @@ fn main() {
         Some("bench") => bench(&args).map_err(|e| e.to_string()),
         Some("stream") => stream(&args),
         Some("probe") => probe(&args),
+        // Diagnostics: the screen at its own size, so pixels line up one to one.
+        Some("colorcheck") => {
+            let mut options = options(&args);
+            (options.max_width, options.max_height) = (16_384, 16_384);
+            Pipeline::new(&options)
+                .and_then(|mut pipeline| pipeline.color_check(args.iter().any(|a| a == "--bars")))
+                .map_err(|e| e.to_string())
+        }
         _ => {
             eprintln!(
                 "usage: dispeaker-capture stream|probe|bench [--adapter N] [--output N] [--width 1920] [--height 1080] [--fps 60] [--bitrate 8000000]

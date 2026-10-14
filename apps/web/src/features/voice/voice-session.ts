@@ -1391,7 +1391,9 @@ export class VoiceSession {
             height: engine?.height ?? null,
             kbps: engine ? Math.round(engine.kbps) : null,
             limitation: squeezed ? 'bandwidth' : null,
-            encoder: engine?.encoder.slice(0, 64) ?? null,
+            // Without the engine's numbers it is ffmpeg: an app before 0.11, or an engine that
+            // did not start on this machine. The version tells which.
+            encoder: (engine?.encoder ?? `ffmpeg · app ${desktop?.version ?? '?'}`).slice(0, 64),
             preset,
           },
         });
