@@ -5,6 +5,7 @@ import { NavLink } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { openContextMenu } from '../../components/ContextMenu';
 import { attempt } from '../../components/Toast';
+import { desktop } from '../desktop/desktop';
 import { profileApi } from '../auth/profile-api';
 import { StatusMark } from '../profile/ProfileCard';
 import type { SettingsTab } from '../settings/SettingsPanel';
@@ -27,7 +28,8 @@ const withKey = (text: string, binding: string | null) => (binding ? `${text} ($
  * Bottom of the channel column, the control panel of the app: the active voice connection
  * (status, channel, noise suppression, hang up, then camera and screen share side by side) and,
  * below it, the user with the microphone, headphones and settings buttons; the arrows next to
- * the first two open their quick settings. It stays put while the user browses other channels.
+ * the first two open their quick settings; in the desktop app, its version closes the panel.
+ * It stays put while the user browses other channels.
  */
 const MODES: Array<{ mode: PresenceMode; label: string }> = [
   { mode: 'online', label: 'Disponível' },
@@ -318,6 +320,12 @@ export function UserPanel({
           />
         )}
       </div>
+      {desktop && (
+        // Which build is running, where the rest of the system data sits.
+        <p className="label border-t border-line px-3 py-1 text-muted" data-testid="app-version">
+          DISPEAKER V{desktop.version}
+        </p>
+      )}
     </div>
   );
 }
