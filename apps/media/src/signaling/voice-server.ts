@@ -194,6 +194,11 @@ export class VoiceServer {
       return {};
     });
 
+    rpc.on('stream-stats', (event) => {
+      // Telemetry never creates a room.
+      this.rooms.get(claims.room)?.reportStreamStats(peer, event);
+    });
+
     rpc.handle('leave', () => {
       // Answer first, then close: the response must reach the client before the socket ends.
       setImmediate(() => leave(1000, 'left'));

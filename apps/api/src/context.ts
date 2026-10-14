@@ -15,6 +15,7 @@ import type { MessageService } from './modules/messages/service';
 import type { PictureStore } from './modules/users/pictures';
 import type { UserService } from './modules/users/service';
 import type { MediaLink } from './modules/voice/media-link';
+import type { StreamReportService } from './modules/streams/service';
 import type { VoiceAccess } from './modules/voice/voice-access';
 import type { VoiceStateStore } from './modules/voice/voice-state';
 import type { Redis } from './redis';
@@ -39,6 +40,7 @@ export interface AppContext {
   voice: VoiceAccess;
   media: MediaLink;
   hub: GatewayHub;
+  streamReports: StreamReportService;
 }
 
 declare module 'fastify' {

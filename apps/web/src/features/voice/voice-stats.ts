@@ -1,3 +1,4 @@
+import type { StreamViewerSample } from '@frequencia/shared';
 import type { StreamLayerStats, StreamStats, VoiceConnectionStats } from './voice-store';
 
 export interface StatsSample {
@@ -112,14 +113,27 @@ export interface StreamSample {
   /** Outgoing streams only: seconds spent encoding and frames encoded, all layers added up. */
   encodeSeconds?: number;
   framesEncoded?: number;
+  /** Incoming streams only: counters behind the viewer's telemetry. */
+  viewer?: {
+    framesDropped: number;
+    freezes: number;
+    freezeSeconds: number;
+    decodeSeconds: number;
+    framesDecoded: number;
+    jitterBufferSeconds: number;
+    jitterBufferEmitted: number;
+  };
 }
 
-/** Stats of a stream being watched, from its video consumer. */
+/**
+ * Stats of a stream being watched, from its video consumer, and the same numbers as the
+ * telemetry the media service keeps (`viewer`).
+ */
 export function collectInboundStreamStats(
   report: RTCStatsReport,
   previous: StreamSample | null,
   now = performance.now(),
-): { stats: StreamStats; sample: StreamSample } {
+): { stats: StreamStats; sample: StreamSample; viewer: StreamViewerSample } {
   const inbound = entries(report).find(
     (entry) => entry.type === 'inbound-rtp' && entry.kind === 'video',
   );
@@ -128,24 +142,53 @@ export function collectInboundStreamStats(
     bytes: { default: number(inbound?.bytesReceived) },
     packetsReceived: number(inbound?.packetsReceived),
     packetsLost: number(inbound?.packetsLost),
+    viewer: {
+      framesDropped: number(inbound?.framesDropped),
+      freezes: number(inbound?.freezeCount),
+      freezeSeconds: number(inbound?.totalFreezesDuration),
+      decodeSeconds: number(inbound?.totalDecodeTime),
+      framesDecoded: number(inbound?.framesDecoded),
+      jitterBufferSeconds: number(inbound?.jitterBufferDelay),
+      jitterBufferEmitted: number(inbound?.jitterBufferEmittedCount),
+    },
   };
   const seconds = previous ? (now - previous.at) / 1000 : 0;
   const lost = previous ? Math.max(0, sample.packetsLost - previous.packetsLost) : 0;
   const arrived = previous ? Math.max(0, sample.packetsReceived - previous.packetsReceived) : 0;
 
-  return {
-    sample,
-    stats: {
-      width: optional(inbound?.frameWidth),
-      height: optional(inbound?.frameHeight),
-      fps:
-        inbound?.framesPerSecond === undefined ? null : Math.round(number(inbound.framesPerSecond)),
-      kbps: previous ? kbps(sample.bytes.default ?? 0, previous.bytes.default ?? 0, seconds) : null,
-      lossPercent:
-        previous && lost + arrived > 0 ? Math.round((lost / (lost + arrived)) * 1000) / 10 : 0,
-      codec: codecOf(report, inbound),
-    },
+  const stats: StreamStats = {
+    width: optional(inbound?.frameWidth),
+    height: optional(inbound?.frameHeight),
+    fps:
+      inbound?.framesPerSecond === undefined ? null : Math.round(number(inbound.framesPerSecond)),
+    kbps: previous ? kbps(sample.bytes.default ?? 0, previous.bytes.default ?? 0, seconds) : null,
+    lossPercent:
+      previous && lost + arrived > 0 ? Math.round((lost / (lost + arrived)) * 1000) / 10 : 0,
+    codec: codecOf(report, inbound),
   };
+
+  const current = sample.viewer;
+  const before = previous?.viewer;
+  // Counters since the previous sample; a counter that went back means a new consumer.
+  const since = (key: keyof NonNullable<StreamSample['viewer']>) =>
+    current && before ? Math.max(0, current[key] - before[key]) : 0;
+  const per = (total: number, count: number) =>
+    count > 0 ? Math.round((total / count) * 10_000) / 10 : null;
+  const decoder = inbound?.decoderImplementation;
+  const viewer: StreamViewerSample = {
+    fps: stats.fps,
+    framesDropped: since('framesDropped'),
+    freezes: since('freezes'),
+    freezeMs: Math.round(since('freezeSeconds') * 1000),
+    decodeMs: per(since('decodeSeconds'), since('framesDecoded')),
+    jitterBufferMs: per(since('jitterBufferSeconds'), since('jitterBufferEmitted')),
+    lossPercent: stats.lossPercent,
+    width: stats.width,
+    height: stats.height,
+    kbps: stats.kbps,
+    decoder: typeof decoder === 'string' ? decoder.slice(0, 64) : null,
+  };
+  return { sample, stats, viewer };
 }
 
 /** Stats of the local screen share, from its producer: one row per simulcast layer. */

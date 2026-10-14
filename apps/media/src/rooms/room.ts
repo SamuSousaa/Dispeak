@@ -3,15 +3,18 @@ import {
   RpcError,
   VoiceCloseCode,
   VoiceErrorCode,
+  type EventData,
   type EventInput,
   type IngestCodec,
   type MediaKind,
   type ProducerSource,
+  type StreamPath,
   type TransportDirection,
   type voiceClientSide,
   type VoiceIngest,
   type VoicePeer,
   type VoiceProducer,
+  type voiceServerSide,
 } from '@frequencia/shared';
 import type { types } from 'mediasoup';
 import type { Config } from '../config';
@@ -25,8 +28,10 @@ import type {
   ProducerAppData,
   TransportAppData,
 } from './peer';
+import { StreamTelemetry, type StreamReportChunk } from './stream-telemetry';
 
 type ClientEvent = keyof (typeof voiceClientSide)['events'];
+type StreamStatsEvent = EventData<typeof voiceServerSide, 'stream-stats'>;
 
 export interface RoomHooks {
   onPeerJoined?: (room: Room, peer: Peer) => void;
@@ -35,6 +40,8 @@ export interface RoomHooks {
   onProducerAdded?: (room: Room, peer: Peer, producer: VoiceProducer) => void;
   onProducerRemoved?: (room: Room, peer: Peer, producer: VoiceProducer) => void;
   onClosed?: (room: Room) => void;
+  /** New telemetry of a screen share; see `StreamTelemetry`. */
+  onStreamReport?: (room: Room, peer: Peer, chunk: StreamReportChunk) => void;
 }
 
 export interface RoomStats {
@@ -88,6 +95,8 @@ export class Room {
   private speaking: string[] = [];
   /** Who watches each screen share, as last told to its owner: producer id → sorted peer ids. */
   private readonly viewers = new Map<string, string>();
+  /** Telemetry of each screen share, by producer id. */
+  private readonly streams = new Map<string, StreamTelemetry>();
   private closed = false;
 
   private constructor(
@@ -330,7 +339,7 @@ export class Room {
     );
     if (transport.closed) throw new RpcError(VoiceErrorCode.InvalidState, 'transport closed');
 
-    const info = this.registerProducer(peer, producer);
+    const info = this.registerProducer(peer, producer, 'browser');
     if (options.source === 'mic') {
       await this.audioLevelObserver.addProducer({ producerId: producer.id }).catch(() => undefined);
     }
@@ -401,7 +410,7 @@ export class Room {
       // Two requests at once both pass the first check.
       this.assertMayPublish(peer, 'screen');
       producer.observer.on('close', () => transport.close());
-      this.announceProducer(peer, this.registerProducer(peer, producer));
+      this.announceProducer(peer, this.registerProducer(peer, producer, 'native'));
       const where = { room: this.id, peer: peer.id, user: peer.userId, codec };
       this.log.info({ ...where, port: transport.tuple.localPort }, 'ingest opened');
       // The sender shows as live either way: whether its packets arrive is only known here.
@@ -431,6 +440,23 @@ export class Room {
       transport.close();
       throw error;
     }
+  }
+
+  /**
+   * Keeps what a browser measured of a screen share: its owner about the share, anyone
+   * consuming it about what they see. Anything else is ignored, as are late reports.
+   */
+  reportStreamStats(peer: Peer, event: StreamStatsEvent): void {
+    const telemetry = this.streams.get(event.producerId);
+    if (!telemetry || !this.peers.has(peer.id)) return;
+    if (event.role === 'sender') {
+      if (peer.producers.has(event.producerId)) telemetry.addSender(event.sample);
+      return;
+    }
+    const watching = [...peer.consumers.values()].some(
+      (consumer) => consumer.producerId === event.producerId,
+    );
+    if (watching) telemetry.addViewer(peer.userId, event.sample);
   }
 
   closeProducer(peer: Peer, producerId: string): void {
@@ -639,9 +665,26 @@ export class Room {
     owner.rpc.notify('stream-viewers', { peerIds });
   }
 
-  /** Hands a producer to its peer and reports its end to the room. */
-  private registerProducer(peer: Peer, producer: types.Producer<ProducerAppData>): VoiceProducer {
+  /**
+   * Hands a producer to its peer and reports its end to the room. A screen share is measured
+   * from the start; `path` says how its picture is sent.
+   */
+  private registerProducer(
+    peer: Peer,
+    producer: types.Producer<ProducerAppData>,
+    path: StreamPath,
+  ): VoiceProducer {
     peer.producers.set(producer.id, producer);
+    if (producer.appData.source === 'screen') {
+      const telemetry = new StreamTelemetry(producer, path, (chunk) =>
+        this.hooks.onStreamReport?.(this, peer, chunk),
+      );
+      this.streams.set(producer.id, telemetry);
+      producer.observer.on('close', () => {
+        this.streams.delete(producer.id);
+        telemetry.close();
+      });
+    }
     const info: VoiceProducer = {
       id: producer.id,
       kind: producer.kind,

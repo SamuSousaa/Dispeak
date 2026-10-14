@@ -10,6 +10,7 @@ import { InvitePage } from './pages/InvitePage';
 import { LabP2pPage } from './pages/LabP2pPage';
 import { LabVoicePage } from './pages/LabVoicePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { StreamReportsPage } from './pages/StreamReportsPage';
 
 /** Sends anonymous visitors to the login page, remembering where they were going. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -56,6 +57,14 @@ export function App() {
         element={
           <RequireAuth>
             <InvitePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/transmissoes/:reportId?"
+        element={
+          <RequireAuth>
+            <StreamReportsPage />
           </RequireAuth>
         }
       />

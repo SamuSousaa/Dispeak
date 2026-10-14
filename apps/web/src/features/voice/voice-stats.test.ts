@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectConnectionStats } from './voice-stats';
+import { collectConnectionStats, collectInboundStreamStats } from './voice-stats';
 
 function report(entries: Array<Record<string, unknown> & { id: string; type: string }>) {
   return new Map(entries.map((entry) => [entry.id, entry])) as unknown as RTCStatsReport;
@@ -50,5 +50,69 @@ describe('collectConnectionStats', () => {
     expect(stats.sendKbps).toBe(0);
     expect(stats.receiveKbps).toBe(0);
     expect(stats.lossPercent).toBe(0);
+  });
+});
+
+describe('collectInboundStreamStats', () => {
+  const inbound = (fields: Record<string, unknown>) =>
+    report([
+      {
+        id: 'in-video',
+        type: 'inbound-rtp',
+        kind: 'video',
+        frameWidth: 1920,
+        frameHeight: 1080,
+        framesPerSecond: 59.6,
+        decoderImplementation: 'D3D11VideoDecoder',
+        ...fields,
+      },
+    ]);
+
+  it('reports what the viewer saw since the previous sample', () => {
+    const first = collectInboundStreamStats(
+      inbound({
+        bytesReceived: 0,
+        packetsReceived: 0,
+        framesDecoded: 100,
+        totalDecodeTime: 0.3,
+        framesDropped: 1,
+        freezeCount: 2,
+        totalFreezesDuration: 0.5,
+        jitterBufferDelay: 4,
+        jitterBufferEmittedCount: 100,
+      }),
+      null,
+      0,
+    );
+    expect(first.viewer).toMatchObject({ freezes: 0, freezeMs: 0, decodeMs: null });
+
+    const { viewer } = collectInboundStreamStats(
+      inbound({
+        bytesReceived: 2_000_000,
+        packetsReceived: 1500,
+        framesDecoded: 220,
+        totalDecodeTime: 0.6,
+        framesDropped: 4,
+        freezeCount: 3,
+        totalFreezesDuration: 0.75,
+        jitterBufferDelay: 8.8,
+        jitterBufferEmittedCount: 220,
+      }),
+      first.sample,
+      2000,
+    );
+    expect(viewer).toEqual({
+      fps: 60,
+      framesDropped: 3,
+      freezes: 1,
+      freezeMs: 250,
+      decodeMs: 2.5,
+      jitterBufferMs: 40,
+      lossPercent: 0,
+      width: 1920,
+      height: 1080,
+      kbps: 8000,
+      decoder: 'D3D11VideoDecoder',
+    });
   });
 });

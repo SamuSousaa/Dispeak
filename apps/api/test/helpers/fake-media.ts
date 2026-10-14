@@ -4,6 +4,7 @@ import {
   apiInternalSide,
   mediaInternalSide,
   RpcPeer,
+  type EventInput,
   type InternalVoicePeer,
   type InternalVoiceState,
 } from '@frequencia/shared';
@@ -30,6 +31,8 @@ export interface FakeMedia {
     state: Partial<InternalVoiceState> | null,
     options?: { peerId?: string; eventId?: string },
   ) => void;
+  /** Pushes a stream report to every connected API instance. */
+  report: (event: EventInput<typeof apiInternalSide, 'stream-report'>) => void;
   /** Drops every API connection, as a media restart would. */
   dropLinks: () => void;
   close: () => Promise<void>;
@@ -66,6 +69,9 @@ export async function startFakeMedia(): Promise<FakeMedia> {
         state: state && { muted: false, deafened: false, streaming: false, ...state },
       };
       for (const link of links) link.notify('voice-state', event);
+    },
+    report: (event) => {
+      for (const link of links) link.notify('stream-report', event);
     },
     dropLinks: () => {
       for (const client of wss.clients) client.terminate();

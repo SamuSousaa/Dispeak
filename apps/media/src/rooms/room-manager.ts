@@ -51,6 +51,7 @@ export class RoomManager {
       onPeerState: (...args) => this.hooks.onPeerState?.(...args),
       onProducerAdded: (...args) => this.hooks.onProducerAdded?.(...args),
       onProducerRemoved: (...args) => this.hooks.onProducerRemoved?.(...args),
+      onStreamReport: (...args) => this.hooks.onStreamReport?.(...args),
       onClosed: (room) => {
         if (this.rooms.get(room.id) === room) this.rooms.delete(room.id);
         this.hooks.onClosed?.(room);

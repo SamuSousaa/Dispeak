@@ -4,6 +4,7 @@ import {
   boolean,
   foreignKey,
   index,
+  jsonb,
   integer,
   pgEnum,
   pgTable,
@@ -388,4 +389,33 @@ export const guildSounds = pgTable(
     createdAt: createdAt(),
   },
   (table) => [primaryKey({ columns: [table.guildId, table.event] })],
+);
+
+/**
+ * Telemetry of a screen share, as the media service measured it with the streamer and the
+ * viewers (`StreamSample` of `@frequencia/shared`). Kept for a few weeks, to tell why a stream
+ * stuttered.
+ */
+export const streamReports = pgTable(
+  'stream_reports',
+  {
+    /** The screen producer of the media service. */
+    id: uuid('id').primaryKey(),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** `browser` or `native`. */
+    path: text('path').notNull(),
+    codec: text('codec'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    samples: jsonb('samples').notNull().default([]),
+  },
+  (table) => [
+    index('stream_reports_user_idx').on(table.userId, table.startedAt),
+    index('stream_reports_channel_idx').on(table.channelId, table.startedAt),
+  ],
 );

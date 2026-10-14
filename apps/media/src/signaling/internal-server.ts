@@ -17,6 +17,7 @@ import type { Logger } from '../logger';
 import type { Peer } from '../rooms/peer';
 import type { Room } from '../rooms/room';
 import type { RoomManager } from '../rooms/room-manager';
+import type { StreamReportChunk } from '../rooms/stream-telemetry';
 
 export const INTERNAL_PATH = `${MEDIA_PREFIX}${INTERNAL_RPC_PATH}`;
 
@@ -60,6 +61,17 @@ export class InternalServer {
         if (room.peers.has(peer.id)) changed(room, peer);
       },
       onPeerLeft: (room: Room, peer: Peer) => this.emit(room, peer, null),
+      onStreamReport: (room: Room, peer: Peer, chunk: StreamReportChunk) => {
+        const event = {
+          eventId: `${this.nodeId}:${++this.eventCounter}`,
+          roomId: room.id,
+          userId: peer.userId,
+          ...chunk,
+          startedAt: chunk.startedAt.toISOString(),
+          endedAt: chunk.endedAt?.toISOString() ?? null,
+        };
+        for (const link of this.links) link.notify('stream-report', event);
+      },
     });
   }
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineSide } from '../rpc/peer';
+import { streamSenderSampleSchema, streamViewerSampleSchema } from '../stream-telemetry';
 import { empty, iceServerSchema, nicknameSchema } from './common';
 
 /**
@@ -216,7 +217,24 @@ export const voiceServerSide = defineSide({
     },
     leave: { request: empty, response: empty },
   },
-  events: {},
+  events: {
+    /**
+     * What the browser measures of a screen share, every couple of seconds: its own share
+     * (`sender`), or one it watches (`viewer`). Only kept as telemetry.
+     */
+    'stream-stats': z.discriminatedUnion('role', [
+      z.object({
+        role: z.literal('sender'),
+        producerId: z.string().max(64),
+        sample: streamSenderSampleSchema,
+      }),
+      z.object({
+        role: z.literal('viewer'),
+        producerId: z.string().max(64),
+        sample: streamViewerSampleSchema,
+      }),
+    ]),
+  },
 });
 
 /** What a browser accepts from the media service. */

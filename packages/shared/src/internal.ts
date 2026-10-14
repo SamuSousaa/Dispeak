@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineSide } from './rpc/peer';
 import { empty } from './signaling/common';
+import { streamPathSchema, streamSampleSchema } from './stream-telemetry';
 
 /**
  * Internal RPC between the API and the media service, over a WebSocket the API opens to
@@ -83,6 +84,22 @@ export const apiInternalSide = defineSide({
       userId: z.string(),
       peerId: z.string(),
       state: internalVoiceStateSchema.nullable(),
+    }),
+    /**
+     * New samples of a screen share, sent about once a minute and when it ends (`endedAt`).
+     * The first chunk of a stream creates its report; later ones are appended to it.
+     */
+    'stream-report': z.object({
+      eventId: z.string(),
+      /** The screen producer; identifies the stream. */
+      producerId: z.string(),
+      roomId: z.string(),
+      userId: z.string(),
+      path: streamPathSchema,
+      codec: z.string().nullable(),
+      startedAt: z.iso.datetime(),
+      endedAt: z.iso.datetime().nullable(),
+      samples: z.array(streamSampleSchema),
     }),
   },
 });

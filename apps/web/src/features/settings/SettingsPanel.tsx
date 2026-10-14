@@ -1,5 +1,6 @@
 import type { Guild, Self } from '@frequencia/shared';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { Dialog, Field } from '../../components/Dialog';
 import { cx } from '../../lib/cx';
@@ -525,15 +526,29 @@ export function SettingsPanel({
         )}
 
         {tab === 'video' && (
-          <Section number="01" title="CÂMERA">
-            <DeviceSelect
-              label="CÂMERA"
-              hint="Os nomes aparecem depois que você liga a câmera uma vez e permite o acesso."
-              value={settings.cameraDeviceId}
-              devices={devices.cameras}
-              onChange={(cameraDeviceId) => updateSettings({ cameraDeviceId })}
-            />
-          </Section>
+          <>
+            <Section number="01" title="CÂMERA">
+              <DeviceSelect
+                label="CÂMERA"
+                hint="Os nomes aparecem depois que você liga a câmera uma vez e permite o acesso."
+                value={settings.cameraDeviceId}
+                devices={devices.cameras}
+                onChange={(cameraDeviceId) => updateSettings({ cameraDeviceId })}
+              />
+            </Section>
+            <Section number="02" title="TRANSMISSÕES">
+              <p className="text-sm text-muted">
+                Cada transmissão é medida em quem transmite, no servidor e em quem assiste, para
+                mostrar onde os quadros se perdem. Você vê as suas e as dos servidores que são seus.
+              </p>
+              <Link
+                to="/transmissoes"
+                className="label mt-3 inline-block text-fg transition-colors hover:text-accent"
+              >
+                [ VER TRANSMISSÕES MEDIDAS ]
+              </Link>
+            </Section>
+          </>
         )}
 
         {tab === 'chat' && (

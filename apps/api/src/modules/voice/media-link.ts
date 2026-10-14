@@ -15,6 +15,7 @@ import { AppError } from '../../errors';
 type MediaRpc = RpcPeer<typeof apiInternalSide, typeof mediaInternalSide>;
 type MediaMethod = keyof (typeof mediaInternalSide)['requests'];
 export type VoiceStateEvent = EventData<typeof apiInternalSide, 'voice-state'>;
+type StreamReportEvent = EventData<typeof apiInternalSide, 'stream-report'>;
 
 export interface MediaLinkOptions {
   url: string;
@@ -23,6 +24,7 @@ export interface MediaLinkOptions {
   /** Called after every (re)connection; `snapshot` fetches everyone currently in voice. */
   onConnected: (snapshot: () => Promise<InternalVoicePeer[]>) => void | Promise<void>;
   onVoiceState: (event: VoiceStateEvent) => void | Promise<void>;
+  onStreamReport?: (event: StreamReportEvent) => void | Promise<void>;
 }
 
 const RECONNECT_DELAYS_MS = [250, 500, 1000, 2000, 5000];
@@ -91,6 +93,12 @@ export class MediaLink {
     rpc.on('voice-state', (event) => {
       void Promise.resolve(this.options.onVoiceState(event)).catch((error: unknown) =>
         log.error({ err: error }, 'failed to apply voice state'),
+      );
+    });
+
+    rpc.on('stream-report', (event) => {
+      void Promise.resolve(this.options.onStreamReport?.(event)).catch((error: unknown) =>
+        log.warn({ err: error }, 'failed to store a stream report'),
       );
     });
 

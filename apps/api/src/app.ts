@@ -37,6 +37,8 @@ import { MediaLink } from './modules/voice/media-link';
 import { PictureStore } from './modules/users/pictures';
 import { userRoutes } from './modules/users/routes';
 import { UserService } from './modules/users/service';
+import { streamReportRoutes } from './modules/streams/routes';
+import { StreamReportService } from './modules/streams/service';
 import { voiceRoutes } from './modules/voice/routes';
 import { VoiceAccess } from './modules/voice/voice-access';
 import { VoiceStateStore } from './modules/voice/voice-state';
@@ -88,12 +90,14 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     config,
     log: app.log,
   });
+  const streamReports = new StreamReportService({ db: database.db, redis, log: app.log });
   const media = new MediaLink({
     url: config.MEDIA_INTERNAL_URL,
     sharedSecret: config.MEDIA_SHARED_SECRET,
     log: app.log,
     onConnected: (snapshot) => voice.resync(snapshot),
     onVoiceState: (event) => voice.applyVoiceState(event),
+    onStreamReport: (event) => streamReports.record(event),
   });
   voice.attach(media);
   // Subdirectories are out of reach of the attachment sweep.
@@ -117,11 +121,17 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   );
   const linkPreviews = new LinkPreviews({ allowPrivate: config.LINK_PREVIEW_ALLOW_PRIVATE });
   const gifs = new GifSearch({ apiKey: config.GIPHY_API_KEY, baseUrl: config.GIPHY_API_URL });
-  // Uploads that never made it into a message, and files whose message is gone.
+  // Uploads that never made it into a message, files whose message is gone, and old stream
+  // reports.
   const sweepAttachments = () =>
-    messages.sweepAttachments().catch((error: unknown) => {
-      app.log.warn({ err: error }, 'attachment sweep failed');
-    });
+    Promise.all([
+      messages.sweepAttachments().catch((error: unknown) => {
+        app.log.warn({ err: error }, 'attachment sweep failed');
+      }),
+      streamReports.sweep().catch((error: unknown) => {
+        app.log.warn({ err: error }, 'stream report sweep failed');
+      }),
+    ]);
   const sweepTimer = setInterval(() => void sweepAttachments(), ATTACHMENT_SWEEP_MS);
   sweepTimer.unref();
   void sweepAttachments();
@@ -148,6 +158,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     voice,
     media,
     hub,
+    streamReports,
   });
   app.decorateRequest('auth');
   app.decorate('authenticate', async (request) => {
@@ -216,6 +227,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       await api.register(embedRoutes);
       await api.register(userRoutes);
       await api.register(voiceRoutes);
+      await api.register(streamReportRoutes);
       if (config.LAB_ENABLED) await api.register(labRoutes);
     },
     { prefix: API_PREFIX },

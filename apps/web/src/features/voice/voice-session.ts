@@ -1319,6 +1319,9 @@ export class VoiceSession {
       this.statsSample = sample;
 
       const streamStats: Record<string, StreamStats> = {};
+      // The same numbers go to the media service, which keeps them as the stream's telemetry.
+      const rpc = this.connection?.rpc;
+      const preset = get().screen.preset;
       if (this.screenProducer && !this.screenProducer.closed) {
         const result = collectOutboundStreamStats(
           await this.screenProducer.getStats(),
@@ -1326,6 +1329,39 @@ export class VoiceSession {
         );
         this.streamSamples.set(SELF_STREAM, result.sample);
         streamStats[SELF_STREAM] = result.stats;
+        const { stats: own } = result;
+        rpc?.notify('stream-stats', {
+          role: 'sender',
+          producerId: this.screenProducer.id,
+          sample: {
+            captureFps: own.captureFps ?? null,
+            sentFps: own.fps,
+            encodeMs: own.encodeMs ?? null,
+            width: own.width,
+            height: own.height,
+            kbps: own.kbps,
+            limitation: own.limitation ?? null,
+            encoder: own.encoder?.slice(0, 64) ?? null,
+            preset,
+          },
+        });
+      } else if (this.nativeProducerId) {
+        // The desktop app's capture measures nothing yet; the preset still tells what it aimed at.
+        rpc?.notify('stream-stats', {
+          role: 'sender',
+          producerId: this.nativeProducerId,
+          sample: {
+            captureFps: null,
+            sentFps: null,
+            encodeMs: null,
+            width: null,
+            height: null,
+            kbps: null,
+            limitation: null,
+            encoder: null,
+            preset,
+          },
+        });
       }
       for (const { consumer, peerId, source } of this.consumers.values()) {
         if (source !== 'screen' || consumer.closed) continue;
@@ -1335,6 +1371,13 @@ export class VoiceSession {
         );
         this.streamSamples.set(peerId, result.sample);
         streamStats[peerId] = result.stats;
+        if (!consumer.paused) {
+          rpc?.notify('stream-stats', {
+            role: 'viewer',
+            producerId: consumer.producerId,
+            sample: result.viewer,
+          });
+        }
       }
       set({ stats, streamStats });
     } catch {
