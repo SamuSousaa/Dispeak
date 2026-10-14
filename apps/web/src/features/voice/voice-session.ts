@@ -147,6 +147,8 @@ export class VoiceSession {
   private unsubscribeNativeStats: (() => void) | null = null;
   /** The capture engine's latest numbers, while it sends (app 0.11 and later). */
   private nativeStats: DesktopNativeCaptureStats | null = null;
+  /** Why the capture engine could not run, when the share fell back to ffmpeg. */
+  private engineProblem: string | null = null;
   /** The sound of the shared program alone (desktop app), in place of the system's. */
   private gameAudio: GameAudio | null = null;
   private cameraStream: MediaStream | null = null;
@@ -1111,6 +1113,9 @@ export class VoiceSession {
       if (choice === 'browser') return false;
     }
     this.nativeShare = codec;
+    void native.engineProblem?.().then((problem) => {
+      this.engineProblem = problem;
+    });
     this.unsubscribeNativeStats ??=
       native.onStats?.((stats) => {
         if (this.nativeShare) this.nativeStats = stats;
@@ -1393,7 +1398,10 @@ export class VoiceSession {
             limitation: squeezed ? 'bandwidth' : null,
             // Without the engine's numbers it is ffmpeg: an app before 0.11, or an engine that
             // did not start on this machine. The version tells which.
-            encoder: (engine?.encoder ?? `ffmpeg · app ${desktop?.version ?? '?'}`).slice(0, 64),
+            encoder: (
+              engine?.encoder ??
+              `ffmpeg · app ${desktop?.version ?? '?'}${this.engineProblem ? ` · ${this.engineProblem}` : ''}`
+            ).slice(0, 64),
             preset,
           },
         });

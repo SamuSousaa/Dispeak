@@ -53,6 +53,8 @@ function parseEngineLine(text: string): z.infer<typeof engineLineSchema> | null 
 }
 
 let engineProbe: Promise<boolean> | null = null;
+/** What the engine said when it could not run here. */
+let engineProblem: string | null = null;
 
 /** Whether the engine runs here: a hardware H.264 encoder on the card. Asked once. */
 function engineWorks(engine: string): Promise<boolean> {
@@ -61,6 +63,10 @@ function engineWorks(engine: string): Promise<boolean> {
       const line = parseEngineLine(out.trim().split('\n').at(-1) ?? '');
       if (error || line?.type !== 'probe') {
         console.warn('[desktop] capture engine unavailable', error ?? out);
+        engineProblem = (line?.type === 'error' ? line.message : (error?.message ?? out)).slice(
+          0,
+          500,
+        );
         resolve(false);
         return;
       }
@@ -230,8 +236,11 @@ export function serveNativeCapture(
     if (process.platform !== 'win32') return { codec: null };
     // The engine sends H.264, which every viewer decodes, whatever the card.
     const engine = findEngine();
-    if (engine && (await engineWorks(engine))) return { codec: 'h264' };
-    return { codec: findFfmpeg() ? await pickCodec() : null };
+    if (engine && (await engineWorks(engine))) return { codec: 'h264', engineProblem: null };
+    return {
+      codec: findFfmpeg() ? await pickCodec() : null,
+      engineProblem: engine ? engineProblem : 'engine missing',
+    };
   });
 
   ipcMain.handle(

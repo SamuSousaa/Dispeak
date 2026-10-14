@@ -102,6 +102,22 @@ pub fn find_output(adapter_index: u32, output_index: u32) -> Result<(IDXGIAdapte
     Ok((adapter, output))
 }
 
+/// Every (adapter, output) pair with a monitor, in Desktop Duplication's numbering.
+pub fn all_outputs() -> Result<Vec<(u32, u32)>> {
+    let factory: IDXGIFactory1 = unsafe { CreateDXGIFactory1()? };
+    let mut found = Vec::new();
+    let mut adapter_index = 0;
+    while let Ok(adapter) = unsafe { factory.EnumAdapters1(adapter_index) } {
+        let mut output_index = 0;
+        while unsafe { adapter.EnumOutputs(output_index) }.is_ok() {
+            found.push((adapter_index, output_index));
+            output_index += 1;
+        }
+        adapter_index += 1;
+    }
+    Ok(found)
+}
+
 pub enum Grab {
     /// A new picture is in the copy.
     Fresh,

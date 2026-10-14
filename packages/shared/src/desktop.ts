@@ -65,7 +65,11 @@ export type DesktopUpdate = z.infer<typeof desktopUpdateSchema>;
 
 export const desktopCloseToTraySchema = z.object({ enabled: z.boolean() });
 
-export const desktopNativeCaptureProbeSchema = z.object({ codec: ingestCodecSchema.nullable() });
+export const desktopNativeCaptureProbeSchema = z.object({
+  codec: ingestCodecSchema.nullable(),
+  /** Why the capture engine cannot run here, when it cannot (app 0.11.1 and later). */
+  engineProblem: z.string().max(500).nullable().optional(),
+});
 
 /**
  * What the user picked for a share: something the app captures itself (`native`: a monitor,
@@ -120,6 +124,8 @@ export interface DesktopNativeCapture {
   stop(): Promise<void>;
   /** Called when the capture stops on its own. Returns the function that stops listening. */
   onEnded(listener: () => void): () => void;
+  /** Why the capture engine cannot run here, or `null` when it can. Absent before 0.11.1. */
+  engineProblem?(): Promise<string | null>;
   /** Called with the capture engine's numbers, every couple of seconds. Absent before 0.11. */
   onStats?(listener: (stats: DesktopNativeCaptureStats) => void): () => void;
 }

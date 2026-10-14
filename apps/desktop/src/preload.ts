@@ -61,6 +61,9 @@ const bridge: DesktopBridge = {
     probe: async () =>
       desktopNativeCaptureProbeSchema.parse(await ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_PROBE))
         .codec,
+    engineProblem: async () =>
+      desktopNativeCaptureProbeSchema.parse(await ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_PROBE))
+        .engineProblem ?? null,
     choose: async () =>
       desktopNativeCaptureChoiceSchema.parse(
         await ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_CHOOSE),

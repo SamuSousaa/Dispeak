@@ -230,13 +230,30 @@ fn stream(args: &[String]) -> Result<(), String> {
 }
 
 /// Whether this machine can run the capture: a hardware H.264 encoder on the first card.
+/// Whether this machine can run the capture: some monitor whose graphics card has a hardware
+/// H.264 encoder. Every monitor is tried: with two cards (a game card and the processor's own),
+/// the first one listed often drives no monitor at all.
 fn probe(args: &[String]) -> Result<(), String> {
-    let pipeline = Pipeline::new(&options(args)).map_err(|e| e.to_string())?;
-    println!(
-        "{{\"type\":\"probe\",\"codec\":\"h264\",\"encoder\":{:?}}}",
-        pipeline.encoder_name()
-    );
-    Ok(())
+    let outputs = capture::all_outputs().map_err(|e| e.to_string())?;
+    if outputs.is_empty() {
+        return Err("no monitor found".into());
+    }
+    let mut problems = Vec::new();
+    for (adapter, output) in outputs {
+        let mut options = options(args);
+        (options.adapter, options.output) = (adapter, output);
+        match Pipeline::new(&options) {
+            Ok(pipeline) => {
+                println!(
+                    "{{\"type\":\"probe\",\"codec\":\"h264\",\"encoder\":{:?},\"adapter\":{adapter},\"output\":{output}}}",
+                    pipeline.encoder_name()
+                );
+                return Ok(());
+            }
+            Err(error) => problems.push(format!("{adapter}.{output}: {error}")),
+        }
+    }
+    Err(problems.join("; "))
 }
 
 /// NAL unit types in an Annex B buffer, in order.
