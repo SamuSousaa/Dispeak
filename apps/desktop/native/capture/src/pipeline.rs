@@ -167,12 +167,12 @@ impl Pipeline {
 
     fn tick(&mut self, now: Instant) -> Result<()> {
         self.ticks = self.ticks.wrapping_add(1);
-        if self.ticks.is_multiple_of(self.preview_every) {
-            if let Some(preview) = &mut self.preview {
-                // A preview that fails is dropped; the stream goes on.
-                if preview.capture(&self.gpu).is_err() {
-                    self.preview = None;
-                }
+        if self.ticks.is_multiple_of(self.preview_every)
+            && let Some(preview) = &mut self.preview
+        {
+            // A preview that fails is dropped; the stream goes on.
+            if preview.capture(&self.gpu).is_err() {
+                self.preview = None;
             }
         }
         if self.pending_input > 0 {
