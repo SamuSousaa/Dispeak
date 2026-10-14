@@ -26,8 +26,8 @@ const PERMISSIONS = new Set([
 let mainWindow: BrowserWindow | null = null;
 /** Puts the main window in front, also when it is hidden in the notification area. */
 let revealWindow: (() => void) | null = null;
-/** Whether the app itself is capturing the screen for a share (the experimental native path). */
-let nativeCapturing: (() => boolean) | null = null;
+/** The app's own screen capture for a share (the experimental native path). */
+let nativeCapture: ReturnType<typeof serveNativeCapture> | null = null;
 
 /** Handle of the window last picked for a share; `null` when it was a whole screen. */
 let pickedWindow: string | null = null;
@@ -40,6 +40,19 @@ async function primaryScreen() {
   });
   const primary = String(screen.getPrimaryDisplay().id);
   return sources.find((source) => source.display_id === primary) ?? sources[0] ?? null;
+}
+
+/**
+ * What to share: the game in front when the shortcut asked, our picker otherwise. `null` when
+ * the user gives up.
+ */
+async function chooseSource(window: BrowserWindow) {
+  const shortcut = await takeShortcutShare();
+  const source = shortcut?.source ?? (await pickSource(window, { detached: shortcut !== null }));
+  // On Windows a window source is named `window:<handle>:<n>`.
+  if (source)
+    pickedWindow = source.id.startsWith('window:') ? (source.id.split(':')[1] ?? null) : null;
+  return source;
 }
 
 function createWindow(): BrowserWindow {
@@ -98,9 +111,8 @@ function createWindow(): BrowserWindow {
   });
   serveUpdates(window);
   revealWindow = serveCloseToTray(window);
-  nativeCapturing = serveNativeCapture(window);
-  // The native capture sends a whole monitor, whatever was picked the time before.
-  serveGameAudio(window, () => (nativeCapturing?.() ? null : pickedWindow));
+  nativeCapture = serveNativeCapture(window, () => chooseSource(window));
+  serveGameAudio(window, () => pickedWindow);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });
   void window.loadURL(config.appUrl.href);
   return window;
@@ -117,8 +129,8 @@ function configureSession(): void {
     (_webContents, permission, origin) => fromApp(origin) && PERMISSIONS.has(permission),
   );
 
-  // `getDisplayMedia` in the page ends up here: the game in front when the shortcut asked,
-  // our picker otherwise, then the system's audio with it.
+  // `getDisplayMedia` in the page ends up here: what the user picks (or already picked, when
+  // the native capture left a window to the browser), then the system's audio with it.
   defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     const window = mainWindow;
     if (!window || !fromApp(request.securityOrigin)) {
@@ -127,16 +139,13 @@ function configureSession(): void {
     }
     const choose = async () => {
       // The picture already goes out through the native capture. This request is the page
-      // asking for the system's audio, which only comes along with a capture: the same
-      // monitor, no picker.
-      if (nativeCapturing?.()) return primaryScreen();
-      const shortcut = await takeShortcutShare();
-      return shortcut?.source ?? pickSource(window, { detached: shortcut !== null });
+      // asking for the system's audio, which only comes along with a capture: any monitor
+      // does, no picker.
+      if (nativeCapture?.capturing()) return primaryScreen();
+      return nativeCapture?.takeHandover() ?? chooseSource(window);
     };
     void choose().then(
       (source) => {
-        // On Windows a window source is named `window:<handle>:<n>`.
-        pickedWindow = source?.id.startsWith('window:') ? (source.id.split(':')[1] ?? null) : null;
         if (!source) callback({});
         else callback({ video: source, ...(request.audioRequested ? { audio: 'loopback' } : {}) });
       },
@@ -166,7 +175,7 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.on('closed', () => {
       mainWindow = null;
       revealWindow = null;
-      nativeCapturing = null;
+      nativeCapture = null;
     });
     keepProcessesResponsive();
   });

@@ -1078,13 +1078,24 @@ export class VoiceSession {
   /**
    * Hands the share to the desktop app's own capture when this machine has one: behind a game
    * that takes the whole graphics card it keeps the frames the browser's capture loses.
-   * Experimental, on unless turned off in the settings: the main monitor, no preview. Answers `false`
+   * Experimental, on unless turned off in the settings: whole monitors, no preview. Answers `false`
    * when the browser should capture instead.
    */
   private async startNativeShare(): Promise<boolean> {
     const native = useSettingsStore.getState().nativeCapture ? desktop?.nativeCapture : undefined;
     const codec = await native?.probe().catch(() => null);
     if (!native || !codec) return false;
+    // The app's own picker. A monitor, or a game covering one, is captured by the app; any
+    // other window goes to the browser's capture, which the app answers without asking again.
+    if (native.choose) {
+      const choice = await native.choose().catch(() => 'browser' as const);
+      if (get().screen.status !== 'starting') return true;
+      if (choice === 'cancelled') {
+        set({ screen: screenOff });
+        return true;
+      }
+      if (choice === 'browser') return false;
+    }
     this.nativeShare = codec;
     try {
       if (await this.publishNative()) {

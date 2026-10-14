@@ -23,6 +23,8 @@ export const DESKTOP_SET_CLOSE_TO_TRAY = 'desktop:set-close-to-tray';
 
 /** Page → app: the codec this machine's native capture would send, if it has one. */
 export const DESKTOP_NATIVE_CAPTURE_PROBE = 'desktop:native-capture-probe';
+/** Page → app: ask the user what to share and say which capture it is for. */
+export const DESKTOP_NATIVE_CAPTURE_CHOOSE = 'desktop:native-capture-choose';
 /** Page → app: capture the screen and send it to this ingest, replacing a running capture. */
 export const DESKTOP_NATIVE_CAPTURE_START = 'desktop:native-capture-start';
 /** Page → app: stop the running capture. */
@@ -63,6 +65,14 @@ export const desktopCloseToTraySchema = z.object({ enabled: z.boolean() });
 
 export const desktopNativeCaptureProbeSchema = z.object({ codec: ingestCodecSchema.nullable() });
 
+/**
+ * What the user picked for a share: something the app captures itself (`native`: a monitor,
+ * or a window that covers one), something only the browser's capture can show (`browser`: any
+ * other window; the app hands it over without asking again), or nothing.
+ */
+export const desktopNativeCaptureChoiceSchema = z.enum(['native', 'browser', 'cancelled']);
+export type DesktopNativeCaptureChoice = z.infer<typeof desktopNativeCaptureChoiceSchema>;
+
 export const desktopNativeCaptureStartSchema = z.object({
   ingest: voiceIngestSchema,
   codec: ingestCodecSchema,
@@ -74,11 +84,16 @@ export type DesktopNativeCaptureStart = z.infer<typeof desktopNativeCaptureStart
 
 /**
  * The app capturing and encoding the screen on the graphics card, outside the browser, and
- * sending it to an ingest of the media service. Experimental: video only, main monitor only.
+ * sending it to an ingest of the media service. Experimental: a whole monitor, video only.
  */
 export interface DesktopNativeCapture {
   /** The codec this machine would send, or `null` when it cannot capture natively. */
   probe(): Promise<IngestCodec | null>;
+  /**
+   * Shows the app's picker; `start` then captures what was picked. Absent in apps older than
+   * 0.9.0, which capture the main monitor without asking.
+   */
+  choose?(): Promise<DesktopNativeCaptureChoice>;
   start(options: DesktopNativeCaptureStart): Promise<void>;
   stop(): Promise<void>;
   /** Called when the capture stops on its own. Returns the function that stops listening. */

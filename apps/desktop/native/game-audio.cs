@@ -6,6 +6,9 @@
 //   dispeaker-game-audio.exe --covering [--exclude a,b]   the program whose window covers a
 //                                                         whole monitor, front-most first
 //   dispeaker-game-audio.exe --process <id>               that process
+//   dispeaker-game-audio.exe --describe <handle>          no capture: says on the standard
+//                                                         output whether that window covers a
+//                                                         whole monitor, and where it is
 //
 // The first line on the standard error is JSON: {"processId":1234,"name":"Control"}. The exit
 // code is 2 when there is no such program and 3 when Windows refuses the capture (it needs
@@ -106,6 +109,7 @@ static class Program
     [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int capacity);
+    [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr context);
     [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
 
     [DllImport("Mmdevapi.dll", ExactSpelling = true, PreserveSig = false)]
@@ -119,6 +123,14 @@ static class Program
     [MTAThread]
     static int Main(string[] arguments)
     {
+        // Real pixels, whatever the scaling of each monitor (per-monitor aware, version 2).
+        try { SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch (EntryPointNotFoundException) { }
+        if (arguments.Length == 2 && arguments[0] == "--describe")
+        {
+            long described;
+            if (!long.TryParse(arguments[1], out described)) return 2;
+            return Describe(new IntPtr(described));
+        }
         uint target = 0;
         var excluded = new HashSet<uint>();
         bool covering = false;
@@ -314,6 +326,24 @@ static class Program
             return false;
         }, IntPtr.Zero);
         return found != 0 ? found : minimised;
+    }
+
+    static int Describe(IntPtr window)
+    {
+        Rect rect;
+        if (!GetWindowRect(window, out rect)) return 2;
+        var info = new MonitorInfo();
+        info.Size = Marshal.SizeOf(typeof(MonitorInfo));
+        // MONITOR_DEFAULTTONEAREST
+        if (!GetMonitorInfo(MonitorFromRect(ref rect, 2), ref info)) return 2;
+        Rect monitor = info.Monitor;
+        bool covers = !IsIconic(window) && rect.Left <= monitor.Left && rect.Top <= monitor.Top
+            && rect.Right >= monitor.Right && rect.Bottom >= monitor.Bottom;
+        Console.Out.WriteLine("{\"covers\":" + (covers ? "true" : "false")
+            + ",\"monitor\":{\"x\":" + monitor.Left + ",\"y\":" + monitor.Top
+            + ",\"width\":" + (monitor.Right - monitor.Left)
+            + ",\"height\":" + (monitor.Bottom - monitor.Top) + "}}");
+        return 0;
     }
 
     // What the program calls itself, or the name of its file when that cannot be read.

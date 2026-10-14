@@ -4,6 +4,7 @@ import {
   DESKTOP_GAME_AUDIO_STOP,
   DESKTOP_GET_UPDATE,
   DESKTOP_INSTALL_UPDATE,
+  DESKTOP_NATIVE_CAPTURE_CHOOSE,
   DESKTOP_NATIVE_CAPTURE_ENDED,
   DESKTOP_NATIVE_CAPTURE_PROBE,
   DESKTOP_NATIVE_CAPTURE_START,
@@ -13,6 +14,7 @@ import {
   DESKTOP_SHORTCUT,
   DESKTOP_UPDATE_READY,
   desktopGameAudioSchema,
+  desktopNativeCaptureChoiceSchema,
   desktopNativeCaptureProbeSchema,
   desktopShortcutEventSchema,
   desktopUpdateSchema,
@@ -57,6 +59,10 @@ const bridge: DesktopBridge = {
     probe: async () =>
       desktopNativeCaptureProbeSchema.parse(await ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_PROBE))
         .codec,
+    choose: async () =>
+      desktopNativeCaptureChoiceSchema.parse(
+        await ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_CHOOSE),
+      ),
     start: (options) => ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_START, options) as Promise<void>,
     stop: () => ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_STOP) as Promise<void>,
     onEnded: (listener) => {
