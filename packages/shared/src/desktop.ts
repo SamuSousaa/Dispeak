@@ -31,6 +31,8 @@ export const DESKTOP_NATIVE_CAPTURE_START = 'desktop:native-capture-start';
 export const DESKTOP_NATIVE_CAPTURE_STOP = 'desktop:native-capture-stop';
 /** App → page: the capture stopped on its own. */
 export const DESKTOP_NATIVE_CAPTURE_ENDED = 'desktop:native-capture-ended';
+/** App → page: what the capture engine measured over the last couple of seconds. */
+export const DESKTOP_NATIVE_CAPTURE_STATS = 'desktop:native-capture-stats';
 
 /** Page → app: capture the sound of the program being shared, if one can be told apart. */
 export const DESKTOP_GAME_AUDIO_START = 'desktop:game-audio-start';
@@ -79,8 +81,28 @@ export const desktopNativeCaptureStartSchema = z.object({
   frameRate: z.number().int().min(1).max(120),
   /** Bits per second. */
   bitrate: z.number().int().min(100_000).max(50_000_000),
+  /** Largest picture to send; a bigger screen is scaled down to fit. Apps before 0.11 ignore it. */
+  width: z.number().int().min(160).max(7680).optional(),
+  height: z.number().int().min(90).max(4320).optional(),
 });
 export type DesktopNativeCaptureStart = z.infer<typeof desktopNativeCaptureStartSchema>;
+
+/** The capture engine's own numbers (app 0.11 and later). */
+export const desktopNativeCaptureStatsSchema = z.object({
+  captureFps: z.number(),
+  sentFps: z.number(),
+  encodeMs: z.number(),
+  kbps: z.number(),
+  width: z.number().int(),
+  height: z.number().int(),
+  /** What the encoder aims at now: lower than asked when the network is losing packets. */
+  bitrate: z.number().int(),
+  retransmitted: z.number().int(),
+  keyFramesAsked: z.number().int(),
+  lossPercent: z.number(),
+  encoder: z.string().max(200),
+});
+export type DesktopNativeCaptureStats = z.infer<typeof desktopNativeCaptureStatsSchema>;
 
 /**
  * The app capturing and encoding the screen on the graphics card, outside the browser, and
@@ -98,6 +120,8 @@ export interface DesktopNativeCapture {
   stop(): Promise<void>;
   /** Called when the capture stops on its own. Returns the function that stops listening. */
   onEnded(listener: () => void): () => void;
+  /** Called with the capture engine's numbers, every couple of seconds. Absent before 0.11. */
+  onStats?(listener: (stats: DesktopNativeCaptureStats) => void): () => void;
 }
 
 /**

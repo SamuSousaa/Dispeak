@@ -1,12 +1,15 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
+import readline from 'node:readline';
 import {
   DESKTOP_NATIVE_CAPTURE_CHOOSE,
   DESKTOP_NATIVE_CAPTURE_ENDED,
   DESKTOP_NATIVE_CAPTURE_PROBE,
   DESKTOP_NATIVE_CAPTURE_START,
+  DESKTOP_NATIVE_CAPTURE_STATS,
   DESKTOP_NATIVE_CAPTURE_STOP,
   desktopNativeCaptureStartSchema,
+  desktopNativeCaptureStatsSchema,
   type DesktopNativeCaptureChoice,
   type DesktopNativeCaptureStart,
   type IngestCodec,
@@ -21,6 +24,52 @@ import { keepTimersFine } from './windows-scheduling';
 /** PCI vendor ids, as Chromium reports the graphics cards. */
 const AMD = 0x1002;
 const NVIDIA = 0x10de;
+
+/** The app's own capture engine (`native/capture`, ADR 0013); ffmpeg is the fallback. */
+function findEngine(): string | null {
+  return findBundled('capture', 'dispeaker-capture.exe');
+}
+
+/** What the engine says on each line of its output. */
+const engineLineSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('ready'),
+    encoder: z.string(),
+    width: z.number(),
+    height: z.number(),
+  }),
+  z.object({ type: z.literal('probe'), codec: z.literal('h264'), encoder: z.string() }),
+  z.object({ type: z.literal('error'), message: z.string() }),
+  desktopNativeCaptureStatsSchema.extend({ type: z.literal('stats') }),
+]);
+
+function parseEngineLine(text: string): z.infer<typeof engineLineSchema> | null {
+  try {
+    const result = engineLineSchema.safeParse(JSON.parse(text));
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+let engineProbe: Promise<boolean> | null = null;
+
+/** Whether the engine runs here: a hardware H.264 encoder on the card. Asked once. */
+function engineWorks(engine: string): Promise<boolean> {
+  engineProbe ??= new Promise((resolve) => {
+    execFile(engine, ['probe'], { windowsHide: true, timeout: 10_000 }, (error, out) => {
+      const line = parseEngineLine(out.trim().split('\n').at(-1) ?? '');
+      if (error || line?.type !== 'probe') {
+        console.warn('[desktop] capture engine unavailable', error ?? out);
+        resolve(false);
+        return;
+      }
+      console.warn(`[desktop] capture engine: ${line.encoder}`);
+      resolve(true);
+    });
+  });
+  return engineProbe;
+}
 
 function findFfmpeg(): string | null {
   if (config.ffmpeg) return fs.existsSync(config.ffmpeg) ? config.ffmpeg : null;
@@ -178,8 +227,11 @@ export function serveNativeCapture(
 
   ipcMain.handle(DESKTOP_NATIVE_CAPTURE_PROBE, async (event) => {
     assertFromApp(event);
-    const available = process.platform === 'win32' && findFfmpeg();
-    return { codec: available ? await pickCodec() : null };
+    if (process.platform !== 'win32') return { codec: null };
+    // The engine sends H.264, which every viewer decodes, whatever the card.
+    const engine = findEngine();
+    if (engine && (await engineWorks(engine))) return { codec: 'h264' };
+    return { codec: findFfmpeg() ? await pickCodec() : null };
   });
 
   ipcMain.handle(
@@ -200,17 +252,21 @@ export function serveNativeCapture(
     },
   );
 
-  ipcMain.handle(DESKTOP_NATIVE_CAPTURE_START, (event, payload: unknown) => {
+  ipcMain.handle(DESKTOP_NATIVE_CAPTURE_START, async (event, payload: unknown) => {
     assertFromApp(event);
     const options = desktopNativeCaptureStartSchema.parse(payload);
-    const ffmpeg = process.platform === 'win32' ? findFfmpeg() : null;
-    if (!ffmpeg) throw new Error('native capture unavailable');
     stop();
     // Apps that predate the picker, and a page that did not ask: the main monitor.
     const choice = picked ?? {
       source: null,
       monitor: { adapter: 0, output: 0, x: 0, y: 0, width: 0, height: 0 },
     };
+    const engine = process.platform === 'win32' ? findEngine() : null;
+    if (engine && options.codec === 'h264' && (await engineWorks(engine))) {
+      return startEngine(engine, options, choice);
+    }
+    const ffmpeg = process.platform === 'win32' ? findFfmpeg() : null;
+    if (!ffmpeg) throw new Error('native capture unavailable');
 
     const child = spawn(ffmpeg, ffmpegArguments(options, choice.monitor), {
       stdio: ['ignore', 'ignore', 'pipe'],
@@ -254,6 +310,82 @@ export function serveNativeCapture(
     if (child.pid !== undefined) void keepTimersFine([child.pid]).catch(() => undefined);
     return started;
   });
+
+  /**
+   * Runs the engine on the picked monitor. It is ready when it says so; anything it says
+   * before that is why it could not start, and the page then shares through the browser.
+   */
+  function startEngine(
+    engine: string,
+    { ingest, frameRate, bitrate, width, height }: DesktopNativeCaptureStart,
+    choice: { source: DesktopCapturerSource | null; monitor: Monitor },
+  ): Promise<void> {
+    const child = spawn(
+      engine,
+      [
+        'stream',
+        ...['--adapter', String(choice.monitor.adapter), '--output', String(choice.monitor.output)],
+        ...['--fps', String(frameRate), '--bitrate', String(bitrate)],
+        ...['--width', String(width ?? 1920), '--height', String(height ?? 1080)],
+        ...['--address', ingest.address, '--pt', String(ingest.payloadType)],
+        ...['--rtp-port', String(ingest.rtpPort), '--rtcp-port', String(ingest.rtcpPort)],
+        ...['--ssrc', String(ingest.ssrc)],
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
+    );
+    current = child;
+    // The keys go through stdin, never on a command line other programs can read: ours, then
+    // the server's. Closing stdin is how the engine is told to stop, so it stays open.
+    child.stdin.write(
+      `${ingest.srtp.keyBase64}\n${ingest.srtp.serverKeyBase64 ?? ingest.srtp.keyBase64}\n`,
+    );
+    child.stderr.on('data', (chunk: Buffer) => {
+      console.warn(`[desktop] capture engine: ${chunk.toString().trim()}`);
+    });
+    const lines = readline.createInterface({ input: child.stdout });
+
+    const started = new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const failed = (reason: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (current === child) current = null;
+        child.kill();
+        if (choice.source) handover = { source: choice.source, at: Date.now() };
+        reject(new Error(`capture engine did not start: ${reason}`));
+      };
+      const timer = setTimeout(() => failed('no answer'), 8000);
+      lines.on('line', (text) => {
+        const line = parseEngineLine(text);
+        if (line?.type === 'ready' && !settled) {
+          settled = true;
+          clearTimeout(timer);
+          console.warn(
+            `[desktop] capture engine sending ${line.width}x${line.height} with ${line.encoder}`,
+          );
+          resolve();
+        } else if (line?.type === 'error') {
+          console.error(`[desktop] capture engine: ${line.message}`);
+          failed(line.message);
+        } else if (line?.type === 'stats' && !webContents.isDestroyed()) {
+          const { type: _type, ...stats } = line;
+          webContents.send(DESKTOP_NATIVE_CAPTURE_STATS, stats);
+        }
+      });
+      child.once('exit', (code) => failed(`exited with ${code}`));
+      child.once('error', (error) => failed(error.message));
+    });
+    child.on('exit', () => {
+      if (current !== child) return;
+      current = null;
+      if (!webContents.isDestroyed()) webContents.send(DESKTOP_NATIVE_CAPTURE_ENDED);
+    });
+    // A process without a window, behind a game: it opts out of throttling itself, and gets
+    // the same treatment the app's own processes get.
+    if (child.pid !== undefined) void keepTimersFine([child.pid]).catch(() => undefined);
+    return started;
+  }
 
   ipcMain.handle(DESKTOP_NATIVE_CAPTURE_STOP, (event) => {
     assertFromApp(event);

@@ -6,6 +6,7 @@ import {
   VoiceErrorCode,
   voiceClientSide,
   voiceServerSide,
+  type DesktopNativeCaptureStats,
   type IngestCodec,
   type ProducerSource,
   type TransportDirection,
@@ -143,6 +144,9 @@ export class VoiceSession {
   /** The system's audio that goes with a native share, captured by the browser. */
   private nativeAudio: { track: MediaStreamTrack; echoRisk: boolean } | null = null;
   private unsubscribeNative: (() => void) | null = null;
+  private unsubscribeNativeStats: (() => void) | null = null;
+  /** The capture engine's latest numbers, while it sends (app 0.11 and later). */
+  private nativeStats: DesktopNativeCaptureStats | null = null;
   /** The sound of the shared program alone (desktop app), in place of the system's. */
   private gameAudio: GameAudio | null = null;
   private cameraStream: MediaStream | null = null;
@@ -348,6 +352,7 @@ export class VoiceSession {
       const producerId = this.nativeProducerId;
       this.nativeShare = null;
       this.nativeProducerId = null;
+      this.nativeStats = null;
       this.nativeAudio?.track.stop();
       this.nativeAudio = null;
       await desktop?.nativeCapture?.stop().catch(() => undefined);
@@ -676,6 +681,9 @@ export class VoiceSession {
     this.nativeAudio = null;
     this.unsubscribeNative?.();
     this.unsubscribeNative = null;
+    this.unsubscribeNativeStats?.();
+    this.unsubscribeNativeStats = null;
+    this.nativeStats = null;
     this.gameAudio?.stop();
     this.gameAudio = null;
     for (const track of this.cameraStream?.getTracks() ?? []) track.stop();
@@ -1103,6 +1111,10 @@ export class VoiceSession {
       if (choice === 'browser') return false;
     }
     this.nativeShare = codec;
+    this.unsubscribeNativeStats ??=
+      native.onStats?.((stats) => {
+        if (this.nativeShare) this.nativeStats = stats;
+      }) ?? null;
     this.unsubscribeNative ??= native.onEnded(() => {
       if (!this.nativeShare) return;
       void this.stopScreenShare().then(() =>
@@ -1137,6 +1149,8 @@ export class VoiceSession {
       codec,
       frameRate: preset.frameRate,
       bitrate: Math.max(...preset.bitrates),
+      width: preset.width,
+      height: preset.height,
     });
     // The sound of the game alone when one covers the screen. Otherwise the system's, which
     // still comes through the browser: the app answers that request with the same monitor and
@@ -1346,19 +1360,38 @@ export class VoiceSession {
           },
         });
       } else if (this.nativeProducerId) {
-        // The desktop app's capture measures nothing yet; the preset still tells what it aimed at.
+        // The capture engine measures itself; ffmpeg, on older apps, says nothing, and then
+        // only the preset tells what the stream aimed at.
+        const engine = this.nativeStats;
+        // The engine lowers the bitrate when the server reports lost packets.
+        const aimed = preset ? Math.max(...SCREEN_PRESETS[preset].bitrates) : null;
+        const squeezed = engine !== null && aimed !== null && engine.bitrate < aimed * 0.95;
+        if (engine) {
+          streamStats[SELF_STREAM] = {
+            width: engine.width,
+            height: engine.height,
+            fps: Math.round(engine.sentFps),
+            kbps: Math.round(engine.kbps),
+            lossPercent: engine.lossPercent,
+            codec: 'H264',
+            limitation: squeezed ? 'bandwidth' : null,
+            encodeMs: engine.encodeMs,
+            encoder: engine.encoder,
+            captureFps: Math.round(engine.captureFps),
+          };
+        }
         rpc?.notify('stream-stats', {
           role: 'sender',
           producerId: this.nativeProducerId,
           sample: {
-            captureFps: null,
-            sentFps: null,
-            encodeMs: null,
-            width: null,
-            height: null,
-            kbps: null,
-            limitation: null,
-            encoder: null,
+            captureFps: engine?.captureFps ?? null,
+            sentFps: engine?.sentFps ?? null,
+            encodeMs: engine?.encodeMs ?? null,
+            width: engine?.width ?? null,
+            height: engine?.height ?? null,
+            kbps: engine ? Math.round(engine.kbps) : null,
+            limitation: squeezed ? 'bandwidth' : null,
+            encoder: engine?.encoder.slice(0, 64) ?? null,
             preset,
           },
         });

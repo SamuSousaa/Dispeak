@@ -9,7 +9,7 @@
   "scripts": {
     "start": "tsup && electron .",
     "build": "tsup",
-    "package": "node ../../scripts/fetch-ffmpeg.mjs && node ../../scripts/build-game-audio.mjs && tsup && electron-builder --win --x64",
+    "package": "node ../../scripts/fetch-ffmpeg.mjs && node ../../scripts/build-game-audio.mjs && node ../../scripts/build-capture.mjs && tsup && electron-builder --win --x64",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
@@ -43,6 +43,10 @@
       {
         "from": "vendor/game-audio",
         "to": "game-audio"
+      },
+      {
+        "from": "vendor/capture",
+        "to": "capture"
       }
     ],
     "win": {

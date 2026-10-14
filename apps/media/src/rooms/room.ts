@@ -402,7 +402,13 @@ export class Room {
       const producer = await transport.produce<ProducerAppData>({
         kind: 'video',
         rtpParameters: {
-          codecs: [{ ...INGEST.codecs[codec], payloadType: INGEST.payloadType, rtcpFeedback: [] }],
+          codecs: [
+            {
+              ...INGEST.codecs[codec],
+              payloadType: INGEST.payloadType,
+              rtcpFeedback: INGEST.rtcpFeedback,
+            },
+          ],
           encodings: [{ ssrc }],
         },
         appData: { peerId: peer.id, source: 'screen' },
@@ -434,7 +440,12 @@ export class Room {
         rtcpPort: transport.rtcpTuple?.localPort ?? transport.tuple.localPort + 1,
         ssrc,
         payloadType: INGEST.payloadType,
-        srtp: { cryptoSuite: INGEST.srtpCryptoSuite, keyBase64 },
+        srtp: {
+          cryptoSuite: INGEST.srtpCryptoSuite,
+          keyBase64,
+          // mediasoup encrypts what it sends with a key of its own, not the one it was given.
+          serverKeyBase64: transport.srtpParameters?.keyBase64,
+        },
       };
     } catch (error) {
       transport.close();

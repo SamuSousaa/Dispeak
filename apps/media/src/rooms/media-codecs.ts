@@ -53,14 +53,20 @@ export const mediaCodecs: types.RouterRtpCodecCapability[] = [
 
 /**
  * What a native capture is told to send. One fixed payload type is enough: an ingest carries a
- * single stream on a transport of its own. No RTCP feedback, because the sender does not answer
- * any: a lost packet is not repeated and a new viewer waits for the next periodic key frame.
+ * single stream on a transport of its own. The server asks for lost packets (NACK) and for key
+ * frames (PLI, FIR): the app's own capture engine answers them; ffmpeg, the older sender,
+ * ignores them and relies on its periodic key frames.
  */
 export const INGEST = {
   payloadType: 96,
   srtpCryptoSuite: 'AES_CM_128_HMAC_SHA1_80',
   /** Bytes of an AES_CM_128 master key and its salt. */
   srtpKeyLength: 30,
+  rtcpFeedback: [
+    { type: 'nack' },
+    { type: 'nack', parameter: 'pli' },
+    { type: 'ccm', parameter: 'fir' },
+  ],
   codecs: {
     av1: { mimeType: 'video/AV1', clockRate: 90000, parameters: {} },
     h264: {
@@ -77,6 +83,7 @@ export const INGEST = {
   payloadType: number;
   srtpCryptoSuite: types.SrtpCryptoSuite;
   srtpKeyLength: number;
+  rtcpFeedback: types.RtcpFeedback[];
   codecs: Record<IngestCodec, Omit<types.RtpCodecParameters, 'payloadType'>>;
 };
 

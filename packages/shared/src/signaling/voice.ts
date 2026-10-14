@@ -137,7 +137,16 @@ export const voiceIngestSchema = z.object({
   rtcpPort: udpPort,
   ssrc: z.number().int().positive(),
   payloadType: z.number().int().min(0).max(127),
-  srtp: z.object({ cryptoSuite: z.string(), keyBase64: z.string() }),
+  srtp: z.object({
+    cryptoSuite: z.string(),
+    /** What the sender encrypts with. */
+    keyBase64: z.string(),
+    /**
+     * What the server encrypts its RTCP with (requests for lost packets and key frames). Absent
+     * from servers that predate the app's capture engine.
+     */
+    serverKeyBase64: z.string().optional(),
+  }),
 });
 export type VoiceIngest = z.infer<typeof voiceIngestSchema>;
 

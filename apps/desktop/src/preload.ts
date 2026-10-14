@@ -8,6 +8,7 @@ import {
   DESKTOP_NATIVE_CAPTURE_ENDED,
   DESKTOP_NATIVE_CAPTURE_PROBE,
   DESKTOP_NATIVE_CAPTURE_START,
+  DESKTOP_NATIVE_CAPTURE_STATS,
   DESKTOP_NATIVE_CAPTURE_STOP,
   DESKTOP_SET_CLOSE_TO_TRAY,
   DESKTOP_SET_SHORTCUTS,
@@ -16,6 +17,7 @@ import {
   desktopGameAudioSchema,
   desktopNativeCaptureChoiceSchema,
   desktopNativeCaptureProbeSchema,
+  desktopNativeCaptureStatsSchema,
   desktopShortcutEventSchema,
   desktopUpdateSchema,
   type DesktopBridge,
@@ -69,6 +71,14 @@ const bridge: DesktopBridge = {
       const handler = () => listener();
       ipcRenderer.on(DESKTOP_NATIVE_CAPTURE_ENDED, handler);
       return () => ipcRenderer.removeListener(DESKTOP_NATIVE_CAPTURE_ENDED, handler);
+    },
+    onStats: (listener) => {
+      const handler = (_event: unknown, payload: unknown) => {
+        const parsed = desktopNativeCaptureStatsSchema.safeParse(payload);
+        if (parsed.success) listener(parsed.data);
+      };
+      ipcRenderer.on(DESKTOP_NATIVE_CAPTURE_STATS, handler);
+      return () => ipcRenderer.removeListener(DESKTOP_NATIVE_CAPTURE_STATS, handler);
     },
   },
   gameAudio: {

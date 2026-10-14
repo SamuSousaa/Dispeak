@@ -86,7 +86,7 @@ function NativeCaptureSection() {
     <Section number="02" title="TRANSMISSÃO">
       <Toggle
         label="CAPTURA NATIVA (EXPERIMENTAL)"
-        hint="O app captura e comprime a tela direto na placa de vídeo, sem passar pelo navegador: com jogo pesado, mantém os quadros que a captura comum perde. Vale ao escolher um monitor ou um jogo em tela cheia: vai o monitor inteiro, na resolução dele, e você não vê a prévia da própria transmissão. Outras janelas seguem pela captura comum. Quem assiste precisa de um aparelho que reproduza AV1. Desligada, tudo vai pela captura comum."
+        hint="O app captura e comprime a tela direto na placa de vídeo, sem passar pelo navegador: com jogo pesado, mantém os quadros que a captura comum perde. Vale ao escolher um monitor ou um jogo em tela cheia: vai o monitor inteiro, e você ainda não vê a prévia da própria transmissão. Outras janelas seguem pela captura comum. Desligada, tudo vai pela captura comum."
         checked={enabled}
         onChange={(nativeCapture) => updateSettings({ nativeCapture })}
       />
