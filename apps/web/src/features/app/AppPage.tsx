@@ -33,6 +33,7 @@ import { UpdateNotice } from '../desktop/UpdateNotice';
 import { IncomingCalls } from '../friends/IncomingCalls';
 import { useVoiceShortcuts } from '../voice/use-voice-shortcuts';
 import { MobileVoiceBar } from '../voice/components/MobileVoice';
+import { OwnStreamMini } from '../voice/components/OwnStreamMini';
 import { leaveVoice } from '../voice/voice-actions';
 import { useVoiceStore } from '../voice/voice-store';
 import { ChannelPanel } from './ChannelPanel';
@@ -271,7 +272,7 @@ export function AppPage() {
           </div>
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="relative flex min-w-0 flex-1 flex-col">
           <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-3">
             <button
               type="button"
@@ -347,6 +348,10 @@ export function AppPage() {
             )}
           </header>
 
+          {/* Away from the call while streaming: the stream stays in a corner. */}
+          {inCall && voiceChannelId !== channelId && (
+            <OwnStreamMini to={callGuild ? `/app/${callGuild.id}/${voiceChannelId}` : null} />
+          )}
           {inCall && voiceChannelId !== channelId && (
             <MobileVoiceBar
               to={callGuild ? `/app/${callGuild.id}/${voiceChannelId}` : null}

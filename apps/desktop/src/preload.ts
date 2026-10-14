@@ -8,6 +8,7 @@ import {
   DESKTOP_NATIVE_CAPTURE_ENDED,
   DESKTOP_NATIVE_CAPTURE_PROBE,
   DESKTOP_NATIVE_CAPTURE_START,
+  DESKTOP_NATIVE_CAPTURE_PREVIEW,
   DESKTOP_NATIVE_CAPTURE_STATS,
   DESKTOP_NATIVE_CAPTURE_STOP,
   DESKTOP_SET_CLOSE_TO_TRAY,
@@ -74,6 +75,22 @@ const bridge: DesktopBridge = {
       const handler = () => listener();
       ipcRenderer.on(DESKTOP_NATIVE_CAPTURE_ENDED, handler);
       return () => ipcRenderer.removeListener(DESKTOP_NATIVE_CAPTURE_ENDED, handler);
+    },
+    onPreview: (listener) => {
+      const handler = (_event: unknown, payload: unknown) => {
+        if (typeof payload !== 'object' || payload === null) return;
+        const { width, height, data } = payload as Record<string, unknown>;
+        if (
+          typeof width === 'number' &&
+          typeof height === 'number' &&
+          data instanceof Uint8Array &&
+          data.length === width * height * 4
+        ) {
+          listener({ width, height, data });
+        }
+      };
+      ipcRenderer.on(DESKTOP_NATIVE_CAPTURE_PREVIEW, handler);
+      return () => ipcRenderer.removeListener(DESKTOP_NATIVE_CAPTURE_PREVIEW, handler);
     },
     onStats: (listener) => {
       const handler = (_event: unknown, payload: unknown) => {

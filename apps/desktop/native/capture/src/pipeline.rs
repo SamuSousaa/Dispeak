@@ -8,6 +8,7 @@ use windows::core::Result;
 
 use crate::capture::{Converter, Duplication, Gpu, Grab, find_output, output_size};
 use crate::encoder::{Encoded, Encoder, Event, Settings};
+use crate::preview::{self, Preview};
 
 pub struct Options {
     pub adapter: u32,
@@ -16,6 +17,8 @@ pub struct Options {
     pub max_height: u32,
     pub frame_rate: u32,
     pub bitrate: u32,
+    /// Local port the app listens on for the streamer's own preview.
+    pub preview_port: Option<u16>,
 }
 
 /// Counters for one interval, reset by whoever reads them.
@@ -51,6 +54,10 @@ pub struct Pipeline {
     pushed: VecDeque<(i64, Instant)>,
     pub counters: Counters,
     pub size: (u32, u32),
+    preview: Option<Preview>,
+    /// Ticks between two preview pictures, and ticks so far.
+    preview_every: u32,
+    ticks: u32,
 }
 
 impl Pipeline {
@@ -67,6 +74,7 @@ impl Pipeline {
             screen,
             size,
             options.frame_rate,
+            windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_NV12,
             8,
         )?;
         let encoder = Encoder::new(
@@ -81,6 +89,10 @@ impl Pipeline {
                 gop: options.frame_rate * 10,
             },
         )?;
+        let preview = match options.preview_port {
+            Some(port) => Preview::connect(&gpu, &duplication.latest, screen, port)?,
+            None => None,
+        };
         let interval = Duration::from_nanos(1_000_000_000 / options.frame_rate as u64);
         let now = Instant::now();
         Ok(Self {
@@ -97,6 +109,9 @@ impl Pipeline {
             pushed: VecDeque::new(),
             counters: Counters::default(),
             size,
+            preview,
+            preview_every: (options.frame_rate / preview::FRAME_RATE).max(1),
+            ticks: 0,
         })
     }
 
@@ -151,6 +166,15 @@ impl Pipeline {
     }
 
     fn tick(&mut self, now: Instant) -> Result<()> {
+        self.ticks = self.ticks.wrapping_add(1);
+        if self.ticks.is_multiple_of(self.preview_every) {
+            if let Some(preview) = &mut self.preview {
+                // A preview that fails is dropped; the stream goes on.
+                if preview.capture(&self.gpu).is_err() {
+                    self.preview = None;
+                }
+            }
+        }
         if self.pending_input > 0 {
             let texture = self.converter.convert(self.slot)?.clone();
             self.slot = (self.slot + 1) % self.converter.pool_size();

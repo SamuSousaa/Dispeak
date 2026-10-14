@@ -278,7 +278,7 @@ export function StreamTile({
       {!stream && (
         <div className="absolute inset-0 flex items-center justify-center">
           {isSelf ? (
-            // A native capture never reaches this page: there is nothing to preview.
+            // A native capture from an app before 0.11.2, which sends no preview.
             <p className="label text-muted">CAPTURA NATIVA · SEM PRÉVIA</p>
           ) : (
             <Loading label="CARREGANDO TRANSMISSÃO" />

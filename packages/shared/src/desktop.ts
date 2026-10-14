@@ -31,6 +31,8 @@ export const DESKTOP_NATIVE_CAPTURE_START = 'desktop:native-capture-start';
 export const DESKTOP_NATIVE_CAPTURE_STOP = 'desktop:native-capture-stop';
 /** App → page: the capture stopped on its own. */
 export const DESKTOP_NATIVE_CAPTURE_ENDED = 'desktop:native-capture-ended';
+/** App → page: a small picture of what the capture engine is sending, a few times a second. */
+export const DESKTOP_NATIVE_CAPTURE_PREVIEW = 'desktop:native-capture-preview';
 /** App → page: what the capture engine measured over the last couple of seconds. */
 export const DESKTOP_NATIVE_CAPTURE_STATS = 'desktop:native-capture-stats';
 
@@ -108,6 +110,13 @@ export const desktopNativeCaptureStatsSchema = z.object({
 });
 export type DesktopNativeCaptureStats = z.infer<typeof desktopNativeCaptureStatsSchema>;
 
+/** One preview picture: BGRA rows, tightly packed. */
+export interface DesktopNativeCapturePreview {
+  width: number;
+  height: number;
+  data: Uint8Array;
+}
+
 /**
  * The app capturing and encoding the screen on the graphics card, outside the browser, and
  * sending it to an ingest of the media service. Experimental: a whole monitor, video only.
@@ -126,6 +135,8 @@ export interface DesktopNativeCapture {
   onEnded(listener: () => void): () => void;
   /** Why the capture engine cannot run here, or `null` when it can. Absent before 0.11.1. */
   engineProblem?(): Promise<string | null>;
+  /** Called with each preview picture of the running capture. Absent before 0.11.2. */
+  onPreview?(listener: (picture: DesktopNativeCapturePreview) => void): () => void;
   /** Called with the capture engine's numbers, every couple of seconds. Absent before 0.11. */
   onStats?(listener: (stats: DesktopNativeCaptureStats) => void): () => void;
 }

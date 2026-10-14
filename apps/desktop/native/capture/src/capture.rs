@@ -183,7 +183,8 @@ impl Duplication {
     }
 }
 
-/// BGRA → NV12 (BT.709, limited range) with scaling, by the card's video processor.
+/// BGRA → NV12 (BT.709, limited range), or BGRA → smaller BGRA, with scaling, by the card's
+/// video processor.
 pub struct Converter {
     context: ID3D11DeviceContext,
     video_context: ID3D11VideoContext,
@@ -199,6 +200,7 @@ impl Converter {
         (in_w, in_h): (u32, u32),
         (out_w, out_h): (u32, u32),
         frame_rate: u32,
+        format: DXGI_FORMAT,
         pool: usize,
     ) -> Result<Self> {
         let video_device: ID3D11VideoDevice = gpu.device.cast()?;
@@ -249,7 +251,7 @@ impl Converter {
         };
         let mut outputs = Vec::with_capacity(pool);
         for _ in 0..pool {
-            let texture = gpu.texture(out_w, out_h, DXGI_FORMAT_NV12, D3D11_BIND_RENDER_TARGET)?;
+            let texture = gpu.texture(out_w, out_h, format, D3D11_BIND_RENDER_TARGET)?;
             let mut view = None;
             unsafe {
                 video_device.CreateVideoProcessorOutputView(
@@ -272,7 +274,12 @@ impl Converter {
         let target = fit((in_w, in_h), (out_w, out_h));
         unsafe {
             video_context.VideoProcessorSetStreamColorSpace(&processor, 0, &rgb_full);
-            video_context.VideoProcessorSetOutputColorSpace(&processor, &yuv_709_limited);
+            let output_space = if format == DXGI_FORMAT_NV12 {
+                &yuv_709_limited
+            } else {
+                &rgb_full
+            };
+            video_context.VideoProcessorSetOutputColorSpace(&processor, output_space);
             video_context.VideoProcessorSetStreamFrameFormat(
                 &processor,
                 0,

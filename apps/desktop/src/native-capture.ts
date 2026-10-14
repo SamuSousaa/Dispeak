@@ -6,6 +6,7 @@ import {
   DESKTOP_NATIVE_CAPTURE_ENDED,
   DESKTOP_NATIVE_CAPTURE_PROBE,
   DESKTOP_NATIVE_CAPTURE_START,
+  DESKTOP_NATIVE_CAPTURE_PREVIEW,
   DESKTOP_NATIVE_CAPTURE_STATS,
   DESKTOP_NATIVE_CAPTURE_STOP,
   desktopNativeCaptureStartSchema,
@@ -18,6 +19,7 @@ import { app, ipcMain, screen, type BrowserWindow, type DesktopCapturerSource } 
 import { z } from 'zod';
 import { config } from './config';
 import { findBundled } from './bundled';
+import { openPreviewServer } from './capture-preview';
 import { isAppUrl } from './navigation';
 import { keepTimersFine } from './windows-scheduling';
 
@@ -324,11 +326,15 @@ export function serveNativeCapture(
    * Runs the engine on the picked monitor. It is ready when it says so; anything it says
    * before that is why it could not start, and the page then shares through the browser.
    */
-  function startEngine(
+  async function startEngine(
     engine: string,
     { ingest, frameRate, bitrate, width, height }: DesktopNativeCaptureStart,
     choice: { source: DesktopCapturerSource | null; monitor: Monitor },
   ): Promise<void> {
+    // The streamer's own preview, straight from the engine: no network involved.
+    const preview = await openPreviewServer((picture) => {
+      if (!webContents.isDestroyed()) webContents.send(DESKTOP_NATIVE_CAPTURE_PREVIEW, picture);
+    }).catch(() => null);
     const child = spawn(
       engine,
       [
@@ -339,10 +345,12 @@ export function serveNativeCapture(
         ...['--address', ingest.address, '--pt', String(ingest.payloadType)],
         ...['--rtp-port', String(ingest.rtpPort), '--rtcp-port', String(ingest.rtcpPort)],
         ...['--ssrc', String(ingest.ssrc)],
+        ...(preview ? ['--preview-port', String(preview.port)] : []),
       ],
       { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
     );
     current = child;
+    child.once('exit', () => preview?.close());
     // The keys go through stdin, never on a command line other programs can read: ours, then
     // the server's. Closing stdin is how the engine is told to stop, so it stays open.
     child.stdin.write(

@@ -19,6 +19,7 @@ import { desktop } from '../desktop/desktop';
 import { useSettingsStore, type Settings } from '../settings/settings-store';
 import { CAMERA, openCamera } from './camera';
 import { startGameAudio, type GameAudio } from './game-audio';
+import { createNativePreview, type NativePreview } from './native-preview';
 import { meterTrack } from './level-meter';
 import { openMicrophone, type Microphone } from './microphone';
 import {
@@ -147,6 +148,9 @@ export class VoiceSession {
   private unsubscribeNativeStats: (() => void) | null = null;
   /** The capture engine's latest numbers, while it sends (app 0.11 and later). */
   private nativeStats: DesktopNativeCaptureStats | null = null;
+  /** The streamer's own picture of a native capture, and what feeds it. */
+  private nativePreview: NativePreview | null = null;
+  private unsubscribePreview: (() => void) | null = null;
   /** Why the capture engine could not run, when the share fell back to ffmpeg. */
   private engineProblem: string | null = null;
   /** The sound of the shared program alone (desktop app), in place of the system's. */
@@ -355,6 +359,7 @@ export class VoiceSession {
       this.nativeShare = null;
       this.nativeProducerId = null;
       this.nativeStats = null;
+      this.stopNativePreview();
       this.nativeAudio?.track.stop();
       this.nativeAudio = null;
       await desktop?.nativeCapture?.stop().catch(() => undefined);
@@ -686,6 +691,7 @@ export class VoiceSession {
     this.unsubscribeNativeStats?.();
     this.unsubscribeNativeStats = null;
     this.nativeStats = null;
+    this.stopNativePreview();
     this.gameAudio?.stop();
     this.gameAudio = null;
     for (const track of this.cameraStream?.getTracks() ?? []) track.stop();
@@ -1149,14 +1155,28 @@ export class VoiceSession {
     const preset = SCREEN_PRESETS[presetId];
     const ingest = await rpc.request('createIngest', { codec });
     this.nativeProducerId = ingest.producerId;
-    await native.start({
-      ingest,
-      codec,
-      frameRate: preset.frameRate,
-      bitrate: Math.max(...preset.bitrates),
-      width: preset.width,
-      height: preset.height,
-    });
+    // The engine sends a small picture of what it captures (app 0.11.2 and later).
+    this.stopNativePreview();
+    if (native.onPreview) {
+      const preview = createNativePreview();
+      this.nativePreview = preview;
+      this.unsubscribePreview = preview
+        ? native.onPreview((picture) => preview.push(picture))
+        : null;
+    }
+    try {
+      await native.start({
+        ingest,
+        codec,
+        frameRate: preset.frameRate,
+        bitrate: Math.max(...preset.bitrates),
+        width: preset.width,
+        height: preset.height,
+      });
+    } catch (error) {
+      this.stopNativePreview();
+      throw error;
+    }
     // The sound of the game alone when one covers the screen. Otherwise the system's, which
     // still comes through the browser: the app answers that request with the same monitor and
     // no picker, and only the audio track is kept.
@@ -1188,11 +1208,18 @@ export class VoiceSession {
         hasAudio: Boolean(this.screenAudioProducer),
         echoRisk: Boolean(this.screenAudioProducer) && Boolean(this.nativeAudio?.echoRisk),
         audioSource: this.screenAudioProducer ? audioSourceOf(this.gameAudio) : null,
-        stream: null,
+        stream: this.nativePreview?.stream ?? null,
         error: null,
       },
     });
     return true;
+  }
+
+  private stopNativePreview(): void {
+    this.unsubscribePreview?.();
+    this.unsubscribePreview = null;
+    this.nativePreview?.stop();
+    this.nativePreview = null;
   }
 
   private async captureNativeAudio(

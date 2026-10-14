@@ -6,6 +6,7 @@ mod capture;
 mod colorcheck;
 mod encoder;
 mod pipeline;
+mod preview;
 mod rtp;
 mod sender;
 mod srtp;
@@ -37,6 +38,7 @@ fn options(args: &[String]) -> Options {
         max_height: arg(args, "--height", 1080),
         frame_rate: arg(args, "--fps", 60),
         bitrate: arg(args, "--bitrate", 8_000_000),
+        preview_port: Some(arg(args, "--preview-port", 0) as u16).filter(|&port| port != 0),
     }
 }
 
