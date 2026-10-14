@@ -7,10 +7,7 @@ const schema = z.object({
   DISPEAKER_UPDATE_URL: z.url().optional(),
   /** Opens the developer tools with the window. */
   DISPEAKER_DEVTOOLS: z.stringbool().default(false),
-  /**
-   * The ffmpeg behind the experimental native capture. Defaults to the one the capture
-   * benchmark downloaded.
-   */
+  /** The ffmpeg behind the experimental native capture. Defaults to the one the app ships with. */
   DISPEAKER_FFMPEG: z.string().min(1).optional(),
 });
 

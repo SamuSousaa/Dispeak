@@ -1,6 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   DESKTOP_NATIVE_CAPTURE_ENDED,
@@ -20,19 +19,14 @@ import { keepTimersFine } from './windows-scheduling';
 const AMD = 0x1002;
 const NVIDIA = 0x10de;
 
-/** Where `scripts/capture-bench` leaves the ffmpeg it downloads. */
-const BENCH_DIR = path.join(os.tmpdir(), 'dispeaker-capture-bench');
-
+/** The ffmpeg that comes with the app: beside the installed app, or in the sources. */
 function findFfmpeg(): string | null {
   if (config.ffmpeg) return fs.existsSync(config.ffmpeg) ? config.ffmpeg : null;
-  try {
-    const found = fs
-      .readdirSync(BENCH_DIR, { recursive: true, encoding: 'utf8' })
-      .find((entry) => path.basename(entry) === 'ffmpeg.exe');
-    return found ? path.join(BENCH_DIR, found) : null;
-  } catch {
-    return null;
-  }
+  const candidates = [
+    path.join(process.resourcesPath, 'ffmpeg', 'ffmpeg.exe'),
+    path.join(app.getAppPath(), 'vendor', 'ffmpeg', 'ffmpeg.exe'),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
 
 /**

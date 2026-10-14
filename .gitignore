@@ -19,3 +19,6 @@ test-results
 
 # Local agent tooling (design skills, hooks)
 .claude
+
+# The ffmpeg the desktop app ships with (scripts/fetch-ffmpeg.mjs)
+apps/desktop/vendor

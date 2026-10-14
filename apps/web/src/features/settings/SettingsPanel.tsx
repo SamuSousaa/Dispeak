@@ -93,7 +93,7 @@ function NativeCaptureSection() {
         <p className="label text-muted" data-testid="native-capture-status">
           {codec
             ? `DISPONÍVEL NESTE PC: ${codec.toUpperCase()}`
-            : 'INDISPONÍVEL NESTE PC: PRECISA DE PLACA AMD OU NVIDIA E DO FFMPEG BAIXADO PELO TESTE DE CAPTURA'}
+            : 'INDISPONÍVEL NESTE PC: PRECISA DE PLACA AMD OU NVIDIA E DO APP 0.7.1 OU MAIS NOVO'}
         </p>
       )}
     </Section>
