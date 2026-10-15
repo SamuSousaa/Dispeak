@@ -26,6 +26,11 @@ export const DESKTOP_SET_CALL_STATE = 'desktop:set-call-state';
 /** App → page: a button of the notification area or of the taskbar thumbnail was used. */
 export const DESKTOP_CALL_ACTION = 'desktop:call-action';
 
+/** Page → app: start or stop measuring the graphics card. */
+export const DESKTOP_WATCH_GPU_USAGE = 'desktop:watch-gpu-usage';
+/** App → page: what the graphics card is busy with, every couple of seconds. */
+export const DESKTOP_GPU_USAGE = 'desktop:gpu-usage';
+
 /** Page → app: the codec this machine's native capture would send, if it has one. */
 export const DESKTOP_NATIVE_CAPTURE_PROBE = 'desktop:native-capture-probe';
 /** Page → app: ask the user what to share and say which capture it is for. */
@@ -90,6 +95,25 @@ export const DESKTOP_CALL_ACTIONS = [
   'voice-settings',
 ] as const;
 export const desktopCallActionSchema = z.object({ action: z.enum(DESKTOP_CALL_ACTIONS) });
+
+export const desktopWatchGpuUsageSchema = z.object({ on: z.boolean() });
+
+const percent = z.number().min(0).max(100);
+/** Busiest engine of each kind, 0 to 100, as the Task Manager counts it. */
+const gpuEnginesSchema = z.object({
+  /** Drawing: games, and the app's own page. */
+  threeD: percent,
+  /** Encoding and decoding video (on AMD a single engine does both). */
+  video: percent,
+  copy: percent,
+});
+export const desktopGpuUsageSchema = z.object({
+  /** The app and every program it started (the capture engine, ffmpeg). */
+  app: gpuEnginesSchema,
+  /** Everything running on the machine. */
+  all: gpuEnginesSchema,
+});
+export type DesktopGpuUsage = z.infer<typeof desktopGpuUsageSchema>;
 export type DesktopCallAction = (typeof DESKTOP_CALL_ACTIONS)[number];
 
 export const desktopNativeCaptureProbeSchema = z.object({
@@ -211,6 +235,11 @@ export interface DesktopBridge {
   setCallState?(state: DesktopCallState): void;
   /** Called when one of those buttons is used. Returns the function that stops listening. */
   onCallAction?(listener: (action: DesktopCallAction) => void): () => void;
+  /**
+   * Measures the graphics card while listened to. Returns the function that stops listening
+   * (and measuring). Absent in apps older than 0.12.0.
+   */
+  watchGpuUsage?(listener: (usage: DesktopGpuUsage) => void): () => void;
   /** Absent in apps older than 0.7.0; its `probe` answers `null` where the experiment is off. */
   nativeCapture?: DesktopNativeCapture;
   /** Absent in apps older than 0.8.0; the mix without voice chats needs 0.10.0. */

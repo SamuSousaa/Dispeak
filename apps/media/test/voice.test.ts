@@ -487,6 +487,24 @@ describe('voice signaling', () => {
         peerIds: [bob.selfId, carla.selfId].sort(),
       });
 
+      // Off screen for a moment (window minimised): nothing is sent, and Bob still counts.
+      await bob.rpc.request('pauseConsumer', { consumerId: bobView.consumerId, hidden: true });
+      const bobConsumer = h.server.rooms
+        .stats()
+        .rooms[0]?.peers.find((peer) => peer.id === bob.selfId)
+        ?.consumers.find((consumer) => consumer.id === bobView.consumerId);
+      expect(bobConsumer?.paused).toBe(true);
+      await bob.rpc.request('resumeConsumer', { consumerId: bobView.consumerId });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(alice.events.some((entry) => entry.event === 'stream-viewers')).toBe(false);
+      // A plain pause means he stopped watching.
+      await bob.rpc.request('pauseConsumer', { consumerId: bobView.consumerId });
+      await expect(alice.next('stream-viewers')).resolves.toEqual({ peerIds: [carla.selfId] });
+      await bob.rpc.request('resumeConsumer', { consumerId: bobView.consumerId });
+      await expect(alice.next('stream-viewers')).resolves.toEqual({
+        peerIds: [bob.selfId, carla.selfId].sort(),
+      });
+
       // One stops watching, the other drops out of the call.
       await bob.rpc.request('closeConsumer', { consumerId: bobView.consumerId });
       await expect(alice.next('stream-viewers')).resolves.toEqual({ peerIds: [carla.selfId] });

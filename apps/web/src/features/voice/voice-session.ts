@@ -57,6 +57,8 @@ interface ActiveConsumer {
   peerId: string;
   source: ProducerSource;
   audio?: HTMLAudioElement;
+  /** A stream's picture paused on the server because nothing shows it right now. */
+  hidden?: boolean;
 }
 
 export interface VoiceSessionOptions {
@@ -90,6 +92,11 @@ const STATS_INTERVAL_MS = 2000;
  */
 const NATIVE_RESTARTS_PER_MINUTE = 4;
 const NATIVE_RESTART_DELAYS_MS = [1000, 2000, 4000];
+/**
+ * How long a watched stream may be off screen before its picture stops coming: passing
+ * through another channel and back costs nothing, a minimised window saves the decoding.
+ */
+const HIDE_STREAM_DELAY_MS = 1500;
 /** Opus target for a voice: well above what browsers choose on their own (about 32 kbps). */
 const VOICE_BITRATE = 64_000;
 const SCREEN_AUDIO_BITRATE = 256_000;
@@ -160,6 +167,8 @@ export class VoiceSession {
   private unsubscribeNativeStats: (() => void) | null = null;
   /** The capture engine's latest numbers, while it sends (app 0.11 and later). */
   private nativeStats: DesktopNativeCaptureStats | null = null;
+  /** Measuring the graphics card (desktop app), while a stream is shared or watched. */
+  private stopGpuUsage: (() => void) | null = null;
   /** The streamer's own picture of a native capture, and what feeds it. */
   private nativePreview: NativePreview | null = null;
   private unsubscribePreview: (() => void) | null = null;
@@ -181,6 +190,12 @@ export class VoiceSession {
   private readonly wantedLayers = new Map<string, number>();
   /** Same, for each participant's camera. */
   private readonly cameraLayers = new Map<string, number>();
+  /** Tiles on screen showing each watched stream, by streamer session id. */
+  private readonly shownStreams = new Map<string, number>();
+  private readonly hideTimers = new Map<string, number>();
+  private readonly onPageVisibility = () => {
+    for (const peerId of this.watched) this.syncStreamPause(peerId);
+  };
 
   private readonly iceTimers = new Map<string, number>();
   private statsTimer: number | null = null;
@@ -211,6 +226,9 @@ export class VoiceSession {
     this.unsubscribeSettings = useSettingsStore.subscribe((settings, previous) =>
       this.handleSettingsChange(settings, previous),
     );
+    document.addEventListener('visibilitychange', this.onPageVisibility);
+    // Closing the floating window while the app is minimised leaves nothing on screen.
+    document.addEventListener('leavepictureinpicture', this.onPageVisibility, true);
     this.unsubscribeAccount = useAccountSettings.subscribe((settings, previous) => {
       if (settings.people === previous.people) return;
       for (const entry of this.consumers.values()) this.applyVolume(entry);
@@ -224,6 +242,10 @@ export class VoiceSession {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    document.removeEventListener('visibilitychange', this.onPageVisibility);
+    document.removeEventListener('leavepictureinpicture', this.onPageVisibility, true);
+    for (const timer of this.hideTimers.values()) window.clearTimeout(timer);
+    this.hideTimers.clear();
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
     this.connection?.rpc.request('leave', {}).catch(() => undefined);
     this.teardownConnection();
@@ -530,6 +552,66 @@ export class VoiceSession {
     this.forgetStream(peerId);
   }
 
+  /**
+   * A tile shows a watched stream. While no tile does, or the window is minimised (and no
+   * floating window shows it), its picture is paused on the server: nothing to send, nothing
+   * to decode. The sound goes on, and the streamer still counts the user as watching. A window
+   * merely out of focus, such as a stream on a second monitor next to a game, is on screen.
+   * Returns the function to call when the tile goes.
+   */
+  showStream(peerId: string): () => void {
+    this.shownStreams.set(peerId, (this.shownStreams.get(peerId) ?? 0) + 1);
+    this.syncStreamPause(peerId);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const left = (this.shownStreams.get(peerId) ?? 1) - 1;
+      if (left > 0) this.shownStreams.set(peerId, left);
+      else this.shownStreams.delete(peerId);
+      this.syncStreamPause(peerId);
+    };
+  }
+
+  private streamOnScreen(peerId: string): boolean {
+    if (!this.shownStreams.get(peerId)) return false;
+    if (document.visibilityState === 'visible') return true;
+    const floating = document.pictureInPictureElement;
+    const stream = get().watching[peerId]?.stream;
+    return floating instanceof HTMLVideoElement && Boolean(stream) && floating.srcObject === stream;
+  }
+
+  private syncStreamPause(peerId: string): void {
+    const timer = this.hideTimers.get(peerId);
+    if (this.streamOnScreen(peerId)) {
+      if (timer !== undefined) window.clearTimeout(timer);
+      this.hideTimers.delete(peerId);
+      this.setStreamHidden(peerId, false);
+      return;
+    }
+    if (timer !== undefined) return;
+    this.hideTimers.set(
+      peerId,
+      window.setTimeout(() => {
+        this.hideTimers.delete(peerId);
+        if (!this.streamOnScreen(peerId)) this.setStreamHidden(peerId, true);
+      }, HIDE_STREAM_DELAY_MS),
+    );
+  }
+
+  private setStreamHidden(peerId: string, hidden: boolean): void {
+    for (const [consumerId, entry] of this.consumers) {
+      if (entry.peerId !== peerId || entry.source !== 'screen') continue;
+      if (Boolean(entry.hidden) === hidden) continue;
+      entry.hidden = hidden;
+      // Resuming a picture makes the server ask the streamer for a key frame.
+      const request = hidden
+        ? this.connection?.rpc.request('pauseConsumer', { consumerId, hidden: true })
+        : this.connection?.rpc.request('resumeConsumer', { consumerId });
+      request?.catch(() => undefined);
+    }
+  }
+
   /** Reports the size a watched stream is displayed at, to pick its simulcast layer. */
   setStreamViewport(peerId: string, cssHeight: number): void {
     if (!this.watched.has(peerId)) return;
@@ -695,6 +777,9 @@ export class VoiceSession {
     if (this.statsTimer !== null) window.clearInterval(this.statsTimer);
     this.statsTimer = null;
     this.statsSample = null;
+    this.stopGpuUsage?.();
+    this.stopGpuUsage = null;
+    set({ gpu: null });
     this.streamSamples.clear();
     for (const timer of this.iceTimers.values()) window.clearTimeout(timer);
     this.iceTimers.clear();
@@ -1419,6 +1504,7 @@ export class VoiceSession {
         });
       }
       await connection.rpc.request('resumeConsumer', { consumerId: consumer.id });
+      if (source === 'screen') this.syncStreamPause(peerId);
     } catch (error) {
       // The producer may be gone by the time we ask for it; that is not an error.
       if (!(error instanceof RpcError && error.code === VoiceErrorCode.NotFound)) {
@@ -1454,9 +1540,39 @@ export class VoiceSession {
     this.statsTimer = window.setInterval(() => void this.pollStats(), STATS_INTERVAL_MS);
   }
 
+  /** What the machine is busy with, for the telemetry of the streams it sends or receives. */
+  private machineLoad() {
+    const { gpu } = get();
+    let watching = 0;
+    for (const entry of this.consumers.values()) {
+      if (entry.source === 'screen' && !entry.hidden && !entry.consumer.paused) watching++;
+    }
+    return {
+      gpuApp3d: gpu?.app.threeD ?? null,
+      gpuAppVideo: gpu?.app.video ?? null,
+      gpu3d: gpu?.all.threeD ?? null,
+      gpuVideo: gpu?.all.video ?? null,
+      watching,
+    };
+  }
+
+  /** The graphics card is measured only while a stream goes out or comes in. */
+  private followGpuUsage(): void {
+    const streaming = Boolean(this.screenProducer || this.nativeProducerId || this.watched.size);
+    if (streaming && !this.stopGpuUsage && desktop?.watchGpuUsage) {
+      this.stopGpuUsage = desktop.watchGpuUsage((gpu) => set({ gpu }));
+    } else if (!streaming && this.stopGpuUsage) {
+      this.stopGpuUsage();
+      this.stopGpuUsage = null;
+      set({ gpu: null });
+    }
+  }
+
   private async pollStats(): Promise<void> {
     const { sendTransport, recvTransport } = this;
     if (!sendTransport || !recvTransport || sendTransport.closed || recvTransport.closed) return;
+    this.followGpuUsage();
+    const load = this.machineLoad();
     try {
       const [sent, received] = await Promise.all([
         sendTransport.getStats(),
@@ -1490,6 +1606,7 @@ export class VoiceSession {
             limitation: own.limitation ?? null,
             encoder: own.encoder?.slice(0, 64) ?? null,
             preset,
+            ...load,
           },
         });
       } else if (this.nativeProducerId) {
@@ -1531,10 +1648,11 @@ export class VoiceSession {
               `ffmpeg · app ${desktop?.version ?? '?'}${this.engineProblem ? ` · ${this.engineProblem}` : ''}`
             ).slice(0, 64),
             preset,
+            ...load,
           },
         });
       }
-      for (const { consumer, peerId, source } of this.consumers.values()) {
+      for (const { consumer, peerId, source, hidden } of this.consumers.values()) {
         if (source !== 'screen' || consumer.closed) continue;
         const result = collectInboundStreamStats(
           await consumer.getStats(),
@@ -1542,11 +1660,11 @@ export class VoiceSession {
         );
         this.streamSamples.set(peerId, result.sample);
         streamStats[peerId] = result.stats;
-        if (!consumer.paused) {
+        if (!consumer.paused && !hidden) {
           rpc?.notify('stream-stats', {
             role: 'viewer',
             producerId: consumer.producerId,
-            sample: result.viewer,
+            sample: { ...result.viewer, ...load },
           });
         }
       }

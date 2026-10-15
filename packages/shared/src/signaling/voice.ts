@@ -206,7 +206,14 @@ export const voiceServerSide = defineSide({
       }),
     },
     resumeConsumer: { request: consumerRef, response: empty },
-    pauseConsumer: { request: consumerRef, response: empty },
+    /**
+     * Stops the media of a consumer. `hidden`: the user still watches, the stream is only off
+     * screen for now (window minimised, another channel open); the streamer still counts them.
+     */
+    pauseConsumer: {
+      request: consumerRef.extend({ hidden: z.boolean().optional() }),
+      response: empty,
+    },
     closeConsumer: { request: consumerRef, response: empty },
     /** Picks the simulcast layer a video consumer should receive (0 = lowest resolution). */
     setConsumerLayers: {

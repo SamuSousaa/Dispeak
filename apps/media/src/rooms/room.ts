@@ -543,9 +543,13 @@ export class Room {
     this.syncViewers(consumer.producerId);
   }
 
-  async pauseConsumer(peer: Peer, consumerId: string): Promise<void> {
+  /**
+   * `hidden` keeps the consumer wanted: its viewer still watches, only not on screen right
+   * now, so they stay in the streamer's list of viewers and nothing is sent meanwhile.
+   */
+  async pauseConsumer(peer: Peer, consumerId: string, hidden = false): Promise<void> {
     const consumer = this.getConsumer(peer, consumerId);
-    consumer.appData.wanted = false;
+    consumer.appData.wanted = hidden;
     await consumer.pause();
     this.syncViewers(consumer.producerId);
   }

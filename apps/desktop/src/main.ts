@@ -5,6 +5,7 @@ import { serveCallState } from './call-state';
 import { config } from './config';
 import { showDiagnostics } from './diagnostics';
 import { serveGameAudio } from './game-audio';
+import { serveGpuUsage } from './gpu-usage';
 import { serveNativeCapture } from './native-capture';
 import { isAppUrl, isExternalLink } from './navigation';
 import { applyBackgroundSwitches, keepProcessesResponsive } from './performance';
@@ -115,6 +116,7 @@ function createWindow(): BrowserWindow {
   const call = serveCallState(window);
   revealWindow = serveTray(window, call);
   serveThumbar(window, call);
+  serveGpuUsage(window);
   nativeCapture = serveNativeCapture(window, () => chooseSource(window));
   serveGameAudio(window, () => pickedWindow);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });

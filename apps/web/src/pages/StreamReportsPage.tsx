@@ -7,7 +7,11 @@ import { cx } from '../lib/cx';
 import { describeError } from '../lib/http';
 import { clock, FpsChart } from '../features/streams/FpsChart';
 import { streamApi } from '../features/streams/stream-api';
-import { summarize, type StreamSummary } from '../features/streams/stream-summary';
+import {
+  summarize,
+  type MachineLoad,
+  type StreamSummary,
+} from '../features/streams/stream-summary';
 
 const WHEN = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -61,6 +65,18 @@ function Stage({ title, rows }: { title: string; rows: Array<[string, string | n
 
 const fps = (value: number | null) => (value === null ? null : `${value}`);
 const millis = (value: number | null) => (value === null ? null : `${value} ms`);
+const engines = (threeD: number | null, video: number | null) =>
+  threeD === null && video === null ? null : `3D ${threeD ?? '—'}% · VÍDEO ${video ?? '—'}%`;
+
+/** The graphics card of a machine, when its desktop app measured it. */
+function loadRows(load: MachineLoad | undefined): Array<[string, string | number | null]> {
+  if (!load || (load.gpuApp3d === null && load.gpu3d === null)) return [];
+  return [
+    ['GPU DO APP', engines(load.gpuApp3d, load.gpuAppVideo)],
+    ['GPU DO PC', engines(load.gpu3d, load.gpuVideo)],
+    ['RECEBENDO', load.watching === null ? null : `${load.watching} transmissão(ões)`],
+  ];
+}
 
 function Stages({ summary }: { summary: StreamSummary }) {
   const { sender, server, viewers } = summary;
@@ -75,6 +91,7 @@ function Stages({ summary }: { summary: StreamSummary }) {
           ['POR QUADRO', millis(sender?.encodeMs ?? null)],
           ['LIMITE', sender?.limitation?.toUpperCase() ?? null],
           ['COMPRESSOR', sender?.encoder ?? null],
+          ...loadRows(sender?.load),
         ]}
       />
       <Stage
@@ -99,6 +116,7 @@ function Stages({ summary }: { summary: StreamSummary }) {
             ['TEMPO PARADO', `${(viewer.freezeMs / 1000).toFixed(1)} s`],
             ['DESCARTADOS', viewer.framesDropped],
             ['DECODIFICAR', millis(viewer.decodeMs)],
+            ...loadRows(viewer.load),
           ]}
         />
       ))}

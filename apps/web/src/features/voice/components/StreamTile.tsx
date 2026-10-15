@@ -8,7 +8,7 @@ import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
 import { usePerson } from '../../settings/account-settings';
 import { registerStreamFullscreen } from '../stream-fullscreen';
-import { setStreamViewport } from '../voice-actions';
+import { setStreamViewport, showStream } from '../voice-actions';
 import { SELF_STREAM, useVoiceStore, type StreamStats } from '../voice-store';
 import { StreamViewers } from './StreamViewers';
 import { LiveBadge } from './LiveBadge';
@@ -68,6 +68,7 @@ function encoderLabel(name: string | null | undefined): string | null {
 function StatsPanel({ id, stats }: { id: string; stats: StreamStats | undefined }) {
   const rttMs = useVoiceStore((state) => state.stats.rttMs);
   const layer = useVoiceStore((state) => state.watching[id]?.spatialLayer ?? null);
+  const gpu = useVoiceStore((state) => state.gpu);
   const isSelf = id === SELF_STREAM;
 
   const rows: Array<[string, string]> = [
@@ -99,11 +100,16 @@ function StatsPanel({ id, stats }: { id: string; stats: StreamStats | undefined 
     rows.splice(3, 0, ['PERDA', dash(stats?.lossPercent, '%')]);
     rows.push(['CAMADA', layer === null ? '—' : `${layer + 1}/${SIMULCAST_LAYERS}`]);
   }
+  // The desktop app measures the graphics card: what the app takes, and the whole PC.
+  if (gpu) {
+    rows.push(['GPU · APP', `3D ${gpu.app.threeD}% · VÍDEO ${gpu.app.video}%`]);
+    rows.push(['GPU · PC', `3D ${gpu.all.threeD}% · VÍDEO ${gpu.all.video}%`]);
+  }
 
   return (
     <dl
       data-testid="stream-stats"
-      className="label absolute bottom-8 left-0 grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5 border border-line bg-bg px-3 py-2"
+      className="label absolute bottom-8 left-0 grid max-h-[calc(100%-3.5rem)] grid-cols-[auto_auto] gap-x-4 gap-y-0.5 overflow-y-auto border border-line bg-bg px-3 py-2"
     >
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
@@ -194,6 +200,12 @@ export function StreamTile({
       window.clearTimeout(timer);
       observer.disconnect();
     };
+  }, [id, isSelf, ended]);
+
+  // While no tile shows a stream, its picture stops coming (the sound does not).
+  useEffect(() => {
+    if (isSelf || ended) return;
+    return showStream(id);
   }, [id, isSelf, ended]);
 
   useEffect(() => {

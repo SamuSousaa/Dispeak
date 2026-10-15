@@ -14,6 +14,21 @@ const count = z.number().int().min(0).max(1_000_000_000);
 const rate = z.number().min(0).max(100_000);
 const ms = z.number().min(0).max(3_600_000);
 const label = z.string().max(64);
+const percent = z.number().min(0).max(100);
+
+/**
+ * How loaded the machine is while it sends or watches, from the desktop app (0.12 and later;
+ * absent from browsers and older apps). Graphics card: the busiest engine of each kind, as the
+ * Task Manager counts it, for the app alone and for the whole machine.
+ */
+const machineLoad = {
+  gpuApp3d: percent.nullable().optional(),
+  gpuAppVideo: percent.nullable().optional(),
+  gpu3d: percent.nullable().optional(),
+  gpuVideo: percent.nullable().optional(),
+  /** Streams this machine was receiving at the time. */
+  watching: count.nullable().optional(),
+};
 
 /** How the picture leaves the streamer's machine. */
 export const streamPathSchema = z.enum(['browser', 'native']);
@@ -35,6 +50,7 @@ export const streamSenderSampleSchema = z.object({
   encoder: label.nullable(),
   /** Screen preset in use (`1080p60`). */
   preset: label.nullable(),
+  ...machineLoad,
 });
 export type StreamSenderSample = z.infer<typeof streamSenderSampleSchema>;
 
@@ -56,6 +72,7 @@ export const streamViewerSampleSchema = z.object({
   height: count.nullable(),
   kbps: rate.nullable(),
   decoder: label.nullable(),
+  ...machineLoad,
 });
 export type StreamViewerSample = z.infer<typeof streamViewerSampleSchema>;
 

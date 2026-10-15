@@ -1,4 +1,4 @@
-import type { VoicePeer } from '@frequencia/shared';
+import type { DesktopGpuUsage, VoicePeer } from '@frequencia/shared';
 import { create } from 'zustand';
 import type { NoiseEngine } from './microphone';
 import type { ScreenPresetId } from './screen-presets';
@@ -111,6 +111,11 @@ export interface VoiceState {
    * ends stays wanted: it is received again as soon as that person shares again.
    */
   wantedStreams: string[];
+  /**
+   * How busy the graphics card is, measured by the desktop app while a stream goes out or
+   * comes in; `null` otherwise, and in a browser.
+   */
+  gpu: DesktopGpuUsage | null;
 }
 
 export const emptyVoiceStats: VoiceConnectionStats = {
@@ -155,6 +160,7 @@ export const initialVoiceState: VoiceState = {
   streamStats: {},
   micLevel: 0,
   wantedStreams: [],
+  gpu: null,
 };
 
 export const useVoiceStore = create<VoiceState>(() => initialVoiceState);

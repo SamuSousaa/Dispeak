@@ -174,8 +174,8 @@ export class VoiceServer {
       return {};
     });
 
-    rpc.handle('pauseConsumer', async ({ consumerId }) => {
-      await (await room()).pauseConsumer(peer, consumerId);
+    rpc.handle('pauseConsumer', async ({ consumerId, hidden }) => {
+      await (await room()).pauseConsumer(peer, consumerId, hidden ?? false);
       return {};
     });
 

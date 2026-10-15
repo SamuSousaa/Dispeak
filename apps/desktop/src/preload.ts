@@ -4,6 +4,7 @@ import {
   DESKTOP_GAME_AUDIO_START,
   DESKTOP_GAME_AUDIO_STOP,
   DESKTOP_GET_UPDATE,
+  DESKTOP_GPU_USAGE,
   DESKTOP_INSTALL_UPDATE,
   DESKTOP_NATIVE_CAPTURE_CHOOSE,
   DESKTOP_NATIVE_CAPTURE_ENDED,
@@ -17,8 +18,10 @@ import {
   DESKTOP_SET_SHORTCUTS,
   DESKTOP_SHORTCUT,
   DESKTOP_UPDATE_READY,
+  DESKTOP_WATCH_GPU_USAGE,
   desktopCallActionSchema,
   desktopGameAudioSchema,
+  desktopGpuUsageSchema,
   desktopNativeCaptureChoiceSchema,
   desktopNativeCaptureProbeSchema,
   desktopNativeCaptureStatsSchema,
@@ -62,6 +65,18 @@ const bridge: DesktopBridge = {
   setCloseToTray: (enabled) =>
     ipcRenderer.invoke(DESKTOP_SET_CLOSE_TO_TRAY, { enabled }) as Promise<void>,
   setCallState: (state) => ipcRenderer.send(DESKTOP_SET_CALL_STATE, state),
+  watchGpuUsage: (listener) => {
+    const handler = (_event: unknown, payload: unknown) => {
+      const parsed = desktopGpuUsageSchema.safeParse(payload);
+      if (parsed.success) listener(parsed.data);
+    };
+    ipcRenderer.on(DESKTOP_GPU_USAGE, handler);
+    void ipcRenderer.invoke(DESKTOP_WATCH_GPU_USAGE, { on: true });
+    return () => {
+      ipcRenderer.removeListener(DESKTOP_GPU_USAGE, handler);
+      void ipcRenderer.invoke(DESKTOP_WATCH_GPU_USAGE, { on: false });
+    };
+  },
   onCallAction: (listener) => {
     const handler = (_event: unknown, payload: unknown) => {
       const parsed = desktopCallActionSchema.safeParse(payload);

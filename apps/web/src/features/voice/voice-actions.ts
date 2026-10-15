@@ -133,6 +133,11 @@ export function unwatchUser(userId: string): void {
   session?.unwatchUser(userId);
 }
 
+/** A tile shows a watched stream; returns the function to call when it stops showing it. */
+export function showStream(peerId: string): () => void {
+  return session?.showStream(peerId) ?? (() => undefined);
+}
+
 /** Tells the session how tall (CSS px) a watched stream is displayed. */
 export function setStreamViewport(peerId: string, cssHeight: number): void {
   session?.setStreamViewport(peerId, cssHeight);

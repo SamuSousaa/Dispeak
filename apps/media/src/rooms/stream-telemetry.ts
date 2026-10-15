@@ -59,9 +59,10 @@ function gather<T extends Record<string, unknown>>(
 
 /**
  * Numbers kept as last reported, like labels: a picture that changed size within the window
- * has the new size, not one between the two (which is not a whole number of pixels).
+ * has the new size, not one between the two (which is not a whole number of pixels). The
+ * same for how many streams a machine receives.
  */
-const LATEST = new Set(['width', 'height']);
+const LATEST = new Set(['width', 'height', 'watching']);
 
 /** Counters added up, sizes and labels as last reported, other numbers averaged. */
 function merged<T extends Record<string, unknown>>(gathered: Gathered<T>): T {

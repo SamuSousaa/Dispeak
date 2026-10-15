@@ -41,7 +41,30 @@ export function presetFrameRate(preset: string | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/** What the graphics card was busy with, from the desktop app; `null` where unknown. */
+export interface MachineLoad {
+  gpuApp3d: number | null;
+  gpuAppVideo: number | null;
+  gpu3d: number | null;
+  gpuVideo: number | null;
+  /** Streams the machine was receiving, most of the time. */
+  watching: number | null;
+}
+
+type LoadSample = Partial<Record<keyof MachineLoad, number | null>>;
+
+function summarizeLoad(samples: LoadSample[]): MachineLoad {
+  return {
+    gpuApp3d: median(samples.map((sample) => sample.gpuApp3d)),
+    gpuAppVideo: median(samples.map((sample) => sample.gpuAppVideo)),
+    gpu3d: median(samples.map((sample) => sample.gpu3d)),
+    gpuVideo: median(samples.map((sample) => sample.gpuVideo)),
+    watching: median(samples.map((sample) => sample.watching)),
+  };
+}
+
 export interface SenderSummary {
+  load: MachineLoad;
   preset: string | null;
   captureFps: number | null;
   sentFps: number | null;
@@ -61,6 +84,7 @@ export interface ServerSummary {
 }
 
 export interface ViewerSummary {
+  load: MachineLoad;
   userId: string;
   name: string;
   fps: number | null;
@@ -86,6 +110,7 @@ function summarizeSender(samples: StreamSample[]): SenderSummary | null {
   const sent = samples.flatMap((sample) => (sample.sender ? [sample.sender] : []));
   if (sent.length === 0) return null;
   return {
+    load: summarizeLoad(sent),
     preset: mostCommon(sent.map((sample) => sample.preset)),
     captureFps: median(sent.map((sample) => sample.captureFps)),
     sentFps: median(sent.map((sample) => sample.sentFps)),
@@ -117,6 +142,7 @@ function summarizeViewers(report: StreamReport): ViewerSummary[] {
     }
   }
   return [...byUser].map(([userId, seen]) => ({
+    load: summarizeLoad(seen),
     userId,
     name: report.viewerNames[userId] ?? 'ALGUÉM',
     fps: median(seen.map((viewer) => viewer.fps)),
