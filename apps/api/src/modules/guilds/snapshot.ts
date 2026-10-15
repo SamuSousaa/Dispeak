@@ -7,6 +7,7 @@ import {
   Permissions,
   serializePermissions,
   type Channel,
+  type DmState,
   type Guild,
   type GuildKind,
   type GuildSound,
@@ -17,7 +18,7 @@ import {
   type Role,
   type VoiceState,
 } from '@frequencia/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 import { toPublicUser, type PublicUserRow } from '../../lib/user';
 import { schema, type Queryable } from '../../db/client';
 import { forbidden, notFound } from '../../errors';
@@ -31,6 +32,9 @@ const {
   memberRoles,
   users,
   guildSounds,
+  friendships,
+  dmRequests,
+  userBlocks,
 } = schema;
 
 export type RoleRow = typeof roles.$inferSelect;
@@ -50,6 +54,27 @@ export interface MemberEntry {
   roleIds: string[];
 }
 
+/** What sets a private conversation apart, between its two people. */
+export interface DmSnapshot {
+  friends: boolean;
+  request: { recipientId: string; sent: boolean; declined: boolean } | null;
+  /** Ids of the members who block the other one. */
+  blockers: string[];
+}
+
+/**
+ * In a private conversation nothing goes through while one blocks the other, and there are no
+ * calls before a request from someone who is not a friend is accepted.
+ */
+const BLOCKED_MASK =
+  Permissions.SendMessages |
+  Permissions.AttachFiles |
+  Permissions.AddReactions |
+  Permissions.Connect |
+  Permissions.Speak |
+  Permissions.Stream;
+const REQUEST_MASK = Permissions.Connect | Permissions.Speak | Permissions.Stream;
+
 /** Everything needed to answer permission questions about one guild, loaded in one go. */
 export interface GuildSnapshot {
   guild: { id: string; kind: GuildKind; name: string; ownerId: string; iconId: string | null };
@@ -59,6 +84,8 @@ export interface GuildSnapshot {
   members: Map<string, MemberEntry>;
   /** Custom notification sounds, by event. */
   sounds: Map<string, GuildSound>;
+  /** Private conversations only. */
+  dm: DmSnapshot | null;
 }
 
 export async function loadGuildSnapshot(
@@ -113,6 +140,7 @@ export async function loadGuildSnapshot(
     });
   }
   for (const row of memberRoleRows) members.get(row.userId)?.roleIds.push(row.roleId);
+  const dm = guild.kind === 'dm' ? await loadDm(db, guildId, [...members.keys()]) : null;
 
   return {
     guild: {
@@ -129,6 +157,51 @@ export async function loadGuildSnapshot(
     sounds: new Map(
       soundRows.map((row) => [row.event, { id: row.fileId, filename: row.filename }]),
     ),
+    dm,
+  };
+}
+
+async function loadDm(db: Queryable, guildId: string, memberIds: string[]): Promise<DmSnapshot> {
+  const [a = '', b = ''] = [...memberIds].sort();
+  const [friendRows, requestRows, blockRows] = await Promise.all([
+    db
+      .select({ userLow: friendships.userLow })
+      .from(friendships)
+      .where(and(eq(friendships.userLow, a), eq(friendships.userHigh, b))),
+    db.select().from(dmRequests).where(eq(dmRequests.guildId, guildId)),
+    db
+      .select({ blockerId: userBlocks.blockerId })
+      .from(userBlocks)
+      .where(
+        or(
+          and(eq(userBlocks.blockerId, a), eq(userBlocks.blockedId, b)),
+          and(eq(userBlocks.blockerId, b), eq(userBlocks.blockedId, a)),
+        ),
+      ),
+  ]);
+  const [request] = requestRows;
+  return {
+    friends: friendRows.length > 0,
+    request: request
+      ? { recipientId: request.recipientId, sent: request.sent, declined: request.declined }
+      : null,
+    blockers: blockRows.map((row) => row.blockerId),
+  };
+}
+
+/** How one of the two sees their private conversation. */
+export function dmStateFor(dm: DmSnapshot, userId: string): DmState {
+  const { request } = dm;
+  return {
+    friend: dm.friends,
+    request: !request
+      ? null
+      : request.recipientId !== userId
+        ? 'outgoing'
+        : request.declined || !request.sent
+          ? 'hidden'
+          : 'incoming',
+    blocked: dm.blockers.length === 0 ? null : dm.blockers.includes(userId) ? 'you' : 'other',
   };
 }
 
@@ -148,15 +221,20 @@ export function actorOf(snapshot: GuildSnapshot, userId: string): Actor | null {
     .filter((role): role is RoleRow => Boolean(role));
   // A private conversation belongs to both: whoever asked for the friendship owns nothing.
   const isOwner = snapshot.guild.kind === 'server' && snapshot.guild.ownerId === userId;
+  let permissions = computeBasePermissions({
+    isOwner,
+    everyonePermissions: snapshot.roles.get(snapshot.guild.id)?.permissions ?? 0n,
+    rolePermissions: memberRoleRows.map((role) => role.permissions),
+  });
+  // Every check in the API asks these permissions: a block or a pending request needs no rule
+  // of its own in the routes.
+  if (snapshot.dm?.blockers.length) permissions &= ~BLOCKED_MASK;
+  if (snapshot.dm?.request) permissions &= ~REQUEST_MASK;
   return {
     userId,
     member,
     isOwner,
-    permissions: computeBasePermissions({
-      isOwner,
-      everyonePermissions: snapshot.roles.get(snapshot.guild.id)?.permissions ?? 0n,
-      rolePermissions: memberRoleRows.map((role) => role.permissions),
-    }),
+    permissions,
     highestRolePosition: highestRolePosition(memberRoleRows),
   };
 }
@@ -268,6 +346,7 @@ export function guildPayloadFor(
     name: snapshot.guild.name,
     icon: snapshot.guild.iconId,
     ownerId: snapshot.guild.ownerId,
+    dm: snapshot.dm ? dmStateFor(snapshot.dm, userId) : null,
     channels: visible.map((channel) => toChannel(snapshot, channel)),
     roles: [...snapshot.roles.values()].sort((a, b) => b.position - a.position).map(toRole),
     members: [...snapshot.members.values()].map(toMember),

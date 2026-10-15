@@ -235,9 +235,28 @@ export const guildKindSchema = z.enum(['server', 'dm']);
 export type GuildKind = z.infer<typeof guildKindSchema>;
 
 /** A guild as one member sees it: only the channels they can view. */
+/**
+ * A private conversation as one of its two people sees it. Being friends and talking are
+ * separate: people who share a server may talk, and the conversation outlives a friendship.
+ */
+export const dmStateSchema = z.object({
+  friend: z.boolean(),
+  /**
+   * A first conversation started by someone who is not a friend: `incoming` waits for this user
+   * to accept or decline, `outgoing` for the other one. `hidden`: declined by this user, or
+   * started by the other without a message yet; not shown.
+   */
+  request: z.enum(['incoming', 'outgoing', 'hidden']).nullable(),
+  /** Nothing can be sent or called while one of the two blocks the other (`you`: this user). */
+  blocked: z.enum(['you', 'other']).nullable(),
+});
+export type DmState = z.infer<typeof dmStateSchema>;
+
 export const guildSchema = z.object({
   id: idSchema,
   kind: guildKindSchema,
+  /** Private conversations only. */
+  dm: dmStateSchema.nullable(),
   name: z.string(),
   /** Id of the server icon, served at `/images/:id`. */
   icon: idSchema.nullable(),
@@ -628,6 +647,10 @@ export const friendRequestsResponseSchema = z.object({ requests: z.array(friendR
 export type FriendRequestsResponse = z.infer<typeof friendRequestsResponseSchema>;
 
 export const sendFriendRequestSchema = z.object({ username: usernameSchema });
+
+/** The people this user blocked. */
+export const blockListSchema = z.object({ users: z.array(userSchema) });
+export type BlockList = z.infer<typeof blockListSchema>;
 export type SendFriendRequest = z.infer<typeof sendFriendRequestSchema>;
 
 /** Answer to a request: still pending, or already a conversation when the other had asked too. */
@@ -653,6 +676,10 @@ export const ApiErrorCode = {
   Banned: 'banned',
   RateLimited: 'rate_limited',
   MediaUnavailable: 'media_unavailable',
+  /** The person only takes messages from friends, or shares no server with the sender. */
+  DmClosed: 'dm_closed',
+  /** One of the two blocks the other. */
+  Blocked: 'blocked',
   Internal: 'internal_error',
 } as const;
 export type ApiErrorCode = (typeof ApiErrorCode)[keyof typeof ApiErrorCode];

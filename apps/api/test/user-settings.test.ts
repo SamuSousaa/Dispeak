@@ -39,8 +39,8 @@ describe('user settings', () => {
 
   it('starts with the defaults, in READY and over REST', async () => {
     const { ready } = await online(other);
-    expect(ready.settings).toEqual({ people: {}, showEmbeds: true });
-    expect(await read(other)).toEqual({ people: {}, showEmbeds: true });
+    expect(ready.settings).toEqual({ people: {}, showEmbeds: true, privateProfile: false });
+    expect(await read(other)).toEqual({ people: {}, showEmbeds: true, privateProfile: false });
   });
 
   it('merges a person field by field and tells every session of the account', async () => {

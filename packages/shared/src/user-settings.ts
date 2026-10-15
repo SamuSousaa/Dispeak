@@ -30,10 +30,16 @@ export const userSettingsSchema = z.object({
   people: z.record(idSchema, personPreferencesSchema),
   /** Show pictures and previews of links posted in the chat. */
   showEmbeds: z.boolean(),
+  /** Only friends may start a private conversation; otherwise anyone sharing a server can. */
+  privateProfile: z.boolean(),
 });
 export type UserSettings = z.infer<typeof userSettingsSchema>;
 
-export const defaultUserSettings: UserSettings = { people: {}, showEmbeds: true };
+export const defaultUserSettings: UserSettings = {
+  people: {},
+  showEmbeds: true,
+  privateProfile: false,
+};
 
 /**
  * A change to the settings. Fields left out stay as they are; in `people`, a person's fields
@@ -45,6 +51,7 @@ export const userSettingsPatchSchema = z
       .record(idSchema, personPreferencesSchema.nullable())
       .refine((people) => Object.keys(people).length <= PEOPLE_PREFERENCES_MAX),
     showEmbeds: z.boolean(),
+    privateProfile: z.boolean(),
   })
   .partial();
 export type UserSettingsPatch = z.infer<typeof userSettingsPatchSchema>;
@@ -84,6 +91,7 @@ export function applyUserSettingsPatch(
   return {
     people,
     showEmbeds: patch.showEmbeds ?? settings.showEmbeds,
+    privateProfile: patch.privateProfile ?? settings.privateProfile,
   };
 }
 

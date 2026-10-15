@@ -40,6 +40,7 @@ const channel = (id: string, type: Channel['type'], position: number): Channel =
 const guild = (overrides: Partial<Guild> = {}): Guild => ({
   id: GUILD,
   kind: 'server',
+  dm: null,
   name: 'Amigos',
   icon: null,
   ownerId: ALICE,
@@ -81,6 +82,7 @@ describe('gateway reducers', () => {
       sessionId: 's',
       user: { ...member(ALICE, 'Alice').user, presence: 'online' },
       settings: defaultUserSettings,
+      blockedUserIds: [],
       guilds: [guild(), other],
     });
     expect(next.status).toBe('ready');

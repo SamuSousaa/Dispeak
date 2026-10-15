@@ -38,6 +38,8 @@ import { PictureStore } from './modules/users/pictures';
 import { userRoutes } from './modules/users/routes';
 import { UserService } from './modules/users/service';
 import { UserSettingsService } from './modules/users/settings';
+import { conversationRoutes } from './modules/conversations/routes';
+import { ConversationService } from './modules/conversations/service';
 import { streamReportRoutes } from './modules/streams/routes';
 import { StreamReportService } from './modules/streams/service';
 import { voiceRoutes } from './modules/voice/routes';
@@ -115,11 +117,19 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     pictures,
     soundFiles: new AttachmentFiles(path.resolve(config.UPLOADS_DIR, 'sounds')),
   });
-  const friends = new FriendService({ db: database.db, bus, live, voice });
+  const conversations = new ConversationService({
+    db: database.db,
+    bus,
+    live,
+    voice,
+    settings: userSettings,
+  });
+  const friends = new FriendService({ db: database.db, bus, conversations });
   const messages = new MessageService(
     database.db,
     bus,
     new AttachmentFiles(path.resolve(config.UPLOADS_DIR)),
+    conversations,
   );
   const linkPreviews = new LinkPreviews({ allowPrivate: config.LINK_PREVIEW_ALLOW_PRIVATE });
   const gifs = new GifSearch({ apiKey: config.GIPHY_API_KEY, baseUrl: config.GIPHY_API_URL });
@@ -142,6 +152,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     bus,
     auth,
     userSettings,
+    conversations,
     live,
     config,
     log: app.log,
@@ -160,6 +171,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     auth,
     guilds,
     friends,
+    conversations,
     messages,
     users,
     userSettings,
@@ -237,6 +249,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       await api.register(messageRoutes);
       await api.register(embedRoutes);
       await api.register(userRoutes);
+      await api.register(conversationRoutes);
       await api.register(voiceRoutes);
       await api.register(streamReportRoutes);
       if (config.LAB_ENABLED) await api.register(labRoutes);

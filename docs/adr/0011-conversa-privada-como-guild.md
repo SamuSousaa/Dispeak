@@ -1,5 +1,7 @@
 # 0011 — Conversa privada como uma guild oculta
 
+n- Status: em parte substituída pelo [0015](0015-conversa-separada-da-amizade.md): amizade e conversa agora são coisas separadas.
+
 ## Contexto
 
 Mensagens, anexos, reações, não lidas, presença, chamadas e transmissões foram escritos em torno

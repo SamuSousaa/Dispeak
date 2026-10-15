@@ -98,41 +98,50 @@ test('friends: a request, a private conversation, a call and the end of it', asy
   await alice.page.getByRole('button', { name: 'Desligar voz' }).first().click();
   await bruno.page.getByRole('button', { name: 'Desligar voz' }).first().click();
 
-  // --- undoing the friendship takes the conversation away from both --------------------------
+  // --- undoing the friendship keeps the conversation, and what was said in it ---------------
   await home(alice.page).click();
   await alice.page.getByTestId('friend').getByRole('button', { name: 'REMOVER' }).click();
-  await alice.page.getByRole('menuitem', { name: 'Sim, e apagar a conversa' }).click();
+  await alice.page.getByRole('menuitem', { name: /Sim, desfazer/ }).click();
   await expect(alice.page.getByTestId('friend')).toHaveCount(0);
-  await expect(conversations(bruno.page)).toHaveCount(0);
-  await expect(bruno.page.getByTestId('channel-title')).toHaveText('AMIGOS');
+  await expect(conversations(bruno.page)).toHaveCount(1);
+  await expect(conversations(alice.page)).toHaveCount(1);
 
   for (const { context } of [alice, bruno]) await context.close();
 });
 
-test('friends: asking from the menu on a person met in a server', async ({ browser }) => {
-  test.setTimeout(120_000);
+const post = async (page: Page, path: string, data?: unknown) => {
+  const refreshed = await page.context().request.post('/api/auth/refresh');
+  const { accessToken } = (await refreshed.json()) as { accessToken: string };
+  const result = await page.context().request.post(`/api${path}`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    data,
+  });
+  expect(result.ok(), `${path} -> ${result.status()}`).toBe(true);
+  return result.json() as Promise<unknown>;
+};
+
+/** Alice and Bruno, who are not friends, in a server of Alice's, both looking at it. */
+async function meetInAServer(browser: Browser) {
   const alice = await register(browser, 'Alice');
   const bruno = await register(browser, 'Bruno');
-
-  // The two meet in a server of Alice's.
-  const post = async (page: Page, path: string, data?: unknown) => {
-    const refreshed = await page.context().request.post('/api/auth/refresh');
-    const { accessToken } = (await refreshed.json()) as { accessToken: string };
-    const result = await page.context().request.post(`/api${path}`, {
-      headers: { authorization: `Bearer ${accessToken}` },
-      data,
-    });
-    expect(result.ok(), `${path} -> ${result.status()}`).toBe(true);
-    return result.json() as Promise<unknown>;
+  const guild = (await post(alice.page, '/guilds', { name: 'Encontro e2e' })) as {
+    id: string;
+    channels: Array<{ id: string; type: string }>;
   };
-  const guild = (await post(alice.page, '/guilds', { name: 'Encontro e2e' })) as { id: string };
   const invite = (await post(alice.page, `/guilds/${guild.id}/invites`, {})) as { code: string };
   await post(bruno.page, `/invites/${invite.code}/accept`);
   for (const { page } of [alice, bruno]) {
     await page.goto(`/app/${guild.id}`);
     await expect(page.getByTestId('gateway-status')).toHaveText('CONECTADO');
   }
-  const member = (page: Page, name: string) => page.getByTestId('member').filter({ hasText: name });
+  return { alice, bruno, guild };
+}
+
+const member = (page: Page, name: string) => page.getByTestId('member').filter({ hasText: name });
+
+test('friends: asking from the menu on a person met in a server', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const { alice, bruno } = await meetInAServer(browser);
 
   // --- Alice asks; the menu then says the request is on its way -----------------------------
   await member(alice.page, 'Bruno').click({ button: 'right' });
@@ -162,6 +171,50 @@ test('friends: asking from the menu on a person met in a server', async ({ brows
     await expect(page.getByRole('menuitem', { name: /amigo|amizade/ })).toHaveCount(0);
     await page.keyboard.press('Escape');
   }
+
+  for (const { context } of [alice, bruno]) await context.close();
+});
+
+test('conversations: a message from a profile card, a request, and a block', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const { alice, bruno, guild } = await meetInAServer(browser);
+
+  // --- Alice writes to Bruno right on his profile card ----------------------------------------
+  await member(alice.page, 'Bruno').click();
+  const box = alice.page.getByRole('textbox', { name: /^Mensagem para @/ });
+  await box.fill('oi, vi você no servidor');
+  await box.press('Enter');
+  await expect(alice.page.getByTestId('channel-title')).toHaveText('Bruno');
+  await expect(alice.page.getByTestId('message').last()).toContainText('oi, vi você no servidor');
+  await expect(alice.page.getByTestId('message-request-sent')).toBeVisible();
+
+  // --- Bruno finds it among the requests, not among his conversations -------------------------
+  await expect(home(bruno.page)).toHaveAttribute('data-unread', 'true');
+  await home(bruno.page).click();
+  await expect(conversations(bruno.page)).toHaveCount(0);
+  const request = bruno.page.getByTestId('message-request-row');
+  await expect(request).toContainText('Alice');
+  await request.getByRole('button', { name: 'LER' }).click();
+  await expect(bruno.page.getByTestId('message').last()).toContainText('oi, vi você no servidor');
+  await bruno.page.getByTestId('message-request').getByRole('button', { name: 'ACEITAR' }).click();
+  await expect(bruno.page.getByTestId('message-request')).toHaveCount(0);
+  await expect(conversations(bruno.page)).toHaveCount(1);
+  await expect(alice.page.getByTestId('message-request-sent')).toHaveCount(0);
+
+  // --- Bruno blocks her: the conversation closes and her messages in the server fold ---------
+  const text = guild.channels.find((channel) => channel.type === 'text')?.id ?? '';
+  await bruno.page.goto(`/app/${guild.id}/${text}`);
+  await member(bruno.page, 'Alice').click({ button: 'right' });
+  await bruno.page.getByRole('menuitem', { name: 'Bloquear' }).click();
+  await bruno.page.getByRole('menuitem', { name: 'Sim, bloquear' }).click();
+  await expect(alice.page.getByTestId('conversation-blocked')).toBeVisible();
+  await post(alice.page, `/channels/${text}/messages`, { content: 'alguém aí?' });
+  const folded = bruno.page.locator('[data-testid="message"][data-blocked]');
+  await expect(folded).toHaveCount(1);
+  await folded.getByRole('button', { name: '[ MOSTRAR ]' }).click();
+  await expect(bruno.page.getByTestId('message').last()).toContainText('alguém aí?');
 
   for (const { context } of [alice, bruno]) await context.close();
 });

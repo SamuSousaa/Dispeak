@@ -148,6 +148,8 @@ export const gatewayReducers: { [T in GatewayEventName]: Reducer<T> } = {
   FRIEND_REQUEST_DELETE: () => ({}),
   // The account's preferences have their own store (`settings/account-settings`).
   USER_SETTINGS_UPDATE: () => ({}),
+  // Blocked people live in `friends/conversations-api`.
+  BLOCKS_UPDATE: () => ({}),
 };
 
 export function applyGatewayEvent<T extends GatewayEventName>(

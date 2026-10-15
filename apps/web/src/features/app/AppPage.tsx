@@ -7,12 +7,15 @@ import { Button } from '../../components/Button';
 import { ContextMenuHost } from '../../components/ContextMenu';
 import { LinkDialogHost } from '../../components/LinkDialog';
 import { ToastHost } from '../../components/Toast';
+import { registerNavigation } from '../../lib/app-navigation';
 import { cx } from '../../lib/cx';
 import { logout, useAuthStore } from '../auth/auth-store';
 import { releaseAttachmentUrls } from '../chat/Attachments';
 import { applyChatEvent } from '../chat/chat-store';
 import { conversationOf, HOME } from '../friends/dm';
 import { DmPanel } from '../friends/DmPanel';
+import { ConversationBar } from '../friends/ConversationBar';
+import { BLOCKS_KEY, useBlockStore } from '../friends/conversations-api';
 import { FRIEND_REQUESTS_KEY } from '../friends/friends-api';
 import { FriendsView } from '../friends/FriendsView';
 import { gateway } from '../gateway/gateway-client';
@@ -97,13 +100,23 @@ export function AppPage() {
   useEffect(() => {
     navigateRef.current = navigate;
   });
+  // Menus and cards outside the router's reach (open a conversation) move the app through this.
+  useEffect(() => registerNavigation((path) => navigateRef.current(path)), []);
 
   const queryClient = useQueryClient();
   useEffect(() => {
     // Chat history lives in the query cache; gateway events keep it current.
     const unsubscribe = gateway.subscribe((t, data) => {
       applyChatEvent(queryClient, t, data);
-      if (t === 'READY') receiveAccountSettings((data as GatewayEventData<'READY'>).settings);
+      if (t === 'READY') {
+        const ready = data as GatewayEventData<'READY'>;
+        receiveAccountSettings(ready.settings);
+        useBlockStore.setState(ready.blockedUserIds, true);
+      }
+      if (t === 'BLOCKS_UPDATE') {
+        useBlockStore.setState((data as GatewayEventData<'BLOCKS_UPDATE'>).userIds, true);
+        void queryClient.invalidateQueries({ queryKey: BLOCKS_KEY });
+      }
       if (t === 'USER_SETTINGS_UPDATE') {
         receiveAccountSettings(data as GatewayEventData<'USER_SETTINGS_UPDATE'>);
       }
@@ -127,6 +140,7 @@ export function AppPage() {
       leaveVoice();
       gateway.stop();
       resetAccountSettings();
+      useBlockStore.setState([], true);
     };
   }, [queryClient]);
 
@@ -366,6 +380,8 @@ export function AppPage() {
               channelName={voiceChannelName ?? ''}
             />
           )}
+
+          {conversation && <ConversationBar conversation={conversation} />}
 
           {/* Keyed by what is on screen, so a change of channel arrives instead of blinking. */}
           <div

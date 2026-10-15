@@ -3,6 +3,7 @@ import { useState, type MouseEvent } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { contextMenu } from '../../components/ContextMenu';
 import { cx } from '../../lib/cx';
+import { useIsBlocked } from '../friends/conversations-api';
 import { memberColor, memberName } from '../guilds/permissions';
 import { Attachments } from './Attachments';
 import { chatApi } from './chat-store';
@@ -110,7 +111,31 @@ interface MessageItemProps {
   onCreateThread?: (message: Message) => void;
 }
 
-export function MessageItem({
+/**
+ * One message of a channel. A message from someone the user blocks stays folded, with a way to
+ * see it anyway, as in Discord.
+ */
+export function MessageItem(props: MessageItemProps) {
+  const blocked = useIsBlocked(props.message.author.id);
+  const [revealed, setRevealed] = useState(false);
+  if (blocked && !revealed && props.message.author.id !== props.userId) {
+    return (
+      <div data-testid="message" data-blocked className="flex items-center gap-3 px-4 py-1">
+        <span className="label text-muted">MENSAGEM DE ALGUÉM QUE VOCÊ BLOQUEOU</span>
+        <button
+          type="button"
+          className="label text-muted transition-colors hover:text-accent"
+          onClick={() => setRevealed(true)}
+        >
+          [ MOSTRAR ]
+        </button>
+      </div>
+    );
+  }
+  return <MessageContent {...props} />;
+}
+
+function MessageContent({
   message,
   guild,
   userId,

@@ -71,6 +71,8 @@ export const gatewayEvents = {
     user: selfSchema,
     /** Preferences of the account, the same on every device. */
     settings: userSettingsSchema,
+    /** People this user blocked. */
+    blockedUserIds: z.array(idSchema),
     guilds: z.array(guildSchema),
   }),
   /** A resumed session has replayed everything it missed. */
@@ -113,6 +115,8 @@ export const gatewayEvents = {
 
   /** The account's preferences changed, on this device or another one: all of them. */
   USER_SETTINGS_UPDATE: userSettingsSchema,
+  /** The people this user blocks, after a change: all of them. */
+  BLOCKS_UPDATE: z.object({ userIds: z.array(idSchema) }),
 
   /** Someone started typing in a text channel; clients expire it after a few seconds. */
   TYPING_START: z.object({ guildId: idSchema, channelId: idSchema, userId: idSchema }),

@@ -88,6 +88,10 @@ export function describeError(
       return 'O dono não pode sair do servidor. Exclua-o ou transfira a posse.';
     case 'media_unavailable':
       return 'O servidor de mídia está indisponível.';
+    case 'dm_closed':
+      return 'Esta pessoa só recebe mensagens de amigos ou de quem divide um servidor com ela.';
+    case 'blocked':
+      return 'Não é possível falar com esta pessoa.';
     default:
       return fallback;
   }

@@ -24,7 +24,11 @@ describe('user settings', () => {
       showEmbeds: false,
     });
     const next = applyUserSettingsPatch(start, { people: { [BIA]: { voiceMuted: false } } });
-    expect(next).toEqual({ people: { [ANA]: { voiceVolume: 0.2 } }, showEmbeds: false });
+    expect(next).toEqual({
+      people: { [ANA]: { voiceVolume: 0.2 } },
+      showEmbeds: false,
+      privateProfile: false,
+    });
   });
 
   it('leaves no entry for a person back to the defaults, or forgotten with null', () => {

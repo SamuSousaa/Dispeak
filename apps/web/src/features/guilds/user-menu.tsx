@@ -17,8 +17,11 @@ import { showLink } from '../../components/LinkDialog';
 import { attempt, toast } from '../../components/Toast';
 import { ApiError } from '../../lib/http';
 import { queryClient } from '../../lib/query-client';
+import { conversationsApi, useBlockStore } from '../friends/conversations-api';
+import { conversationWith } from '../friends/dm';
 import { FRIEND_REQUESTS_KEY, friendsApi } from '../friends/friends-api';
-import { useGatewayStore } from '../gateway/gateway-store';
+import { openConversation } from '../friends/open-conversation';
+import { ProfileActions } from '../profile/ProfileActions';
 import { ProfileCard } from '../profile/ProfileCard';
 import { volumeMenuEntries } from '../voice/components/VolumeControl';
 import { unwatchStream, watchStream } from '../voice/voice-actions';
@@ -53,13 +56,17 @@ function confirm(
 
 /**
  * The entry that makes a friend of someone met in a server, or `false` when they already are
- * one. Being friends is having a private conversation with the person.
+ * one, or when one of the two blocks the other.
  */
-function friendEntry(targetId: string, username: string, name: string): MenuEntry | false {
-  const friends = Object.values(useGatewayStore.getState().guilds).some(
-    (guild) => guild.kind === 'dm' && guild.members.some((member) => member.user.id === targetId),
-  );
-  if (friends) return false;
+function friendEntry(
+  selfId: string,
+  targetId: string,
+  username: string,
+  name: string,
+): MenuEntry | false {
+  const conversation = conversationWith(selfId, targetId);
+  if (conversation?.state.friend || conversation?.state.blocked) return false;
+  if (useBlockStore.getState().includes(targetId)) return false;
   // Loaded with the app and kept current by the gateway; without it the server still decides.
   const pending = queryClient
     .getQueryData<FriendRequest[]>(FRIEND_REQUESTS_KEY)
@@ -100,9 +107,12 @@ function friendEntry(targetId: string, username: string, name: string): MenuEntr
   };
 }
 
-/** The card a person made for themselves, on its own: what a plain click on their name shows. */
+/**
+ * The card a person made for themselves: what a plain click on their name shows. Under it, a
+ * box to write to them, which opens the conversation.
+ */
 export function openUserProfile(
-  { guild, targetId }: Pick<UserMenuContext, 'guild' | 'targetId'>,
+  { guild, targetId, selfId }: Pick<UserMenuContext, 'guild' | 'targetId' | 'selfId'>,
   point: { x: number; y: number },
 ): void {
   const member = guild.members.find((entry) => entry.user.id === targetId);
@@ -120,7 +130,7 @@ export function openUserProfile(
       {
         type: 'custom',
         key: 'profile',
-        render: () => (
+        render: (close) => (
           // Edge to edge inside the menu, which pads its custom entries.
           <div className="-mx-3 -my-2">
             <ProfileCard
@@ -132,6 +142,14 @@ export function openUserProfile(
               memberSince={member.joinedAt}
               isOwner={guild.ownerId === targetId}
             />
+            {targetId !== selfId && (
+              <ProfileActions
+                selfId={selfId}
+                userId={targetId}
+                username={member.user.username}
+                onDone={close}
+              />
+            )}
           </div>
         ),
       },
@@ -168,10 +186,14 @@ export function userMenuEntries(
   const streamHasAudio = peer?.producers.some((producer) => producer.source === 'screen-audio');
 
   return [
-    { label: 'Perfil', onSelect: () => openUserProfile({ guild, targetId }, point) },
+    { label: 'Perfil', onSelect: () => openUserProfile({ guild, targetId, selfId }, point) },
     // Only while a message is being written in the channel on screen.
     !isSelf && canMention() && { label: 'Mencionar', onSelect: () => requestMention(name) },
-    !isSelf && friendEntry(targetId, member.user.username, name),
+    !isSelf && {
+      label: 'Mensagem',
+      onSelect: () => attempt(() => openConversation(targetId)),
+    },
+    !isSelf && friendEntry(selfId, targetId, member.user.username, name),
     { type: 'separator' },
     ...(inVoice && !isSelf ? volumeMenuEntries(targetId, name) : []),
     { type: 'separator' },
@@ -223,6 +245,21 @@ export function userMenuEntries(
           }),
       },
     { type: 'separator' },
+    !isSelf &&
+      (useBlockStore.getState().includes(targetId)
+        ? {
+            label: 'Desbloquear',
+            onSelect: () => attempt(() => conversationsApi.unblock(targetId)),
+          }
+        : {
+            label: 'Bloquear',
+            danger: true,
+            onSelect: () =>
+              confirm(point, `BLOQUEAR ${name}?`, 'Sim, bloquear', async () => {
+                await conversationsApi.block(targetId);
+                toast(`Você bloqueou ${name}. As mensagens dele ficam escondidas.`, 'info');
+              }),
+          }),
     !isSelf &&
       above &&
       can(Permissions.KickMembers) && {

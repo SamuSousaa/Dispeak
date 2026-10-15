@@ -19,6 +19,7 @@ import {
 } from '@frequencia/shared';
 import { and, asc, desc, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { schema, type Database } from '../../db/client';
+import type { ConversationService } from '../conversations/service';
 import { badRequest, forbidden, notFound } from '../../errors';
 import type { GatewayBus } from '../../gateway/bus';
 import { cleanFilename } from '../../lib/filename';
@@ -63,6 +64,8 @@ export class MessageService {
     private readonly db: Database,
     private readonly bus: GatewayBus,
     private readonly files: AttachmentFiles,
+    /** Private conversations: a message may answer or show a message request. */
+    private readonly conversations?: Pick<ConversationService, 'afterMessage'>,
   ) {}
 
   /**
@@ -167,6 +170,7 @@ export class MessageService {
       snapshot.guild.id,
     );
     await this.bus.event(snapshot.guild.id, 'MESSAGE_CREATE', message, channelId);
+    if (snapshot.dm) await this.conversations?.afterMessage(snapshot, userId);
     return message;
   }
 

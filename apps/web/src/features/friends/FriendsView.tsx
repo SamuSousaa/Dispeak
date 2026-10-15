@@ -9,7 +9,8 @@ import { FormError } from '../../components/Dialog';
 import { attempt } from '../../components/Toast';
 import { ApiError, describeError } from '../../lib/http';
 import { PRESENCE_LABELS, StatusMark } from '../profile/ProfileCard';
-import { useConversations } from './dm';
+import { conversationsApi } from './conversations-api';
+import { useFriends, useMessageRequests, type Conversation } from './dm';
 import { FRIEND_REQUESTS_KEY, friendsApi } from './friends-api';
 
 function Section({
@@ -57,10 +58,39 @@ function RequestRow({ request }: { request: FriendRequest }) {
   );
 }
 
-/** Home screen: add a friend by username, answer requests, and the list of friends. */
+/** A conversation started by someone who is not a friend, waiting for an answer. */
+function MessageRequestRow({ conversation }: { conversation: Conversation }) {
+  const navigate = useNavigate();
+  const { guild, friend } = conversation;
+  return (
+    <li
+      data-testid="message-request-row"
+      className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2 last:border-b-0"
+    >
+      <Avatar name={friend.user.displayName} picture={friend.user.avatar} size={32} />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="label-lg truncate text-fg">{friend.user.displayName}</span>
+        <span className="label truncate text-muted normal-case">
+          @{friend.user.username} · quer conversar com você
+        </span>
+      </span>
+      <Button onClick={() => navigate(`/app/${guild.id}`)}>LER</Button>
+      <Button variant="primary" onClick={() => attempt(() => conversationsApi.accept(guild.id))}>
+        ACEITAR
+      </Button>
+      <Button onClick={() => attempt(() => conversationsApi.decline(guild.id))}>RECUSAR</Button>
+    </li>
+  );
+}
+
+/**
+ * Home screen: add a friend by username, answer friend and message requests, and the list of
+ * friends.
+ */
 export function FriendsView({ userId }: { userId: string }) {
   const navigate = useNavigate();
-  const conversations = useConversations(userId);
+  const conversations = useFriends(userId);
+  const messageRequests = useMessageRequests(userId);
   const { data: requests = [] } = useQuery({
     queryKey: FRIEND_REQUESTS_KEY,
     queryFn: friendsApi.requests,
@@ -131,8 +161,21 @@ export function FriendsView({ userId }: { userId: string }) {
           </form>
         </Section>
 
+        {messageRequests.length > 0 && (
+          <Section number="02" title={`PEDIDOS DE MENSAGEM — ${messageRequests.length}`}>
+            <ul>
+              {messageRequests.map((entry) => (
+                <MessageRequestRow key={entry.guild.id} conversation={entry} />
+              ))}
+            </ul>
+          </Section>
+        )}
+
         {requests.length > 0 && (
-          <Section number="02" title={`PEDIDOS — ${requests.length}`}>
+          <Section
+            number={messageRequests.length > 0 ? '03' : '02'}
+            title={`PEDIDOS DE AMIZADE — ${requests.length}`}
+          >
             <ul>
               {requests.map((request) => (
                 <RequestRow key={request.id} request={request} />
@@ -142,7 +185,9 @@ export function FriendsView({ userId }: { userId: string }) {
         )}
 
         <Section
-          number={requests.length > 0 ? '03' : '02'}
+          number={String(
+            2 + (requests.length > 0 ? 1 : 0) + (messageRequests.length > 0 ? 1 : 0),
+          ).padStart(2, '0')}
           title={`AMIGOS — ${conversations.length}`}
         >
           {conversations.length === 0 ? (
@@ -180,7 +225,7 @@ export function FriendsView({ userId }: { userId: string }) {
                         `DESFAZER AMIZADE COM ${friend.user.displayName}?`,
                         [
                           {
-                            label: 'Sim, e apagar a conversa',
+                            label: 'Sim, desfazer (a conversa fica)',
                             danger: true,
                             onSelect: () => attempt(() => friendsApi.remove(friend.user.id)),
                           },

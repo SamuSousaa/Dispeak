@@ -71,5 +71,9 @@ function parseStored(data: unknown): UserSettings {
     const parsed = shape[key].safeParse(stored[key]);
     return parsed.success ? (parsed.data as UserSettings[K]) : defaultUserSettings[key];
   };
-  return { people: field('people'), showEmbeds: field('showEmbeds') };
+  return {
+    people: field('people'),
+    showEmbeds: field('showEmbeds'),
+    privateProfile: field('privateProfile'),
+  };
 }

@@ -179,20 +179,31 @@ describe('friends and private conversations', () => {
     expect(meddle.statusCode).toBe(404);
   });
 
-  it('ending the friendship deletes the conversation for both', async () => {
+  it('ending the friendship keeps the conversation and what was said in it', async () => {
     const { ana, beto, dm } = await friends();
+    const text = dm.channels.find((channel) => channel.type === 'text');
+    await t.request('POST', `/channels/${text?.id}/messages`, {
+      token: ana.token,
+      body: { content: 'até mais' },
+    });
     const { client } = await online(beto);
 
     const removed = await t.request('DELETE', `/friends/${beto.user.id}`, { token: ana.token });
     expect(removed.statusCode).toBe(204);
-    expect(await client.next('GUILD_DELETE')).toEqual({ id: dm.id });
-    expect((await t.request('GET', `/guilds/${dm.id}`, { token: beto.token })).statusCode).toBe(
-      404,
-    );
+    const synced = await client.next('GUILD_SYNC', (guild) => guild.id === dm.id);
+    expect(synced.dm).toEqual({ friend: false, request: null, blocked: null });
+    const history = await t.request('GET', `/channels/${text?.id}/messages`, { token: beto.token });
+    expect(history.json<{ messages: Message[] }>().messages.map((m) => m.content)).toEqual([
+      'até mais',
+    ]);
     expect(
       (await t.request('DELETE', `/friends/${beto.user.id}`, { token: ana.token })).statusCode,
     ).toBe(404);
-    // They can become friends again, starting from an empty conversation.
-    expect((await ask(beto, ana.user.username)).statusCode).toBe(200);
+    // Friends again, in the same conversation.
+    const sent = (await ask(beto, ana.user.username)).json<SendFriendRequestResponse>();
+    const again = await t.request('POST', `/friends/requests/${sent.request?.id}/accept`, {
+      token: ana.token,
+    });
+    expect(again.json<Guild>()).toMatchObject({ id: dm.id, dm: { friend: true } });
   });
 });

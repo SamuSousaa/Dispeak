@@ -22,10 +22,21 @@ export function ServerRail({ onAdd }: { onAdd: () => void }) {
     queryKey: FRIEND_REQUESTS_KEY,
     queryFn: friendsApi.requests,
   });
-  // What waits at home: messages of private conversations and requests to answer.
+  // What waits at home: messages of private conversations and requests to answer. A message
+  // request counts once, whatever it says, and a hidden one not at all.
+  const listedDm = (id: string) => {
+    const guild = guilds[id];
+    return (
+      guild?.kind === 'dm' && guild.dm?.request !== 'incoming' && guild.dm?.request !== 'hidden'
+    );
+  };
+  const messageRequests = Object.values(guilds).filter(
+    (guild) => guild.dm?.request === 'incoming',
+  ).length;
   const waiting =
-    sumUnread(Object.values(unread).filter((entry) => guilds[entry.guildId]?.kind === 'dm')).count +
-    requests.filter((request) => request.direction === 'incoming').length;
+    sumUnread(Object.values(unread).filter((entry) => listedDm(entry.guildId))).count +
+    requests.filter((request) => request.direction === 'incoming').length +
+    messageRequests;
   const atHome = guildId === HOME || (guildId ? guilds[guildId]?.kind === 'dm' : false);
 
   return (

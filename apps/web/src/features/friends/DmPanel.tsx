@@ -4,7 +4,7 @@ import { Avatar } from '../../components/Avatar';
 import { cx } from '../../lib/cx';
 import { StatusMark } from '../profile/ProfileCard';
 import { sumUnread, useUnreadStore } from '../unread/unread-store';
-import { HOME, useConversations } from './dm';
+import { HOME, useConversations, useMessageRequests } from './dm';
 import { FRIEND_REQUESTS_KEY, friendsApi } from './friends-api';
 
 const row =
@@ -16,6 +16,7 @@ const row =
  */
 export function DmPanel({ userId, onNavigate }: { userId: string; onNavigate: () => void }) {
   const conversations = useConversations(userId);
+  const messageRequests = useMessageRequests(userId).length;
   const unread = useUnreadStore((state) => state.channels);
   const { data: requests = [] } = useQuery({
     queryKey: FRIEND_REQUESTS_KEY,
@@ -37,9 +38,9 @@ export function DmPanel({ userId, onNavigate }: { userId: string; onNavigate: ()
         >
           <span className="text-muted">00.</span>
           <span className="flex-1">AMIGOS</span>
-          {incoming > 0 && (
+          {incoming + messageRequests > 0 && (
             <span className="label bg-fg px-1 text-bg" data-testid="friend-requests-badge">
-              {incoming}
+              {incoming + messageRequests}
             </span>
           )}
         </NavLink>
@@ -47,7 +48,7 @@ export function DmPanel({ userId, onNavigate }: { userId: string; onNavigate: ()
         <h3 className="label mt-3 px-3 py-1 text-muted">CONVERSAS — {conversations.length}</h3>
         {conversations.length === 0 && (
           <p className="px-3 py-1 text-xs text-muted">
-            Adicione um amigo para abrir a primeira conversa.
+            Adicione um amigo, ou clique em alguém de um servidor e escolha Mensagem.
           </p>
         )}
         <ul>

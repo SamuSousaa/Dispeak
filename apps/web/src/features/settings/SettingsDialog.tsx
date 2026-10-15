@@ -2,7 +2,10 @@ import { PERSON_DEFAULTS, type Guild, type Self } from '@frequencia/shared';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/Button';
+import { attempt } from '../../components/Toast';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog } from '../../components/Dialog';
+import { Loading } from '../../components/Loading';
 import {
   normalizeSearch,
   SettingsSection,
@@ -17,6 +20,7 @@ import {
   useNativeCaptureCodec,
   useRefusedShortcuts,
 } from '../desktop/desktop';
+import { BLOCKS_KEY, conversationsApi } from '../friends/conversations-api';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { SOUND_EVENTS } from '../sounds/sound-events';
 import type { NoiseEngine } from '../voice/microphone';
@@ -37,7 +41,16 @@ import {
 } from './settings-store';
 
 export type SettingsPage =
-  'account' | 'profile' | 'voice' | 'video' | 'streams' | 'chat' | 'notifications' | 'keys' | 'app';
+  | 'account'
+  | 'profile'
+  | 'privacy'
+  | 'voice'
+  | 'video'
+  | 'streams'
+  | 'chat'
+  | 'notifications'
+  | 'keys'
+  | 'app';
 
 const INPUT_OPTIONS: Array<{ value: InputMode; label: string; hint: string }> = [
   {
@@ -493,6 +506,60 @@ function AppAbout() {
   );
 }
 
+function DirectMessages() {
+  const privateProfile = useAccountSettings((account) => account.privateProfile);
+  return (
+    <Toggle
+      label="PERFIL PRIVADO"
+      hint="Só seus amigos podem começar uma conversa com você. Desligado, quem divide um servidor com você também pode: a primeira mensagem chega como pedido, que você aceita ou recusa."
+      checked={privateProfile}
+      onChange={(value) => changeAccountSettings({ privateProfile: value })}
+    />
+  );
+}
+
+function BlockedPeople() {
+  const { data: blocked, isPending } = useQuery({
+    queryKey: BLOCKS_KEY,
+    queryFn: conversationsApi.blocks,
+  });
+  if (isPending) return <Loading label="CARREGANDO" />;
+  return (
+    <>
+      <p className="text-xs text-muted">
+        Quem você bloqueia não manda mensagem nem liga para você, e você também não. As mensagens
+        dessas pessoas nos servidores ficam escondidas. Para bloquear alguém, clique com o botão
+        direito no nome da pessoa.
+      </p>
+      {!blocked || blocked.length === 0 ? (
+        <p className="label text-muted">NINGUÉM BLOQUEADO</p>
+      ) : (
+        <ul className="flex flex-col border border-line" data-testid="blocked-people">
+          {blocked.map((person) => (
+            <li
+              key={person.id}
+              className="flex items-center justify-between gap-3 border-b border-line px-3 py-2 last:border-b-0"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm text-fg">{person.displayName}</span>
+                <span className="label block truncate text-muted normal-case">
+                  @{person.username}
+                </span>
+              </span>
+              <Button
+                aria-label={`Desbloquear ${person.displayName}`}
+                onClick={() => attempt(() => conversationsApi.unblock(person.id))}
+              >
+                DESBLOQUEAR
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 function AccountIdentity({ user, onEditProfile }: { user: Self; onEditProfile: () => void }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -583,6 +650,27 @@ function buildPages({ user, guild, onSignOut, goTo }: PageContext): PageEntry[] 
           title: 'PRÉVIA',
           keywords: 'cartão como os outros veem',
           render: () => null,
+        },
+      ],
+    },
+    {
+      id: 'privacy',
+      label: 'PRIVACIDADE',
+      group: 'CONTA',
+      sections: [
+        {
+          id: 'direct-messages',
+          title: 'MENSAGENS DIRETAS',
+          scope: 'account',
+          keywords: 'perfil privado conversa pedido de mensagem quem pode',
+          render: () => <DirectMessages />,
+        },
+        {
+          id: 'blocked',
+          title: 'PESSOAS BLOQUEADAS',
+          scope: 'account',
+          keywords: 'bloquear desbloquear',
+          render: () => <BlockedPeople />,
         },
       ],
     },

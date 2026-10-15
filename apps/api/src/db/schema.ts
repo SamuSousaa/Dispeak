@@ -89,7 +89,7 @@ export const passwordResets = pgTable('password_resets', {
 
 export const guilds = pgTable('guilds', {
   id: uuid('id').primaryKey(),
-  /** `server`, or `dm` for the private conversation of two friends. */
+  /** `server`, or `dm` for the private conversation of two people. */
   kind: text('kind').notNull().default('server'),
   /** For a `dm`: the ids of its two people, sorted and joined by `:`. One per pair. */
   dmKey: text('dm_key').unique(),
@@ -102,7 +102,64 @@ export const guilds = pgTable('guilds', {
   createdAt: createdAt(),
 });
 
-/** Friendships asked for and not answered yet. An accepted one becomes a `dm` guild. */
+/**
+ * Two friends, the smaller id first. A friendship comes with a private conversation (a `dm`
+ * guild), which may also exist without one: people sharing a server can talk, and the
+ * conversation stays when the friendship ends.
+ */
+export const friendships = pgTable(
+  'friendships',
+  {
+    userLow: uuid('user_low')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    userHigh: uuid('user_high')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userLow, table.userHigh] }),
+    index('friendships_high_idx').on(table.userHigh),
+  ],
+);
+
+/**
+ * A conversation started by someone who is not a friend, until its recipient accepts it (or
+ * answers in it). Nothing is shown to the recipient before the first message (`sent`); a
+ * declined one stays hidden from them, and the sender is never told.
+ */
+export const dmRequests = pgTable('dm_requests', {
+  guildId: uuid('guild_id')
+    .primaryKey()
+    .references(() => guilds.id, { onDelete: 'cascade' }),
+  recipientId: uuid('recipient_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  sent: boolean('sent').notNull().default(false),
+  declined: boolean('declined').notNull().default(false),
+  createdAt: createdAt(),
+});
+
+/** Who blocks whom: no messages, calls or friend requests between the two. */
+export const userBlocks = pgTable(
+  'user_blocks',
+  {
+    blockerId: uuid('blocker_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    blockedId: uuid('blocked_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.blockerId, table.blockedId] }),
+    index('user_blocks_blocked_idx').on(table.blockedId),
+  ],
+);
+
+/** Friendships asked for and not answered yet. An accepted one becomes a `friendships` row. */
 export const friendRequests = pgTable(
   'friend_requests',
   {
