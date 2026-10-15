@@ -1,16 +1,24 @@
 import { SIMULCAST_LAYERS } from '@frequencia/shared';
 import { useEffect, useRef, useState } from 'react';
+import { Button } from '../../../components/Button';
+import { contextMenu, type MenuEntry } from '../../../components/ContextMenu';
 import { IconButton } from '../../../components/IconButton';
 import { Loading } from '../../../components/Loading';
 import { MediaVideo } from '../../../components/MediaVideo';
 import { cx } from '../../../lib/cx';
+import { usePerson } from '../../settings/account-settings';
 import { registerStreamFullscreen } from '../stream-fullscreen';
-import { setStreamViewport, setStreamVolume } from '../voice-actions';
+import { setStreamViewport } from '../voice-actions';
 import { SELF_STREAM, useVoiceStore, type StreamStats } from '../voice-store';
 import { StreamViewers } from './StreamViewers';
 import { LiveBadge } from './LiveBadge';
 import { useFocusClick } from './use-focus-click';
-import { volumeIsFixed } from './VolumeControl';
+import {
+  setPersonVolume,
+  togglePersonMuted,
+  volumeIsFixed,
+  volumeMenuEntries,
+} from './VolumeControl';
 
 interface IosVideoElement extends HTMLVideoElement {
   webkitEnterFullscreen?: () => void;
@@ -27,10 +35,17 @@ const supportsPip =
 interface StreamTileProps {
   /** Streamer session id, or `SELF_STREAM` for the local preview. */
   id: string;
+  /** The streamer; absent for the local preview. */
+  userId?: string;
   name: string;
   stream: MediaStream | null;
   /** Whether the streamer sends the sound of what they share. */
   hasAudio?: boolean;
+  /**
+   * The stream ended and the user still wants it: the tile keeps its place, and the stream
+   * comes back in it when the person shares again.
+   */
+  ended?: boolean;
   focused: boolean;
   /** Thumbnail rendition shown next to a focused stream. */
   compact?: boolean;
@@ -102,12 +117,11 @@ function StatsPanel({ id, stats }: { id: string; stats: StreamStats | undefined 
   );
 }
 
-/** Sound of one stream, for this viewer only: silence it or turn it down. */
-function StreamVolume({ id, name }: { id: string; name: string }) {
-  const volume = useVoiceStore((state) => state.streamVolumes[id] ?? 1);
-  // What to go back to when the sound is turned on again.
-  const before = useRef(1);
-  const silent = volume === 0;
+/** Sound of one stream, for this viewer only. The choice follows the account. */
+function StreamVolume({ userId, name }: { userId: string; name: string }) {
+  const person = usePerson(userId);
+  const volume = person.streamVolume;
+  const silent = person.streamMuted || volume === 0;
   return (
     <div className="mr-auto flex items-center gap-2 pl-1" data-testid="stream-volume">
       <IconButton
@@ -116,10 +130,9 @@ function StreamVolume({ id, name }: { id: string; name: string }) {
         label={silent ? 'Ativar som da transmissão' : 'Silenciar transmissão'}
         aria-pressed={silent}
         className="border-transparent"
-        onClick={() => {
-          if (!silent) before.current = volume;
-          setStreamVolume(id, silent ? before.current || 1 : 0);
-        }}
+        onClick={() =>
+          volume === 0 ? setPersonVolume(userId, 'stream', 1) : togglePersonMuted(userId, 'stream')
+        }
       />
       {!volumeIsFixed && (
         <input
@@ -127,27 +140,32 @@ function StreamVolume({ id, name }: { id: string; name: string }) {
           min={0}
           max={1}
           step={0.05}
-          value={volume}
+          value={silent ? 0 : volume}
           aria-label={`Volume da transmissão de ${name}`}
           title={`Volume: ${Math.round(volume * 100)}%`}
           className="w-24 accent-(--accent)"
-          onChange={(event) => setStreamVolume(id, Number(event.target.value))}
+          onChange={(event) => setPersonVolume(userId, 'stream', Number(event.target.value))}
         />
       )}
-      <span className="label w-9 text-muted">{Math.round(volume * 100)}%</span>
+      <span className="label w-9 text-muted">
+        {silent ? 'MUDO' : `${Math.round(volume * 100)}%`}
+      </span>
     </div>
   );
 }
 
 /**
- * A live screen share: the video plus sound, focus, fullscreen and statistics controls. A click
+ * A live screen share: the video, its sound and the button to close it. Everything else
+ * (focus, fullscreen, floating window, statistics, the volume) is on the right click. A click
  * on the picture gives it the main area (or hands it back), two clicks fill the screen.
  */
 export function StreamTile({
   id,
+  userId,
   name,
   stream,
   hasAudio = false,
+  ended = false,
   focused,
   compact = false,
   onToggleFocus,
@@ -163,7 +181,7 @@ export function StreamTile({
   // The displayed size drives which simulcast layer the server forwards to this viewer.
   useEffect(() => {
     const element = containerRef.current;
-    if (!element || isSelf) return;
+    if (!element || isSelf || ended) return;
     let timer: number | undefined;
     const report = () => setStreamViewport(id, element.clientHeight);
     const observer = new ResizeObserver(() => {
@@ -176,7 +194,7 @@ export function StreamTile({
       window.clearTimeout(timer);
       observer.disconnect();
     };
-  }, [id, isSelf]);
+  }, [id, isSelf, ended]);
 
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === containerRef.current);
@@ -212,7 +230,8 @@ export function StreamTile({
         void document.exitPictureInPicture().catch(() => undefined);
       }
     };
-  }, []);
+    // An ended stream has no video; the one that comes back is a new element.
+  }, [ended]);
 
   const toggleFloating = () => {
     const video = containerRef.current?.querySelector('video') as IosVideoElement | null;
@@ -248,123 +267,143 @@ export function StreamTile({
 
   // Thumbnails are left out: the fullscreen shortcut targets the streams being watched.
   useEffect(() => {
-    if (compact) return;
+    if (compact || ended) return;
     return registerStreamFullscreen(id, {
       focused,
       toggle: enterFullscreen,
     });
-  }, [id, compact, focused]);
+  }, [id, compact, focused, ended]);
+
+  const menuEntries = (): Array<MenuEntry | false> => [
+    ...(userId && hasAudio && !ended ? volumeMenuEntries(userId, name, 'stream') : []),
+    { type: 'separator' },
+    !fullscreen && { label: focused ? 'Voltar à grade' : 'Destacar', onSelect: onToggleFocus },
+    !ended && {
+      label: fullscreen ? 'Sair da tela cheia' : 'Tela cheia',
+      onSelect: toggleFullscreen,
+    },
+    supportsPip &&
+      !ended && {
+        label: floating ? 'Fechar janela flutuante' : 'Janela flutuante',
+        onSelect: toggleFloating,
+      },
+    !ended && {
+      label: showStats ? 'Esconder estatísticas' : 'Estatísticas',
+      onSelect: () => setShowStats((value) => !value),
+    },
+    { type: 'separator' },
+    {
+      label: isSelf ? 'Parar transmissão' : 'Parar de assistir',
+      danger: true,
+      onSelect: onClose,
+    },
+  ];
+  const menu = contextMenu(isSelf ? 'SUA TRANSMISSÃO' : name, menuEntries);
 
   return (
     <div
       ref={containerRef}
       data-testid="stream-tile"
       data-stream={isSelf ? 'self' : name}
+      data-ended={ended || undefined}
       className={cx(
         'anim-rise group relative h-full min-h-0 w-full overflow-hidden border bg-bg',
         focused ? 'border-accent' : 'border-line',
       )}
+      {...menu}
     >
-      <MediaVideo
-        stream={stream}
-        muted
-        data-testid="stream-video"
-        className={cx('h-full w-full object-contain', !fullscreen && 'cursor-pointer')}
-        title={
-          focused ? 'Clique: voltar à grade · dois cliques: tela cheia' : 'Clique para destacar'
-        }
-        {...focusClick}
-      />
-      {!stream && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          {isSelf ? (
-            // A native capture from an app before 0.11.2, which sends no preview.
-            <p className="label text-muted">CAPTURA NATIVA · SEM PRÉVIA</p>
-          ) : (
-            <Loading label="CARREGANDO TRANSMISSÃO" />
+      {ended ? (
+        <button
+          type="button"
+          aria-label={focused ? 'Voltar à grade' : `Destacar ${name}`}
+          className="absolute inset-0"
+          onClick={onToggleFocus}
+        />
+      ) : (
+        <MediaVideo
+          stream={stream}
+          muted
+          data-testid="stream-video"
+          className={cx('h-full w-full object-contain', !fullscreen && 'cursor-pointer')}
+          title={
+            focused ? 'Clique: voltar à grade · dois cliques: tela cheia' : 'Clique para destacar'
+          }
+          {...focusClick}
+        />
+      )}
+      {ended ? (
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 p-3">
+          <p className="label-lg text-muted">TRANSMISSÃO ENCERRADA</p>
+          {!compact && (
+            <Button className="pointer-events-auto" onClick={onClose}>
+              SAIR
+            </Button>
           )}
         </div>
+      ) : (
+        !stream && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            {isSelf ? (
+              // A native capture from an app before 0.11.2, which sends no preview.
+              <p className="label text-muted">CAPTURA NATIVA · SEM PRÉVIA</p>
+            ) : (
+              <Loading label="CARREGANDO TRANSMISSÃO" />
+            )}
+          </div>
+        )
       )}
 
       <div className="absolute top-0 left-0 flex max-w-full items-center">
-        <LiveBadge />
+        {!ended && <LiveBadge />}
         <span className="label truncate border-r border-b border-line bg-bg px-2 py-0.5 text-fg">
           {isSelf ? 'SUA TRANSMISSÃO' : name}
         </span>
         {isSelf && <StreamViewers />}
       </div>
 
-      {compact ? (
-        <button
-          type="button"
-          aria-label={`Focar na transmissão de ${name}`}
-          className="absolute inset-0"
-          onClick={onToggleFocus}
-        />
-      ) : (
-        <>
-          {showStats && <StatsPanel id={id} stats={stats} />}
-          <div
-            className={cx(
-              'absolute right-0 bottom-0 left-0 flex flex-wrap items-center justify-end gap-px border-t border-line bg-bg',
-              // Always visible on touch devices and while anything inside has focus.
-              'transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100',
-              (showStats || fullscreen) && 'md:opacity-100',
-            )}
-          >
-            {!isSelf &&
-              (hasAudio ? (
-                <StreamVolume id={id} name={name} />
-              ) : (
-                <span className="label mr-auto px-3 text-muted">SEM ÁUDIO</span>
-              ))}
-            <IconButton
-              icon="stats"
-              label="Estatísticas"
-              tone={showStats ? 'active' : 'default'}
-              aria-pressed={showStats}
-              className="border-transparent"
-              onClick={() => setShowStats((value) => !value)}
+      {compact
+        ? !ended && (
+            <button
+              type="button"
+              aria-label={`Focar na transmissão de ${name}`}
+              className="absolute inset-0"
+              onClick={onToggleFocus}
             />
-            {!fullscreen && (
-              <IconButton
-                icon={focused ? 'grid' : 'focus'}
-                label={focused ? 'Voltar à grade' : 'Destacar'}
-                className="border-transparent"
-                onClick={onToggleFocus}
-              />
-            )}
-            {supportsPip && (
-              <IconButton
-                icon="pip"
-                label={floating ? 'Fechar janela flutuante' : 'Janela flutuante'}
-                title={
-                  floating
-                    ? 'Fechar janela flutuante'
-                    : 'Janela flutuante: o vídeo numa janela pequena por cima de tudo'
-                }
-                tone={floating ? 'active' : 'default'}
-                aria-pressed={floating}
-                className="border-transparent"
-                onClick={toggleFloating}
-              />
-            )}
-            <IconButton
-              icon={fullscreen ? 'fullscreen-exit' : 'fullscreen'}
-              label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-              className="border-transparent"
-              onClick={toggleFullscreen}
-            />
-            <IconButton
-              icon="close"
-              tone="danger"
-              label={isSelf ? 'Parar transmissão' : 'Parar de assistir'}
-              className="border-transparent"
-              onClick={onClose}
-            />
-          </div>
-        </>
-      )}
+          )
+        : !ended && (
+            <>
+              {showStats && <StatsPanel id={id} stats={stats} />}
+              <div
+                className={cx(
+                  'absolute right-0 bottom-0 left-0 flex flex-wrap items-center justify-end gap-px border-t border-line bg-bg',
+                  // Always visible on touch devices and while anything inside has focus.
+                  'transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100',
+                  (showStats || fullscreen) && 'md:opacity-100',
+                )}
+              >
+                {!isSelf &&
+                  userId &&
+                  (hasAudio ? (
+                    <StreamVolume userId={userId} name={name} />
+                  ) : (
+                    <span className="label mr-auto px-3 text-muted">SEM ÁUDIO</span>
+                  ))}
+                <IconButton
+                  icon={fullscreen ? 'fullscreen-exit' : 'fullscreen'}
+                  label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+                  className="border-transparent"
+                  onClick={toggleFullscreen}
+                />
+                <IconButton
+                  icon="close"
+                  tone="danger"
+                  label={isSelf ? 'Parar transmissão' : 'Parar de assistir'}
+                  className="border-transparent"
+                  onClick={onClose}
+                />
+              </div>
+            </>
+          )}
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   type InputMode,
 } from './settings-store';
 import { MicTest } from './MicTest';
+import { changeAccountSettings, useAccountSettings } from './account-settings';
 import { PasswordForm, ProfileTab } from './ProfileTab';
 
 const INPUT_OPTIONS: Array<{ value: InputMode; label: string; hint: string }> = [
@@ -317,6 +318,7 @@ export function SettingsPanel({
   onClose: () => void;
 }) {
   const settings = useSettingsStore();
+  const showEmbeds = useAccountSettings((account) => account.showEmbeds);
   const voiceStatus = useVoiceStore((state) => state.status);
   const micAvailable = useVoiceStore((state) => state.micAvailable);
   const activeNoise = useVoiceStore((state) => state.noiseSuppression);
@@ -557,8 +559,8 @@ export function SettingsPanel({
               <Toggle
                 label="MOSTRAR PRÉVIAS E IMAGENS DE LINKS"
                 hint="GIFs e imagens de links aparecem na conversa. Elas vêm direto do site de origem, que fica sabendo o seu endereço IP."
-                checked={settings.showEmbeds}
-                onChange={(showEmbeds) => updateSettings({ showEmbeds })}
+                checked={showEmbeds}
+                onChange={(value) => changeAccountSettings({ showEmbeds: value })}
               />
             </Section>
             <Section number="02" title="AVISOS">

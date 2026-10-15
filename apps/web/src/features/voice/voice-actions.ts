@@ -77,10 +77,6 @@ export function setCameraViewport(peerId: string, cssHeight: number): void {
   session?.setCameraViewport(peerId, cssHeight);
 }
 
-export function setStreamVolume(peerId: string, volume: number): void {
-  session?.setStreamVolume(peerId, volume);
-}
-
 /** Someone the user asked to watch before their stream could be reached (still joining). */
 let pendingWatch: { userId: string; until: number } | null = null;
 
@@ -117,6 +113,11 @@ export function watchStream(peerId: string): void {
 
 export function unwatchStream(peerId: string): void {
   session?.unwatch(peerId);
+}
+
+/** Stops waiting for a person's stream to come back after it ended. */
+export function unwatchUser(userId: string): void {
+  session?.unwatchUser(userId);
 }
 
 /** Tells the session how tall (CSS px) a watched stream is displayed. */

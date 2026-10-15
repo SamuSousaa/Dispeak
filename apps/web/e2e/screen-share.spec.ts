@@ -129,8 +129,9 @@ test('two simultaneous streams; a viewer only receives the one being watched', a
   expect(everyConsumer.some((consumer) => consumer.producerId === brunoScreen?.id)).toBe(false);
 
   // Real statistics from getStats() in the viewer's panel.
-  await stream(carla, 'Alice').hover();
-  await stream(carla, 'Alice').getByRole('button', { name: 'Estatísticas' }).click();
+  // The tile keeps only sound, fullscreen and close in sight; the rest is on the right click.
+  await stream(carla, 'Alice').getByTestId('stream-video').click({ button: 'right' });
+  await carla.getByRole('menuitem', { name: 'Estatísticas' }).click();
   const panel = stream(carla, 'Alice').getByTestId('stream-stats');
   // H.264 where the graphics card encodes it (the installed Chrome), VP8 everywhere else.
   await expect(panel.locator('[data-stat="CODEC"]')).toHaveText(/^(VP8|H264)$/);
@@ -174,8 +175,11 @@ test('two simultaneous streams; a viewer only receives the one being watched', a
     )
     .toEqual([aliceScreen?.id]);
 
-  // The streamer stops: viewers lose the tile and the producer is gone.
+  // The streamer stops: the producer is gone, and the viewer's tile says so and waits for the
+  // stream to come back, until the viewer leaves it.
   await alice.getByRole('button', { name: 'PARAR TRANSMISSÃO' }).first().click();
+  await expect(stream(carla, 'Alice')).toHaveAttribute('data-ended', 'true');
+  await stream(carla, 'Alice').getByRole('button', { name: 'SAIR' }).click();
   await expect(stream(carla, 'Alice')).toHaveCount(0);
   await expect(carla.locator('[data-testid="participant"][data-live="true"]')).toHaveCount(1);
   await expect

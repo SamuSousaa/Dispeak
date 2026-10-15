@@ -16,7 +16,8 @@ import {
 import { Device, type types } from 'mediasoup-client';
 import { connectRpc, type RpcConnection } from '../../lib/rpc-client';
 import { desktop } from '../desktop/desktop';
-import { useSettingsStore, type Settings } from '../settings/settings-store';
+import { getPerson, useAccountSettings } from '../settings/account-settings';
+import { updateSettings, useSettingsStore, type Settings } from '../settings/settings-store';
 import { CAMERA, openCamera } from './camera';
 import { startGameAudio, type GameAudio } from './game-audio';
 import { createNativePreview, type NativePreview } from './native-preview';
@@ -41,6 +42,7 @@ import {
   cameraOff,
   emptyVoiceStats,
   initialVoiceState,
+  isLive,
   screenOff,
   SELF_STREAM,
   useVoiceStore,
@@ -88,8 +90,6 @@ const STATS_INTERVAL_MS = 2000;
  */
 const NATIVE_RESTARTS_PER_MINUTE = 4;
 const NATIVE_RESTART_DELAYS_MS = [1000, 2000, 4000];
-/** A stream watched when it ended is watched again if its streamer shares within this. */
-const RESUME_WATCH_MS = 30_000;
 /** Opus target for a voice: well above what browsers choose on their own (about 32 kbps). */
 const VOICE_BITRATE = 64_000;
 const SCREEN_AUDIO_BITRATE = 256_000;
@@ -143,6 +143,7 @@ export class VoiceSession {
   /** Serializes microphone swaps triggered by settings changes. */
   private micReload: Promise<void> = Promise.resolve();
   private unsubscribeSettings: (() => void) | null = null;
+  private unsubscribeAccount: (() => void) | null = null;
   private micProducer: types.Producer | null = null;
   private stopMeter: (() => void) | null = null;
   private screenStream: MediaStream | null = null;
@@ -171,10 +172,11 @@ export class VoiceSession {
 
   private readonly consumers = new Map<string, ActiveConsumer>();
   private readonly consuming = new Set<string>();
-  /** Streamers this client chose to watch. */
+  /**
+   * Sessions whose stream is being received. Who the user wants to watch is kept apart, by
+   * user id, in `wantedStreams` of the store: it outlives a stream ending and a session.
+   */
   private readonly watched = new Set<string>();
-  /** Streams that were being watched when they ended, until when a new one is watched again. */
-  private readonly resumable = new Map<string, number>();
   /** Simulcast layer wanted for each watched stream, from the size it is displayed at. */
   private readonly wantedLayers = new Map<string, number>();
   /** Same, for each participant's camera. */
@@ -195,15 +197,24 @@ export class VoiceSession {
   // --- lifecycle ----------------------------------------------------------------------------
 
   async start(): Promise<void> {
+    // The microphone and the sound start the way the user left them in the last call.
+    const { selfMuted, selfDeafened } = useSettingsStore.getState();
+    this.mutedBeforeDeafen = selfMuted;
     set({
       ...initialVoiceState,
       status: 'connecting',
       channelId: this.options.channelId,
       channelName: this.options.channelName,
+      muted: selfMuted || selfDeafened,
+      deafened: selfDeafened,
     });
     this.unsubscribeSettings = useSettingsStore.subscribe((settings, previous) =>
       this.handleSettingsChange(settings, previous),
     );
+    this.unsubscribeAccount = useAccountSettings.subscribe((settings, previous) => {
+      if (settings.people === previous.people) return;
+      for (const entry of this.consumers.values()) this.applyVolume(entry);
+    });
     await this.acquireMicrophone();
     if (this.disposed) return;
     await this.connect();
@@ -472,10 +483,19 @@ export class VoiceSession {
     }
   }
 
-  /** Starts receiving a participant's screen share (video and, when present, its audio). */
+  /**
+   * Starts receiving a participant's screen share (video and, when present, its audio). The
+   * choice holds for the rest of the call: when the streamer stops and shares again, even from
+   * a new session, the new stream is received by itself.
+   */
   watch(peerId: string): void {
     const peer = get().peers[peerId];
-    if (!peer || this.watched.has(peerId)) return;
+    if (!peer) return;
+    const { wantedStreams } = get();
+    if (!wantedStreams.includes(peer.userId)) {
+      set({ wantedStreams: [...wantedStreams, peer.userId] });
+    }
+    if (this.watched.has(peerId) || !isLive(peer)) return;
     this.watched.add(peerId);
     this.setWatching(peerId, { stream: null, spatialLayer: null });
     for (const producer of peer.producers) {
@@ -483,8 +503,23 @@ export class VoiceSession {
     }
   }
 
-  /** Stops receiving a stream: its consumers are closed on the server as well. */
+  /** The user no longer wants a person's stream, live or waiting to come back. */
+  unwatchUser(userId: string): void {
+    set({ wantedStreams: get().wantedStreams.filter((id) => id !== userId) });
+    for (const peer of Object.values(get().peers)) {
+      if (peer.userId === userId) this.stopReceiving(peer.id);
+    }
+  }
+
+  /** Stops receiving a stream, and stops waiting for that person to share again. */
   unwatch(peerId: string): void {
+    const userId = get().peers[peerId]?.userId;
+    if (userId) this.unwatchUser(userId);
+    else this.stopReceiving(peerId);
+  }
+
+  /** Closes the consumers of a stream, on the server as well. */
+  private stopReceiving(peerId: string): void {
     if (!this.watched.delete(peerId)) return;
     this.wantedLayers.delete(peerId);
     for (const [consumerId, entry] of this.consumers) {
@@ -496,14 +531,6 @@ export class VoiceSession {
   }
 
   /** Reports the size a watched stream is displayed at, to pick its simulcast layer. */
-  /** How loud this user hears the sound of one stream; nobody else is affected. */
-  setStreamVolume(peerId: string, volume: number): void {
-    set({ streamVolumes: { ...get().streamVolumes, [peerId]: Math.min(1, Math.max(0, volume)) } });
-    for (const entry of this.consumers.values()) {
-      if (entry.peerId === peerId && entry.source === 'screen-audio') this.applyVolume(entry);
-    }
-  }
-
   setStreamViewport(peerId: string, cssHeight: number): void {
     if (!this.watched.has(peerId)) return;
     const layer = layerForViewport(cssHeight, window.devicePixelRatio);
@@ -568,15 +595,19 @@ export class VoiceSession {
       this.sendTransport = await this.createTransport('send');
       if (stale()) return;
 
-      // Streams watched before a reconnection are resumed if their streamer is still live.
-      for (const peerId of [...this.watched]) {
-        const stillLive = joined.peers
-          .find((peer) => peer.id === peerId)
-          ?.producers.some((producer) => producer.source === 'screen');
-        if (!stillLive) {
-          this.watched.delete(peerId);
-          this.forgetStream(peerId);
-        }
+      // After a reconnection, the streams the user wants are received again, under whatever
+      // session their streamers have now.
+      const before = [...this.watched];
+      this.watched.clear();
+      const { wantedStreams } = get();
+      for (const peer of joined.peers) {
+        if (!isLive(peer) || !wantedStreams.includes(peer.userId)) continue;
+        this.watched.add(peer.id);
+        if (!get().watching[peer.id])
+          this.setWatching(peer.id, { stream: null, spatialLayer: null });
+      }
+      for (const peerId of before) {
+        if (!this.watched.has(peerId)) this.forgetStream(peerId);
       }
 
       await Promise.all([
@@ -687,6 +718,8 @@ export class VoiceSession {
   private releaseLocalMedia(): void {
     this.unsubscribeSettings?.();
     this.unsubscribeSettings = null;
+    this.unsubscribeAccount?.();
+    this.unsubscribeAccount = null;
     this.stopMeter?.();
     this.stopMeter = null;
     this.microphone?.close();
@@ -710,7 +743,6 @@ export class VoiceSession {
     for (const track of this.cameraStream?.getTracks() ?? []) track.stop();
     this.cameraStream = null;
     this.watched.clear();
-    this.resumable.clear();
     this.wantedLayers.clear();
     this.cameraLayers.clear();
   }
@@ -745,9 +777,10 @@ export class VoiceSession {
       // watch them.
       if (!isScreenSource(producer.source) || this.watched.has(peerId)) {
         void this.consume(peerId, producer.id, producer.source);
-      } else if (producer.source === 'screen' && (this.resumable.get(peerId) ?? 0) > Date.now()) {
-        this.resumable.delete(peerId);
-        this.watch(peerId);
+      } else if (producer.source === 'screen') {
+        // Someone the user watched shares again: the stream comes back by itself.
+        const userId = get().peers[peerId]?.userId;
+        if (userId && get().wantedStreams.includes(userId)) this.watch(peerId);
       }
     });
 
@@ -761,7 +794,8 @@ export class VoiceSession {
         if (entry.consumer.producerId === producerId) this.removeConsumer(consumerId);
       }
       if (removed?.source === 'screen') {
-        if (this.watched.delete(peerId)) this.resumable.set(peerId, Date.now() + RESUME_WATCH_MS);
+        // Still wanted: the stage shows that the stream ended until it comes back.
+        this.watched.delete(peerId);
         this.forgetStream(peerId);
       }
     });
@@ -900,10 +934,7 @@ export class VoiceSession {
     if (settings.cameraDeviceId !== previous.cameraDeviceId && this.cameraStream) {
       void this.stopCamera().then(() => this.startCamera());
     }
-    if (
-      settings.userVolumes !== previous.userVolumes ||
-      settings.outputVolume !== previous.outputVolume
-    ) {
+    if (settings.outputVolume !== previous.outputVolume) {
       for (const entry of this.consumers.values()) this.applyVolume(entry);
     }
     if (settings.inputMode !== previous.inputMode) this.gateMicrophone();
@@ -972,11 +1003,17 @@ export class VoiceSession {
     if (!audio) return;
     const userId = get().peers[peerId]?.userId;
     const settings = useSettingsStore.getState();
-    const own =
-      source === 'screen-audio'
-        ? (get().streamVolumes[peerId] ?? 1)
-        : source === 'mic' && userId
-          ? (settings.userVolumes[userId] ?? 1)
+    const person = userId ? getPerson(userId) : null;
+    const own = !person
+      ? 1
+      : source === 'screen-audio'
+        ? person.streamMuted
+          ? 0
+          : person.streamVolume
+        : source === 'mic'
+          ? person.voiceMuted
+            ? 0
+            : person.voiceVolume
           : 1;
     // The person's or stream's own volume, under the master one of the quick audio menu.
     const volume = own * settings.outputVolume;
@@ -1031,6 +1068,11 @@ export class VoiceSession {
 
   private async applyState(muted: boolean, deafened: boolean): Promise<void> {
     const effectiveMuted = muted || deafened || !this.micTrack;
+    // Remembered for the next call; while deafened, the microphone goes back to how it was.
+    updateSettings({
+      selfMuted: deafened ? this.mutedBeforeDeafen : muted,
+      selfDeafened: deafened,
+    });
     // Apply locally first so the microphone stops immediately, then sync the server.
     set({ muted: effectiveMuted, deafened });
     this.gateMicrophone();

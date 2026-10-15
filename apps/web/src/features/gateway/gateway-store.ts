@@ -146,6 +146,8 @@ export const gatewayReducers: { [T in GatewayEventName]: Reducer<T> } = {
   // Pending friend requests are server state, kept in the query cache.
   FRIEND_REQUEST_CREATE: () => ({}),
   FRIEND_REQUEST_DELETE: () => ({}),
+  // The account's preferences have their own store (`settings/account-settings`).
+  USER_SETTINGS_UPDATE: () => ({}),
 };
 
 export function applyGatewayEvent<T extends GatewayEventName>(

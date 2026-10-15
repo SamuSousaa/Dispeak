@@ -1,7 +1,7 @@
 import type { LinkPreview } from '@frequencia/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useSettingsStore } from '../settings/settings-store';
+import { useAccountSettings } from '../settings/account-settings';
 import { chatApi } from './chat-store';
 
 /** Links of one message that get a preview; the rest stay plain links. */
@@ -104,7 +104,7 @@ function Embed({ href, canAsk }: { href: string; canAsk: boolean }) {
 
 /** Pictures and previews of the links of a message. */
 export function Embeds({ links }: { links: string[] }) {
-  const show = useSettingsStore((state) => state.showEmbeds);
+  const show = useAccountSettings((settings) => settings.showEmbeds);
   const features = useFeatures();
   const unique = [...new Set(links)].slice(0, MAX_EMBEDS);
   if (!show || unique.length === 0) return null;

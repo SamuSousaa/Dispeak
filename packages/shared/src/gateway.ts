@@ -9,6 +9,7 @@ import {
   presenceStatusSchema,
   selfSchema,
 } from './api';
+import { userSettingsSchema } from './user-settings';
 
 /**
  * Realtime gateway protocol, modelled after Discord's: every frame is `{ op, d?, s?, t? }`.
@@ -68,6 +69,8 @@ export const gatewayEvents = {
   READY: z.object({
     sessionId: z.string(),
     user: selfSchema,
+    /** Preferences of the account, the same on every device. */
+    settings: userSettingsSchema,
     guilds: z.array(guildSchema),
   }),
   /** A resumed session has replayed everything it missed. */
@@ -107,6 +110,9 @@ export const gatewayEvents = {
   FRIEND_REQUEST_CREATE: friendRequestSchema,
   /** A friend request is gone: accepted, declined or withdrawn. */
   FRIEND_REQUEST_DELETE: z.object({ id: idSchema }),
+
+  /** The account's preferences changed, on this device or another one: all of them. */
+  USER_SETTINGS_UPDATE: userSettingsSchema,
 
   /** Someone started typing in a text channel; clients expire it after a few seconds. */
   TYPING_START: z.object({ guildId: idSchema, channelId: idSchema, userId: idSchema }),

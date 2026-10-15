@@ -37,6 +37,7 @@ import { MediaLink } from './modules/voice/media-link';
 import { PictureStore } from './modules/users/pictures';
 import { userRoutes } from './modules/users/routes';
 import { UserService } from './modules/users/service';
+import { UserSettingsService } from './modules/users/settings';
 import { streamReportRoutes } from './modules/streams/routes';
 import { StreamReportService } from './modules/streams/service';
 import { voiceRoutes } from './modules/voice/routes';
@@ -105,6 +106,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     new AttachmentFiles(path.resolve(config.UPLOADS_DIR, 'pictures')),
   );
   const users = new UserService(database.db, bus, pictures);
+  const userSettings = new UserSettingsService(database.db, bus);
   const guilds = new GuildService({
     db: database.db,
     bus,
@@ -135,7 +137,15 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   const sweepTimer = setInterval(() => void sweepAttachments(), ATTACHMENT_SWEEP_MS);
   sweepTimer.unref();
   void sweepAttachments();
-  const hub = new GatewayHub({ db: database.db, bus, auth, live, config, log: app.log });
+  const hub = new GatewayHub({
+    db: database.db,
+    bus,
+    auth,
+    userSettings,
+    live,
+    config,
+    log: app.log,
+  });
   hub.start();
   media.start();
 
@@ -152,6 +162,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     friends,
     messages,
     users,
+    userSettings,
     pictures,
     linkPreviews,
     gifs,

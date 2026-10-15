@@ -88,7 +88,13 @@ export function contextMenu(
       event.preventDefault();
       event.stopPropagation();
       cancel();
-      openContextMenu({ x: event.clientX, y: event.clientY }, title, build(), options);
+      // From the keyboard (menu key, Shift+F10) there is no pointer: open at the focused item.
+      const fromKeyboard = event.clientX === 0 && event.clientY === 0;
+      const box = target.getBoundingClientRect();
+      const point = fromKeyboard
+        ? { x: box.left + 8, y: box.top + Math.min(box.height, 24) }
+        : { x: event.clientX, y: event.clientY };
+      openContextMenu(point, title, build(), options);
     },
     onTouchStart: (event: TouchEvent) => {
       const touch = event.touches[0];

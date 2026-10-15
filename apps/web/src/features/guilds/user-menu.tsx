@@ -21,6 +21,8 @@ import { FRIEND_REQUESTS_KEY, friendsApi } from '../friends/friends-api';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { ProfileCard } from '../profile/ProfileCard';
 import { volumeMenuEntries } from '../voice/components/VolumeControl';
+import { unwatchStream, watchStream } from '../voice/voice-actions';
+import { isLive, useVoiceStore } from '../voice/voice-store';
 import { guildApi } from './guild-api';
 import { actorIn, memberColor, memberName } from './permissions';
 
@@ -157,6 +159,13 @@ export function userMenuEntries(
   const can = (permission: bigint) => hasPermission(actor.permissions, permission);
   const above = outranks(actor, target);
   const inVoice = guild.voiceStates.some((state) => state.userId === targetId);
+  // The person's stream, when they share in the call this user is in.
+  const voice = useVoiceStore.getState();
+  const peer = isSelf
+    ? undefined
+    : Object.values(voice.peers).find((entry) => entry.userId === targetId && isLive(entry));
+  const watching = peer ? Boolean(voice.watching[peer.id]) : false;
+  const streamHasAudio = peer?.producers.some((producer) => producer.source === 'screen-audio');
 
   return [
     { label: 'Perfil', onSelect: () => openUserProfile({ guild, targetId }, point) },
@@ -165,6 +174,12 @@ export function userMenuEntries(
     !isSelf && friendEntry(targetId, member.user.username, name),
     { type: 'separator' },
     ...(inVoice && !isSelf ? volumeMenuEntries(targetId, name) : []),
+    { type: 'separator' },
+    peer &&
+      (watching
+        ? { label: 'Parar de assistir', onSelect: () => unwatchStream(peer.id) }
+        : { label: 'Assistir transmissão', onSelect: () => watchStream(peer.id) }),
+    ...(peer && watching && streamHasAudio ? volumeMenuEntries(targetId, name, 'stream') : []),
     { type: 'separator' },
     // Someone muted who has left the call can still be given the microphone back.
     (inVoice || member.serverMuted) &&

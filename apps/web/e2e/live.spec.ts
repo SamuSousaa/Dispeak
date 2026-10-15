@@ -133,9 +133,32 @@ test('watching from the sidebar, layouts, an enlarged camera and a microphone me
   await volume.getByRole('slider').fill('0.4');
   await expect(volume).toContainText('40%');
   await volume.getByRole('button', { name: 'Silenciar transmissão' }).click();
-  await expect(volume).toContainText('0%');
+  await expect(volume).toContainText('MUDO');
   // Turning it back on returns to where it was, not to full blast.
   await volume.getByRole('button', { name: 'Ativar som da transmissão' }).click();
+  await expect(volume).toContainText('40%');
+  // The same is on the right click, with the rest of what can be done with the stream.
+  await watched.getByTestId('stream-video').click({ button: 'right' });
+  const menu = alice.page.getByTestId('context-menu');
+  await expect(menu.getByRole('menuitem', { name: 'Mutar transmissão' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Parar de assistir' })).toBeVisible();
+  await alice.page.keyboard.press('Escape');
+
+  // --- he stops and shares again: the stream comes back by itself, the sound as she left it --
+  const own = bruno.page.locator('[data-stream="self"]');
+  await own.hover();
+  await own.getByRole('button', { name: 'Parar transmissão' }).click();
+  await expect(watched).toHaveAttribute('data-ended', 'true');
+  await expect(watched).toContainText('TRANSMISSÃO ENCERRADA');
+  await bruno.page.getByRole('button', { name: 'TRANSMITIR', exact: true }).click();
+  await bruno.page.getByRole('menuitem').first().click();
+  await expect(watched).not.toHaveAttribute('data-ended');
+  await expect
+    .poll(() =>
+      watched.getByTestId('stream-video').evaluate((video: HTMLVideoElement) => video.videoWidth),
+    )
+    .toBeGreaterThan(0);
+  await watched.hover();
   await expect(volume).toContainText('40%');
 
   // --- clicks pick the layout: one on the stream in the main area and everyone is equal ------

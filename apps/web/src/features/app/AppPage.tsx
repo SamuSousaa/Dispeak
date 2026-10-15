@@ -1,4 +1,4 @@
-import { APP_NAME } from '@frequencia/shared';
+import { APP_NAME, type GatewayEventData } from '@frequencia/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -24,6 +24,7 @@ import { GuildSettingsDialog, type GuildSettingsTab } from '../guilds/dialogs/Gu
 import { InviteDialog } from '../guilds/dialogs/InviteDialog';
 import { groupChannels } from '../guilds/permissions';
 import { ProfileCard } from '../profile/ProfileCard';
+import { receiveAccountSettings, resetAccountSettings } from '../settings/account-settings';
 import { SettingsPanel, type SettingsTab } from '../settings/SettingsPanel';
 import { startVoiceSounds } from '../sounds/sound-player';
 import { notifyMention } from '../unread/notify';
@@ -100,6 +101,10 @@ export function AppPage() {
     // Chat history lives in the query cache; gateway events keep it current.
     const unsubscribe = gateway.subscribe((t, data) => {
       applyChatEvent(queryClient, t, data);
+      if (t === 'READY') receiveAccountSettings((data as GatewayEventData<'READY'>).settings);
+      if (t === 'USER_SETTINGS_UPDATE') {
+        receiveAccountSettings(data as GatewayEventData<'USER_SETTINGS_UPDATE'>);
+      }
       if (t === 'FRIEND_REQUEST_CREATE' || t === 'FRIEND_REQUEST_DELETE' || t === 'READY') {
         void queryClient.invalidateQueries({ queryKey: FRIEND_REQUESTS_KEY });
       }
@@ -119,6 +124,7 @@ export function AppPage() {
       releaseAttachments();
       leaveVoice();
       gateway.stop();
+      resetAccountSettings();
     };
   }, [queryClient]);
 

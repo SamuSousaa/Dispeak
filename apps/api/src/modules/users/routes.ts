@@ -3,6 +3,8 @@ import {
   PICTURE_MAX_BYTES,
   selfSchema,
   updateProfileRequestSchema,
+  userSettingsPatchSchema,
+  userSettingsSchema,
 } from '@frequencia/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -11,7 +13,7 @@ import { perUser } from '../../lib/per-user-limit';
 
 /** Profile pictures, and the address every picture (avatar or server icon) is served from. */
 export const userRoutes: FastifyPluginAsyncZod = async (app) => {
-  const { users, pictures, config } = app.ctx;
+  const { users, userSettings, pictures, config } = app.ctx;
   const security = [{ bearerAuth: [] }];
 
   // Uploads arrive as the raw bytes of the image.
@@ -109,6 +111,40 @@ export const userRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     (request) => users.updateProfile(request.auth.userId, request.body),
+  );
+
+  app.get(
+    '/users/@me/settings',
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ['users'],
+        summary: 'Your preferences that follow you to every device',
+        description: 'The gateway also sends them in READY and after every change.',
+        security,
+        response: { 200: userSettingsSchema },
+      },
+    },
+    (request) => userSettings.get(request.auth.userId),
+  );
+
+  app.patch(
+    '/users/@me/settings',
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ['users'],
+        summary: 'Change your preferences',
+        description:
+          'Send only what changes. In `people`, the fields of each person are merged one by ' +
+          'one; `null` forgets the person. Values equal to the default are not kept. Every ' +
+          'session of the account receives `USER_SETTINGS_UPDATE` with the result.',
+        security,
+        body: userSettingsPatchSchema,
+        response: { 200: userSettingsSchema },
+      },
+    },
+    (request) => userSettings.update(request.auth.userId, request.body),
   );
 
   app.get(

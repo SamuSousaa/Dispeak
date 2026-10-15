@@ -12,6 +12,7 @@ import type { WebSocket } from 'ws';
 import type { Config } from '../config';
 import { schema, type Database } from '../db/client';
 import type { AuthService } from '../modules/auth/service';
+import type { UserSettingsService } from '../modules/users/settings';
 import { loadGuildLiveData, type LiveState } from '../modules/guilds/live';
 import {
   canViewChannel,
@@ -106,6 +107,7 @@ export interface GatewayHubDeps {
   db: Database;
   bus: GatewayBus;
   auth: AuthService;
+  userSettings: UserSettingsService;
   live: LiveState;
   config: Config;
   log: FastifyBaseLogger;
@@ -268,7 +270,7 @@ export class GatewayHub {
     authSessionId: string,
     socket: WebSocket,
   ): Promise<Session> {
-    const { db, live, auth } = this.deps;
+    const { db, live, auth, userSettings } = this.deps;
     const session = new Session(userId, authSessionId);
     session.socket = socket;
     this.sessions.set(session.id, session);
@@ -283,8 +285,9 @@ export class GatewayHub {
     for (const { guildId } of memberships) this.subscribe(session, guildId);
 
     const cameOnline = await live.presence.connect(userId, session.id);
-    const [user, guilds] = await Promise.all([
+    const [user, settings, guilds] = await Promise.all([
       auth.getUser(userId),
+      userSettings.get(userId),
       Promise.all(memberships.map(({ guildId }) => this.payloadFor(guildId, userId))),
     ]);
     if (!user) throw new Error('authenticated user no longer exists');
@@ -292,6 +295,7 @@ export class GatewayHub {
     session.open('READY', {
       sessionId: session.id,
       user,
+      settings,
       guilds: guilds.filter((guild) => guild !== null),
     });
     if (cameOnline && user.presence !== 'invisible') {

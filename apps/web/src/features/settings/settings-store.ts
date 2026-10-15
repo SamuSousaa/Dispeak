@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { DEVICE_LEGACY_KEY } from './account-settings';
 import { SOUND_EVENTS, type SoundEvent } from '../sounds/sound-events';
 import { SCREEN_PRESET_IDS } from '../voice/screen-presets';
 import {
@@ -35,10 +36,10 @@ const settingsSchema = z.object({
   /** Volume of everything heard in a call: voices and stream audio (1 = as sent). */
   outputVolume: z.number().min(0).max(1),
   inputMode: z.enum(INPUT_MODES),
-  /** How loud each person sounds to this user, by user id (0 to 1); absent means full volume. */
-  userVolumes: z.record(z.string(), z.number().min(0).max(1)),
-  /** Show pictures and previews of links posted in the chat. */
-  showEmbeds: z.boolean(),
+  /** The user's own microphone was off when last left; the next call starts that way. */
+  selfMuted: z.boolean(),
+  /** Same for not hearing the call. */
+  selfDeafened: z.boolean(),
   /** System notification when someone mentions the user while the tab is in the background. */
   desktopNotifications: z.boolean(),
   /** Desktop app: the close button hides the window in the notification area. */
@@ -84,8 +85,8 @@ export const defaultSettings: Settings = {
   micGain: 1,
   outputVolume: 1,
   inputMode: 'voice',
-  userVolumes: {},
-  showEmbeds: true,
+  selfMuted: false,
+  selfDeafened: false,
   desktopNotifications: false,
   closeToTray: false,
   nativeCapture: true,
@@ -111,11 +112,14 @@ export const defaultSettings: Settings = {
   keybinds: DEFAULT_KEYBINDS,
 };
 
-/** Per-device preferences, kept in localStorage. */
+/**
+ * Preferences of this device, kept in localStorage. What belongs to the account (how each
+ * person sounds, the chat previews) is in `account-settings` and follows the user around.
+ */
 export const useSettingsStore = create<Settings>()(
   persist(() => defaultSettings, {
     name: 'frequencia.settings',
-    version: 6,
+    version: 7,
     migrate: (persisted, version) => {
       let stored = persisted as {
         noiseSuppression?: unknown;
@@ -146,6 +150,17 @@ export const useSettingsStore = create<Settings>()(
       }
       // Up to version 5 the app's own capture was off until asked for; now it is the usual one.
       if (version < 6) stored = { ...stored, nativeCapture: true };
+      // Up to version 6 the volume of each person and the chat previews were kept here; the
+      // account takes them over on its next session.
+      if (version < 7) {
+        const { userVolumes, showEmbeds, ...rest } = stored as Record<string, unknown>;
+        try {
+          localStorage.setItem(DEVICE_LEGACY_KEY, JSON.stringify({ userVolumes, showEmbeds }));
+        } catch {
+          // Without storage there was nothing stored to take over either.
+        }
+        stored = rest;
+      }
       return stored;
     },
     // Stored data may be stale or hand-edited: keep only what still validates. Shortcuts are
@@ -167,17 +182,6 @@ export const useSettingsStore = create<Settings>()(
 export function updateSettings(patch: Partial<Omit<Settings, 'keybinds'>>): void {
   useSettingsStore.setState(patch);
 }
-
-/** Volume of one person for this user only; full volume forgets the entry. */
-export function setUserVolume(userId: string, volume: number): void {
-  useSettingsStore.setState((state) => {
-    const { [userId]: _previous, ...others } = state.userVolumes;
-    return { userVolumes: volume >= 1 ? others : { ...others, [userId]: Math.max(0, volume) } };
-  });
-}
-
-export const useUserVolume = (userId: string): number =>
-  useSettingsStore((state) => state.userVolumes[userId] ?? 1);
 
 export function setKeybind(action: KeybindAction, binding: string | null): void {
   useSettingsStore.setState((state) => ({

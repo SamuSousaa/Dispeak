@@ -17,3 +17,5 @@ o que se abriu mão. São curtos de propósito.
 | [0010](0010-infra-embutida-sem-docker.md)   | Postgres e Redis embutidos para desenvolver e testar sem Docker       |
 | [0011](0011-conversa-privada-como-guild.md) | Conversa privada entre amigos como uma guild oculta de `kind = 'dm'`  |
 | [0012](0012-app-de-desktop-electron.md)     | App de desktop como uma janela Electron sobre o site publicado        |
+| [0013](0013-motor-de-transmissao-nativo.md) | Motor de transmissão nativo em Rust, no lugar do ffmpeg               |
+| [0014](0014-preferencias-da-conta.md)       | Preferências da conta no servidor, separadas das do aparelho          |

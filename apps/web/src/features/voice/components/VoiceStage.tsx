@@ -3,8 +3,14 @@ import { useState } from 'react';
 import { isContextMenuOpen } from '../../../components/ContextMenu';
 import { memberColor, memberName } from '../../guilds/permissions';
 import { userContextMenu } from '../../guilds/user-menu';
-import { useSettingsStore } from '../../settings/settings-store';
-import { setCameraViewport, stopScreenShare, unwatchStream, watchStream } from '../voice-actions';
+import { useAccountSettings } from '../../settings/account-settings';
+import {
+  setCameraViewport,
+  stopScreenShare,
+  unwatchStream,
+  unwatchUser,
+  watchStream,
+} from '../voice-actions';
 import { isLive, SELF_STREAM, useVoiceStore } from '../voice-store';
 import { ParticipantTile } from './ParticipantTile';
 import { StreamTile } from './StreamTile';
@@ -13,7 +19,11 @@ import { volumeLabel } from './VolumeControl';
 
 interface StageStream {
   id: string;
+  /** Absent for the local preview. */
+  userId?: string;
   name: string;
+  /** Ended, and waiting for the person to share again. */
+  ended?: boolean;
   stream: MediaStream | null;
   /** Whether the streamer is sending the sound of what they share. */
   hasAudio?: boolean;
@@ -59,7 +69,8 @@ export function VoiceStage({
   const camera = useVoiceStore((state) => state.camera);
   const cameras = useVoiceStore((state) => state.cameras);
   const watching = useVoiceStore((state) => state.watching);
-  const userVolumes = useSettingsStore((state) => state.userVolumes);
+  const wantedStreams = useVoiceStore((state) => state.wantedStreams);
+  const preferences = useAccountSettings((settings) => settings.people);
   // Coming back to the call from another channel, a stream being watched is still the focus.
   const [focus, setFocus] = useState<Focus | null>(() => {
     const [id] = Object.keys(useVoiceStore.getState().watching);
@@ -84,12 +95,14 @@ export function VoiceStage({
       ? [{ id: SELF_STREAM, name: selfName, stream: screen.stream }]
       : []),
     ...others
-      .filter((peer) => watching[peer.id])
+      .filter((peer) => watching[peer.id] || (wantedStreams.includes(peer.userId) && !isLive(peer)))
       .map((peer) => ({
         id: peer.id,
+        userId: peer.userId,
         name: peer.name,
         stream: watching[peer.id]?.stream ?? null,
         hasAudio: peer.producers.some((producer) => producer.source === 'screen-audio'),
+        ended: !watching[peer.id],
       })),
   ];
 
@@ -131,13 +144,21 @@ export function VoiceStage({
     <StreamTile
       key={stream.id}
       id={stream.id}
+      userId={stream.userId}
       name={stream.name}
+      ended={stream.ended ?? false}
       stream={stream.stream}
       hasAudio={stream.hasAudio ?? false}
       focused={stream.id === focusedStream?.id}
       compact={thumbnail}
       onToggleFocus={() => toggleFocus({ kind: 'stream', id: stream.id })}
-      onClose={() => (stream.id === SELF_STREAM ? stopScreenShare() : unwatchStream(stream.id))}
+      onClose={() =>
+        stream.id === SELF_STREAM
+          ? stopScreenShare()
+          : stream.ended && stream.userId
+            ? unwatchUser(stream.userId)
+            : unwatchStream(stream.id)
+      }
     />
   );
 
@@ -184,7 +205,9 @@ export function VoiceStage({
         compact={small}
         focused={large}
         onToggleFocus={onToggleFocus}
-        volumeNote={volumeLabel(userVolumes[peer.userId] ?? 1)}
+        volumeNote={volumeLabel(
+          preferences[peer.userId]?.voiceMuted ? 0 : (preferences[peer.userId]?.voiceVolume ?? 1),
+        )}
         menu={menuOf(peer.userId)}
       />
     );

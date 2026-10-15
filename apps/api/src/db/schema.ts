@@ -37,6 +37,18 @@ export const users = pgTable('users', {
 });
 
 /**
+ * Preferences of an account that follow it to every device (`UserSettings` of
+ * `@frequencia/shared`). One row per user, created on the first change.
+ */
+export const userSettings = pgTable('user_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  data: jsonb('data').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * Rotating refresh tokens. Every login starts a family; each refresh revokes the presented
  * token and issues the next one of the same family. Presenting a revoked token means it was
  * stolen (or replayed), and revokes the whole family.

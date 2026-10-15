@@ -1,4 +1,4 @@
-import type { Channel, Guild, Member } from '@frequencia/shared';
+import { defaultUserSettings, type Channel, type Guild, type Member } from '@frequencia/shared';
 import { describe, expect, it } from 'vitest';
 import { gatewayReducers, initialGatewayState, type GatewayState } from './gateway-store';
 
@@ -80,6 +80,7 @@ describe('gateway reducers', () => {
     const next = gatewayReducers.READY(initialGatewayState, {
       sessionId: 's',
       user: { ...member(ALICE, 'Alice').user, presence: 'online' },
+      settings: defaultUserSettings,
       guilds: [guild(), other],
     });
     expect(next.status).toBe('ready');

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ContextMenuHost } from './ContextMenu';
 import { Link } from 'react-router-dom';
 import { cx } from '../lib/cx';
 
@@ -32,6 +33,7 @@ export function LabLayout({ code, title, status, footer, children }: LabLayoutPr
         {status && <div className="label shrink-0 text-muted">{status}</div>}
       </header>
       <main className="min-h-0 flex-1">{children}</main>
+      <ContextMenuHost />
       {footer && (
         <footer className="label flex min-h-8 shrink-0 flex-wrap items-center gap-x-6 gap-y-1 border-t border-line bg-surface px-4 py-1.5 text-muted">
           {footer}

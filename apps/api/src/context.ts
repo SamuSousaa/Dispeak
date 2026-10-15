@@ -14,6 +14,7 @@ import type { GuildService } from './modules/guilds/service';
 import type { MessageService } from './modules/messages/service';
 import type { PictureStore } from './modules/users/pictures';
 import type { UserService } from './modules/users/service';
+import type { UserSettingsService } from './modules/users/settings';
 import type { MediaLink } from './modules/voice/media-link';
 import type { StreamReportService } from './modules/streams/service';
 import type { VoiceAccess } from './modules/voice/voice-access';
@@ -34,6 +35,7 @@ export interface AppContext {
   friends: FriendService;
   messages: MessageService;
   users: UserService;
+  userSettings: UserSettingsService;
   pictures: PictureStore;
   linkPreviews: LinkPreviews;
   gifs: GifSearch;

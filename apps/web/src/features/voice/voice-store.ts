@@ -106,8 +106,11 @@ export interface VoiceState {
   streamStats: Record<string, StreamStats>;
   /** How loud the microphone is right now, 0 to 1, measured on what is sent to the others. */
   micLevel: number;
-  /** Volume chosen for the sound of each watched stream, by streamer session id (0 to 1). */
-  streamVolumes: Record<string, number>;
+  /**
+   * User ids whose stream this user chose to watch, for the rest of the call. A stream that
+   * ends stays wanted: it is received again as soon as that person shares again.
+   */
+  wantedStreams: string[];
 }
 
 export const emptyVoiceStats: VoiceConnectionStats = {
@@ -151,7 +154,7 @@ export const initialVoiceState: VoiceState = {
   screenViewers: [],
   streamStats: {},
   micLevel: 0,
-  streamVolumes: {},
+  wantedStreams: [],
 };
 
 export const useVoiceStore = create<VoiceState>(() => initialVoiceState);
