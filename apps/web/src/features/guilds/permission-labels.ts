@@ -139,3 +139,17 @@ export const PERMISSION_INFO: PermissionInfo[] = [
     channels: [],
   },
 ];
+
+/** How permissions are grouped on screen, in this order. Each name appears once. */
+export const PERMISSION_GROUPS: Array<{ title: string; names: PermissionName[] }> = [
+  {
+    title: 'GERAL',
+    names: ['ViewChannel', 'ManageChannels', 'ManageRoles', 'CreateInvite', 'ManageGuild'],
+  },
+  {
+    title: 'TEXTO',
+    names: ['SendMessages', 'AttachFiles', 'AddReactions', 'MentionEveryone', 'ManageMessages'],
+  },
+  { title: 'VOZ', names: ['Connect', 'Speak', 'Stream', 'MuteMembers', 'DisconnectMembers'] },
+  { title: 'MEMBROS', names: ['KickMembers', 'BanMembers', 'Administrator'] },
+];

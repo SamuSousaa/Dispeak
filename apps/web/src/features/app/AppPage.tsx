@@ -25,7 +25,7 @@ import { InviteDialog } from '../guilds/dialogs/InviteDialog';
 import { groupChannels } from '../guilds/permissions';
 import { ProfileCard } from '../profile/ProfileCard';
 import { receiveAccountSettings, resetAccountSettings } from '../settings/account-settings';
-import { SettingsPanel, type SettingsTab } from '../settings/SettingsPanel';
+import { SettingsDialog, type SettingsPage } from '../settings/SettingsDialog';
 import { startVoiceSounds } from '../sounds/sound-player';
 import { notifyMention } from '../unread/notify';
 import { applyUnreadEvent, useUnreadTitle } from '../unread/unread-store';
@@ -52,7 +52,7 @@ type DialogState =
   | { kind: 'guild-settings'; tab?: GuildSettingsTab }
   | { kind: 'create-channel'; parentId: string | null }
   | { kind: 'channel-settings'; channelId: string }
-  | { kind: 'settings'; tab?: SettingsTab }
+  | { kind: 'settings'; tab?: SettingsPage }
   | null;
 
 type Drawer = 'channels' | 'members' | null;
@@ -463,10 +463,10 @@ export function AppPage() {
 
       {dialog?.kind === 'add-guild' && <AddGuildDialog onClose={closeDialog} />}
       {dialog?.kind === 'settings' && (
-        <SettingsPanel
+        <SettingsDialog
           user={user}
           guild={guild}
-          initialTab={dialog.tab}
+          initialPage={dialog.tab}
           onSignOut={() => void signOut()}
           onClose={closeDialog}
         />

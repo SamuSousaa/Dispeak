@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { exitGhost } from '../lib/exit-ghost';
 import { cx } from '../lib/cx';
 
@@ -12,7 +20,17 @@ interface DialogProps {
   wide?: boolean;
   /** Full-height panel docked to the right edge instead of a centered box. */
   side?: boolean;
+  /**
+   * A large box of fixed height for settings, with no header of its own: the content draws
+   * it (`SettingsShell`), and closes the dialog through `useCloseDialog`.
+   */
+  settings?: boolean;
 }
+
+const CloseContext = createContext<() => void>(() => undefined);
+
+/** Closes the dialog the component is in, the same way Escape or a click outside does. */
+export const useCloseDialog = () => useContext(CloseContext);
 
 /**
  * Modal built on the native <dialog>: the browser traps focus, closes on Escape and keeps
@@ -27,6 +45,7 @@ export function Dialog({
   children,
   wide = false,
   side = false,
+  settings = false,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   /** Whether the press that may become a click started on the backdrop. */
@@ -91,33 +110,52 @@ export function Dialog({
         'max-sm:m-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:w-screen max-sm:max-w-none max-sm:border-0',
         side
           ? 'my-0 mr-0 ml-auto h-dvh max-h-dvh w-[27rem] max-w-full border-l'
-          : 'm-auto max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] border',
-        !side && (wide ? 'max-w-3xl' : 'max-w-md'),
+          : settings
+            ? 'm-auto h-[min(88dvh,760px)] max-h-none w-[calc(100vw-2rem)] max-w-5xl border'
+            : 'm-auto max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] border',
+        !side && !settings && (wide ? 'max-w-3xl' : 'max-w-md'),
       )}
     >
-      <div
-        className={cx(
-          'safe-area flex flex-col max-sm:h-full max-sm:max-h-none',
-          side ? 'h-full' : 'max-h-[min(90dvh,720px)]',
-        )}
-      >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            {eyebrow && <p className="label text-muted">{eyebrow}</p>}
-            <h2 className="display truncate text-lg text-fg">{title}</h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => setClosing(true)}
-            aria-label="Fechar"
-            className="label -m-2 shrink-0 p-2 text-muted transition-colors hover:text-accent"
+      <CloseContext.Provider value={() => setClosing(true)}>
+        {settings ? (
+          <div className="safe-area h-full">{children}</div>
+        ) : (
+          <div
+            className={cx(
+              'safe-area flex flex-col max-sm:h-full max-sm:max-h-none',
+              side ? 'h-full' : 'max-h-[min(90dvh,720px)]',
+            )}
           >
-            [ X ]
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-      </div>
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-4 py-3">
+              <div className="min-w-0">
+                {eyebrow && <p className="label text-muted">{eyebrow}</p>}
+                <h2 className="display truncate text-lg text-fg">{title}</h2>
+              </div>
+              <CloseButton />
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          </div>
+        )}
+      </CloseContext.Provider>
     </dialog>
+  );
+}
+
+/** The [ X ] of a dialog. */
+export function CloseButton({ className }: { className?: string }) {
+  const close = useCloseDialog();
+  return (
+    <button
+      type="button"
+      onClick={close}
+      aria-label="Fechar"
+      className={cx(
+        'label -m-2 shrink-0 p-2 text-muted transition-colors hover:text-accent',
+        className,
+      )}
+    >
+      [ X ]
+    </button>
   );
 }
 

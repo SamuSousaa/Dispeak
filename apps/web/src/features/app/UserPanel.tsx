@@ -8,7 +8,7 @@ import { attempt } from '../../components/Toast';
 import { desktop } from '../desktop/desktop';
 import { profileApi } from '../auth/profile-api';
 import { StatusMark } from '../profile/ProfileCard';
-import type { SettingsTab } from '../settings/SettingsPanel';
+import type { SettingsPage } from '../settings/SettingsDialog';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
 import { cx } from '../../lib/cx';
@@ -73,7 +73,7 @@ export function UserPanel({
   onOpenSettings,
 }: {
   user: Self;
-  onOpenSettings: (tab?: SettingsTab) => void;
+  onOpenSettings: (tab?: SettingsPage) => void;
 }) {
   const status = useVoiceStore((state) => state.status);
   const channelId = useVoiceStore((state) => state.channelId);

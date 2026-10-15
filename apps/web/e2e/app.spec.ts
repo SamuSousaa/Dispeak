@@ -210,7 +210,7 @@ test('account → server → invite → voice channel → stream, with permissio
   await dialog(bruno.page).getByText('MICROFONE ABERTO', { exact: true }).click();
   await expect(bruno.page.getByTestId('ptt-status')).toHaveCount(0);
   // A file from the computer replaces the built-in sound, and is played once to confirm.
-  await dialog(bruno.page).getByRole('tab', { name: 'SONS' }).click();
+  await dialog(bruno.page).getByRole('tab', { name: 'NOTIFICAÇÕES' }).click();
   await dialog(bruno.page)
     .getByTestId('sound-input-join')
     .setInputFiles({
@@ -443,6 +443,7 @@ test('account → server → invite → voice channel → stream, with permissio
     .getByRole('link', { name: /02\. Geral/ })
     .hover();
   await alice.page.getByRole('button', { name: 'Configurar canal Geral', exact: true }).click();
+  await dialog(alice.page).getByRole('tab', { name: 'PERMISSÕES' }).click();
   await dialog(alice.page)
     .getByRole('radiogroup', { name: 'Transmitir tela' })
     .getByRole('radio', { name: 'NEGAR' })
@@ -460,6 +461,7 @@ test('account → server → invite → voice channel → stream, with permissio
     .getByRole('link', { name: /02\. Geral/ })
     .hover();
   await alice.page.getByRole('button', { name: 'Configurar canal Geral', exact: true }).click();
+  await dialog(alice.page).getByRole('tab', { name: 'PERMISSÕES' }).click();
   await dialog(alice.page)
     .getByRole('radiogroup', { name: 'Conectar' })
     .getByRole('radio', { name: 'NEGAR' })
@@ -476,7 +478,7 @@ test('account → server → invite → voice channel → stream, with permissio
   await bruno.page.reload();
   await expect(bruno.page.getByRole('heading', { name: 'Amigos do e2e' })).toBeVisible();
   await bruno.page.getByRole('button', { name: 'Configurações', exact: true }).click();
-  await dialog(bruno.page).getByRole('tab', { name: 'CONTA' }).click();
+  await dialog(bruno.page).getByRole('tab', { name: 'MINHA CONTA' }).click();
   await dialog(bruno.page).getByRole('button', { name: 'SAIR DA CONTA' }).click();
   await expect(bruno.page).toHaveURL(/\/login/);
   await expect(

@@ -16,6 +16,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/Button';
 import { Dialog, Field, FormError } from '../../../components/Dialog';
+import { SettingsShell, type ShellPage } from '../../../components/SettingsShell';
 import { Loading } from '../../../components/Loading';
 import { PictureField } from '../../../components/PictureField';
 import { cx } from '../../../lib/cx';
@@ -23,7 +24,7 @@ import { describeError } from '../../../lib/http';
 import { guildApi, inviteLink } from '../guild-api';
 import { SOUND_LABELS } from '../../sounds/sound-events';
 import { playSound } from '../../sounds/sound-player';
-import { PERMISSION_INFO } from '../permission-labels';
+import { PERMISSION_GROUPS, PERMISSION_INFO } from '../permission-labels';
 import { actorIn } from '../permissions';
 
 export type GuildSettingsTab = 'overview' | 'roles' | 'members' | 'bans' | 'invites' | 'sounds';
@@ -232,35 +233,40 @@ function RoleEditor({ role, guild, actor, run, busy }: TabProps & { role: Role }
           </p>
         </fieldset>
       )}
-      <ul className="border border-line">
-        {PERMISSION_INFO.map((info) => {
-          const granted = hasPermission(permissions, info.bit);
-          // A member can only flip permissions they hold themselves.
-          const allowed = actor.isOwner || hasPermission(actor.permissions, info.bit);
-          return (
-            <li key={info.name} className="border-b border-line last:border-b-0">
-              <label
-                className={cx(
-                  'flex items-start gap-3 px-3 py-2',
-                  allowed ? 'cursor-pointer hover:bg-surface-2' : 'opacity-50',
-                )}
-              >
-                <input
-                  type="checkbox"
-                  className="mt-1 h-3.5 w-3.5 shrink-0 accent-(--accent)"
-                  checked={granted}
-                  disabled={busy || !allowed}
-                  onChange={() => toggle(info.bit)}
-                />
-                <span className="min-w-0">
-                  <span className="label-lg block text-fg">{info.label}</span>
-                  <span className="block text-xs text-muted">{info.description}</span>
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
+      {PERMISSION_GROUPS.map((group) => (
+        <div key={group.title} className="flex flex-col gap-1.5">
+          <p className="label text-muted">{group.title}</p>
+          <ul className="border border-line">
+            {PERMISSION_INFO.filter((info) => group.names.includes(info.name)).map((info) => {
+              const granted = hasPermission(permissions, info.bit);
+              // A member can only flip permissions they hold themselves.
+              const allowed = actor.isOwner || hasPermission(actor.permissions, info.bit);
+              return (
+                <li key={info.name} className="border-b border-line last:border-b-0">
+                  <label
+                    className={cx(
+                      'flex items-start gap-3 px-3 py-2',
+                      allowed ? 'cursor-pointer hover:bg-surface-2' : 'opacity-50',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-3.5 w-3.5 shrink-0 accent-(--accent)"
+                      checked={granted}
+                      disabled={busy || !allowed}
+                      onChange={() => toggle(info.bit)}
+                    />
+                    <span className="min-w-0">
+                      <span className="label-lg block text-fg">{info.label}</span>
+                      <span className="block text-xs text-muted">{info.description}</span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
       {!isEveryone && (
         <div>
           <Button
@@ -677,7 +683,7 @@ function InvitesTab({ guild, run, busy }: TabProps) {
   );
 }
 
-/** Server settings: overview, roles and permissions, members, invites. */
+/** Server settings, in the same split panel as the user's: overview, roles, members, invites. */
 export function GuildSettingsDialog({
   guild,
   userId,
@@ -709,7 +715,7 @@ export function GuildSettingsDialog({
   };
 
   const tabs: Array<{ id: Tab; label: string; visible: boolean }> = [
-    { id: 'overview', label: 'GERAL', visible: true },
+    { id: 'overview', label: 'VISÃO GERAL', visible: true },
     {
       id: 'roles',
       label: 'CARGOS',
@@ -730,43 +736,33 @@ export function GuildSettingsDialog({
   ];
   const props: TabProps = { guild, userId, actor, run, busy, onClose };
 
+  const pages: Array<ShellPage<Tab>> = tabs
+    .filter((entry) => entry.visible)
+    .map((entry) => ({ id: entry.id, label: entry.label, group: 'SERVIDOR' }));
+
   return (
-    <Dialog title={guild.name} eyebrow="CONFIGURAÇÕES DO SERVIDOR" onClose={onClose} wide>
-      <div role="tablist" className="flex overflow-x-auto border-b border-line">
-        {tabs
-          .filter((entry) => entry.visible)
-          .map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === entry.id}
-              onClick={() => {
-                setTab(entry.id);
-                setError(null);
-              }}
-              className={cx(
-                'label shrink-0 border-b-2 px-4 py-2.5 transition-colors',
-                tab === entry.id
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted hover:text-fg',
-              )}
-            >
-              {entry.label}
-            </button>
-          ))}
-      </div>
-      {error && (
-        <div className="border-b border-line px-4 py-2">
-          <FormError message={error} />
-        </div>
-      )}
-      {tab === 'overview' && <OverviewTab {...props} />}
-      {tab === 'roles' && <RolesTab {...props} />}
-      {tab === 'members' && <MembersTab {...props} />}
-      {tab === 'bans' && <BansTab {...props} />}
-      {tab === 'invites' && <InvitesTab {...props} />}
-      {tab === 'sounds' && <SoundsTab {...props} />}
+    <Dialog settings title={guild.name} onClose={onClose}>
+      <SettingsShell
+        title={guild.name.toUpperCase()}
+        pages={pages}
+        page={tab}
+        onPage={(next) => {
+          setTab(next);
+          setError(null);
+        }}
+      >
+        {error && (
+          <div className="border-b border-line px-4 py-2 sm:px-6">
+            <FormError message={error} />
+          </div>
+        )}
+        {tab === 'overview' && <OverviewTab {...props} />}
+        {tab === 'roles' && <RolesTab {...props} />}
+        {tab === 'members' && <MembersTab {...props} />}
+        {tab === 'bans' && <BansTab {...props} />}
+        {tab === 'invites' && <InvitesTab {...props} />}
+        {tab === 'sounds' && <SoundsTab {...props} />}
+      </SettingsShell>
     </Dialog>
   );
 }
