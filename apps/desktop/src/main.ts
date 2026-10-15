@@ -5,6 +5,7 @@ import { serveCallState } from './call-state';
 import { config } from './config';
 import { showDiagnostics } from './diagnostics';
 import { serveGameAudio } from './game-audio';
+import { serveGames, takeShareWindow } from './games';
 import { serveGpuUsage } from './gpu-usage';
 import { serveNativeCapture } from './native-capture';
 import { isAppUrl, isExternalLink } from './navigation';
@@ -50,8 +51,11 @@ async function primaryScreen() {
  * the user gives up.
  */
 async function chooseSource(window: BrowserWindow) {
-  const shortcut = await takeShortcutShare();
-  const source = shortcut?.source ?? (await pickSource(window, { detached: shortcut !== null }));
+  // A game picked in the page (TRANSMITIR next to its name), then the shortcut, then the picker.
+  const asked = await takeShareWindow();
+  const shortcut = asked ? null : await takeShortcutShare();
+  const source =
+    asked ?? shortcut?.source ?? (await pickSource(window, { detached: shortcut !== null }));
   // On Windows a window source is named `window:<handle>:<n>`.
   if (source)
     pickedWindow = source.id.startsWith('window:') ? (source.id.split(':')[1] ?? null) : null;
@@ -117,6 +121,7 @@ function createWindow(): BrowserWindow {
   revealWindow = serveTray(window, call);
   serveThumbar(window, call);
   serveGpuUsage(window);
+  serveGames(window);
   nativeCapture = serveNativeCapture(window, () => chooseSource(window));
   serveGameAudio(window, () => pickedWindow);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });

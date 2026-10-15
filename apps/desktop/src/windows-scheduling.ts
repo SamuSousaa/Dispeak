@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import { hostTimersSchema } from '@frequencia/shared';
+import { nativeHost } from './native-host';
 
 /**
  * Windows 11 ignores the fine timers of a process whose windows are all covered and wakes it on
@@ -8,8 +10,9 @@ import { spawn } from 'node:child_process';
  * takes a little longer. `PROCESS_POWER_THROTTLING` with the control bits set and the state
  * bits clear takes that decision, and the efficiency mode, away from the system.
  *
- * The call lives in kernel32 and has no Node binding, so PowerShell makes it, with the script
- * passed on the command line: nothing is written to disk.
+ * The call lives in kernel32 and has no Node binding: the app's Windows helper makes it. Should
+ * the helper be missing, PowerShell does, with the script on the command line; it matters too
+ * much for the frame rate of a stream to go without.
  */
 const SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
@@ -38,8 +41,17 @@ $done -join '; '
 `;
 
 /** Exempts the given processes from timer throttling. Resolves with what happened, for the log. */
-export function keepTimersFine(pids: number[]): Promise<string> {
-  if (process.platform !== 'win32' || pids.length === 0) return Promise.resolve('skipped');
+export async function keepTimersFine(pids: number[]): Promise<string> {
+  if (process.platform !== 'win32' || pids.length === 0) return 'skipped';
+  try {
+    const { done } = await nativeHost.request('keepTimersFine', { pids }, hostTimersSchema);
+    return `helper: ${done.length}/${pids.length}`;
+  } catch {
+    return withPowerShell(pids);
+  }
+}
+
+function withPowerShell(pids: number[]): Promise<string> {
   return new Promise((resolve) => {
     const script = SCRIPT.replace('__PIDS__', pids.join(', '));
     // PowerShell takes an encoded command as base64 of UTF-16.

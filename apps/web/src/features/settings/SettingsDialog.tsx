@@ -30,6 +30,7 @@ import { changeAccountSettings, useAccountSettings } from './account-settings';
 import { DeviceSelect, supportsOutputSelection, useAudioDevices } from './audio-devices';
 import { KeybindRow, OptionGroup, Slider, SoundRow, Toggle } from './controls';
 import { bindingFromEvent, KEYBIND_ACTIONS, KEYBIND_LABELS, type KeybindAction } from './keybinds';
+import { AddedGames, HiddenGames, PlayingNow } from './GamesSettings';
 import { MicTest } from './MicTest';
 import { PasswordForm, ProfileTab } from './ProfileTab';
 import {
@@ -50,7 +51,8 @@ export type SettingsPage =
   | 'chat'
   | 'notifications'
   | 'keys'
-  | 'app';
+  | 'app'
+  | 'games';
 
 const INPUT_OPTIONS: Array<{ value: InputMode; label: string; hint: string }> = [
   {
@@ -800,6 +802,34 @@ function buildPages({ user, guild, onSignOut, goTo }: PageContext): PageEntry[] 
           scope: 'device',
           keywords: 'teclas mutar ensurdecer transmitir tela cheia',
           render: () => <Shortcuts />,
+        },
+      ],
+    },
+    // Only in the desktop app, which can see the programs running.
+    Boolean(desktop?.games) && {
+      id: 'games',
+      label: 'JOGOS',
+      group: 'ATIVIDADE',
+      sections: [
+        {
+          id: 'playing',
+          title: 'JOGANDO AGORA',
+          keywords: 'jogo detectado reconhecido steam epic xbox',
+          render: () => <PlayingNow />,
+        },
+        {
+          id: 'added',
+          title: 'JOGOS ADICIONADOS',
+          scope: 'account',
+          keywords: 'adicionar programa jogo não reconhecido',
+          render: () => <AddedGames />,
+        },
+        {
+          id: 'hidden',
+          title: 'NÃO SÃO JOGOS',
+          scope: 'account',
+          keywords: 'esconder ignorar',
+          render: () => <HiddenGames />,
         },
       ],
     },

@@ -2,7 +2,8 @@
 export interface PickerSource {
   id: string;
   name: string;
-  kind: 'screen' | 'window';
+  /** A game is a window the app recognised: listed first, by the game's name. */
+  kind: 'game' | 'screen' | 'window';
   /** PNG data URL. */
   thumbnail: string;
 }

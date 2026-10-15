@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { BrowserWindow, desktopCapturer, type DesktopCapturerSource } from 'electron';
+import { iconOf, runningGames } from '../games';
 import { PICKER_CHOOSE, PICKER_SOURCES, type PickerSource } from './protocol';
 
 const here = import.meta.dirname;
@@ -28,6 +29,21 @@ export async function pickSource(
     kind: source.id.startsWith('screen:') ? 'screen' : 'window',
     thumbnail: source.thumbnail.toDataURL(),
   }));
+  // Games running, by name, on top: also minimised ones, which have no picture (their icon then).
+  const games = await runningGames();
+  for (const game of games) {
+    if (game.windowHandle === null) continue;
+    const source = sources.find((entry) => entry.id.startsWith(`window:${game.windowHandle}:`));
+    if (!source) continue;
+    listed.unshift({
+      id: source.id,
+      name: game.name,
+      kind: 'game',
+      thumbnail: source.thumbnail.isEmpty()
+        ? ((await iconOf(game.path)) ?? '')
+        : source.thumbnail.toDataURL(),
+    });
+  }
 
   const window = new BrowserWindow({
     ...(detached ? { alwaysOnTop: true, center: true } : { parent, modal: true }),
@@ -52,7 +68,7 @@ export async function pickSource(
     // Scoped to this window's page: no other page can list or pick sources.
     window.webContents.ipc.handle(PICKER_SOURCES, () => listed);
     window.webContents.ipc.on(PICKER_CHOOSE, (_event, id: unknown) => {
-      chosen = offered.find((source) => source.id === id) ?? null;
+      chosen = sources.find((source) => source.id === id) ?? null;
       window.close();
     });
     window.once('closed', () => resolve(chosen));

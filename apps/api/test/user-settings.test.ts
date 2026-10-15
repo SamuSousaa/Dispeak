@@ -39,8 +39,18 @@ describe('user settings', () => {
 
   it('starts with the defaults, in READY and over REST', async () => {
     const { ready } = await online(other);
-    expect(ready.settings).toEqual({ people: {}, showEmbeds: true, privateProfile: false });
-    expect(await read(other)).toEqual({ people: {}, showEmbeds: true, privateProfile: false });
+    expect(ready.settings).toEqual({
+      people: {},
+      showEmbeds: true,
+      privateProfile: false,
+      games: { added: [], hidden: [] },
+    });
+    expect(await read(other)).toEqual({
+      people: {},
+      showEmbeds: true,
+      privateProfile: false,
+      games: { added: [], hidden: [] },
+    });
   });
 
   it('merges a person field by field and tells every session of the account', async () => {

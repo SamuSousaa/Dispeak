@@ -9,6 +9,13 @@ import { idSchema } from './api';
 
 const volumeSchema = z.number().min(0).max(1);
 
+const exeSchema = z.string().trim().toLowerCase().min(1).max(260);
+export const gameChoicesSchema = z.object({
+  added: z.array(exeSchema).max(200),
+  hidden: z.array(exeSchema).max(200),
+});
+export type GameChoices = z.infer<typeof gameChoicesSchema>;
+
 /**
  * How this user hears another person. Only what differs from the default is stored: full
  * volume and not muted. Muting keeps the volume, so unmuting brings back the one chosen.
@@ -32,6 +39,11 @@ export const userSettingsSchema = z.object({
   showEmbeds: z.boolean(),
   /** Only friends may start a private conversation; otherwise anyone sharing a server can. */
   privateProfile: z.boolean(),
+  /**
+   * Corrections to the desktop app's game detection, by program file name (lowercase):
+   * programs that are games though nothing says so, and programs taken for games that are not.
+   */
+  games: gameChoicesSchema,
 });
 export type UserSettings = z.infer<typeof userSettingsSchema>;
 
@@ -39,6 +51,7 @@ export const defaultUserSettings: UserSettings = {
   people: {},
   showEmbeds: true,
   privateProfile: false,
+  games: { added: [], hidden: [] },
 };
 
 /**
@@ -52,6 +65,8 @@ export const userSettingsPatchSchema = z
       .refine((people) => Object.keys(people).length <= PEOPLE_PREFERENCES_MAX),
     showEmbeds: z.boolean(),
     privateProfile: z.boolean(),
+    /** Replaces both lists. */
+    games: gameChoicesSchema,
   })
   .partial();
 export type UserSettingsPatch = z.infer<typeof userSettingsPatchSchema>;
@@ -92,6 +107,7 @@ export function applyUserSettingsPatch(
     people,
     showEmbeds: patch.showEmbeds ?? settings.showEmbeds,
     privateProfile: patch.privateProfile ?? settings.privateProfile,
+    games: patch.games ?? settings.games,
   };
 }
 

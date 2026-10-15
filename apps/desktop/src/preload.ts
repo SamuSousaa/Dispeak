@@ -1,6 +1,10 @@
 import {
   DESKTOP_CALL_ACTION,
   DESKTOP_GAME_AUDIO_DATA,
+  DESKTOP_GAMES,
+  DESKTOP_RUNNING_WINDOWS,
+  DESKTOP_SHARE_WINDOW,
+  DESKTOP_WATCH_GAMES,
   DESKTOP_GAME_AUDIO_START,
   DESKTOP_GAME_AUDIO_STOP,
   DESKTOP_GET_UPDATE,
@@ -21,6 +25,8 @@ import {
   DESKTOP_WATCH_GPU_USAGE,
   desktopCallActionSchema,
   desktopGameAudioSchema,
+  desktopGamesSchema,
+  hostWindowsSchema,
   desktopGpuUsageSchema,
   desktopNativeCaptureChoiceSchema,
   desktopNativeCaptureProbeSchema,
@@ -65,6 +71,24 @@ const bridge: DesktopBridge = {
   setCloseToTray: (enabled) =>
     ipcRenderer.invoke(DESKTOP_SET_CLOSE_TO_TRAY, { enabled }) as Promise<void>,
   setCallState: (state) => ipcRenderer.send(DESKTOP_SET_CALL_STATE, state),
+  games: {
+    watch: (added, listener) => {
+      const handler = (_event: unknown, payload: unknown) => {
+        const parsed = desktopGamesSchema.safeParse(payload);
+        if (parsed.success) listener(parsed.data);
+      };
+      ipcRenderer.on(DESKTOP_GAMES, handler);
+      void ipcRenderer.invoke(DESKTOP_WATCH_GAMES, { on: true, added });
+      return () => {
+        ipcRenderer.removeListener(DESKTOP_GAMES, handler);
+        void ipcRenderer.invoke(DESKTOP_WATCH_GAMES, { on: false, added: [] });
+      };
+    },
+    shareWindow: (windowHandle) =>
+      ipcRenderer.invoke(DESKTOP_SHARE_WINDOW, { windowHandle }) as Promise<void>,
+    runningWindows: async () =>
+      hostWindowsSchema.parse(await ipcRenderer.invoke(DESKTOP_RUNNING_WINDOWS)),
+  },
   watchGpuUsage: (listener) => {
     const handler = (_event: unknown, payload: unknown) => {
       const parsed = desktopGpuUsageSchema.safeParse(payload);

@@ -14,6 +14,7 @@ import { IconButton } from '../../components/IconButton';
 import { cx } from '../../lib/cx';
 import { useDismiss } from '../../lib/use-dismiss';
 import { conversationOf } from '../friends/dm';
+import { GameStreamHint } from '../desktop/GameStreamHint';
 import { useGatewayStore } from '../gateway/gateway-store';
 import { channelPermissions } from '../guilds/permissions';
 import { updateSettings, useKeybind, useSettingsStore } from '../settings/settings-store';
@@ -198,6 +199,7 @@ export function UserPanel({
                 <ScreenShareButton allowed={canStream} tile />
               </div>
             )}
+            {live && canStream && screen.status === 'off' && <GameStreamHint />}
             {screen.status === 'live' && !screen.hasAudio && (
               <p role="status" className="label mt-1.5 text-danger" data-testid="screen-no-audio">
                 TRANSMISSÃO SEM ÁUDIO DO SISTEMA

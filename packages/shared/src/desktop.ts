@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { runningGameSchema, type RunningWindow } from './native-host';
 import { ingestCodecSchema, voiceIngestSchema, type IngestCodec } from './signaling/voice';
 
 /**
@@ -25,6 +26,15 @@ export const DESKTOP_SET_CLOSE_TO_TRAY = 'desktop:set-close-to-tray';
 export const DESKTOP_SET_CALL_STATE = 'desktop:set-call-state';
 /** App → page: a button of the notification area or of the taskbar thumbnail was used. */
 export const DESKTOP_CALL_ACTION = 'desktop:call-action';
+
+/** Page → app: report the games running (with the user's corrections), or stop. */
+export const DESKTOP_WATCH_GAMES = 'desktop:watch-games';
+/** App → page: the games running, after a change. */
+export const DESKTOP_GAMES = 'desktop:games';
+/** Page → app: the next screen share captures this window, without the picker. */
+export const DESKTOP_SHARE_WINDOW = 'desktop:share-window';
+/** Page → app: programs with a window, for the user to call one a game. */
+export const DESKTOP_RUNNING_WINDOWS = 'desktop:running-windows';
 
 /** Page → app: start or stop measuring the graphics card. */
 export const DESKTOP_WATCH_GPU_USAGE = 'desktop:watch-gpu-usage';
@@ -97,6 +107,33 @@ export const DESKTOP_CALL_ACTIONS = [
 export const desktopCallActionSchema = z.object({ action: z.enum(DESKTOP_CALL_ACTIONS) });
 
 export const desktopWatchGpuUsageSchema = z.object({ on: z.boolean() });
+
+export const desktopWatchGamesSchema = z.object({
+  on: z.boolean(),
+  /** Programs the user added as games. */
+  added: z.array(z.string().max(260)).max(200),
+});
+export const desktopShareWindowSchema = z.object({ windowHandle: z.number().int() });
+
+/** A game running, with its program's icon (PNG data URL) when Windows has one. */
+export const desktopGameSchema = runningGameSchema.extend({
+  icon: z.string().max(200_000).nullable(),
+});
+export type DesktopGame = z.infer<typeof desktopGameSchema>;
+export const desktopGamesSchema = z.array(desktopGameSchema);
+
+/**
+ * Games running on this machine, as Discord tells them: the launchers' games, the user's own
+ * additions and full-screen programs. Absent in apps older than 0.12.0.
+ */
+export interface DesktopGames {
+  /** Reports the games while listened to; calling again replaces the added list. */
+  watch(added: string[], listener: (games: DesktopGame[]) => void): () => void;
+  /** The next screen share captures this window directly. */
+  shareWindow(windowHandle: number): Promise<void>;
+  /** Programs with a window right now. */
+  runningWindows(): Promise<RunningWindow[]>;
+}
 
 const percent = z.number().min(0).max(100);
 /** Busiest engine of each kind, 0 to 100, as the Task Manager counts it. */
@@ -240,6 +277,8 @@ export interface DesktopBridge {
    * (and measuring). Absent in apps older than 0.12.0.
    */
   watchGpuUsage?(listener: (usage: DesktopGpuUsage) => void): () => void;
+  /** Absent in apps older than 0.12.0. */
+  games?: DesktopGames;
   /** Absent in apps older than 0.7.0; its `probe` answers `null` where the experiment is off. */
   nativeCapture?: DesktopNativeCapture;
   /** Absent in apps older than 0.8.0; the mix without voice chats needs 0.10.0. */
