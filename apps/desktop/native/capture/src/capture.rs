@@ -2,6 +2,7 @@
 //! graphics card the monitor is plugged into. Nothing here touches system memory.
 
 use std::mem::ManuallyDrop;
+use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::{HMODULE, LUID, RECT};
 use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE_UNKNOWN, D3D_FEATURE_LEVEL_11_0};
@@ -125,10 +126,28 @@ pub enum Grab {
     Unchanged,
 }
 
-/// Desktop Duplication of one output, keeping a copy of the newest picture.
+/// How long the screen may stay out of reach (a game switching modes, the secure desktop)
+/// before the capture gives up, and how often it asks again meanwhile.
+const LOST_LIMIT: Duration = Duration::from_secs(30);
+const RETRY_EVERY: Duration = Duration::from_millis(200);
+
+/// A screen whose mode no longer matches the capture's size: its pictures land here at their
+/// own size and are scaled into `latest`.
+struct Rescale {
+    size: (u32, u32),
+    raw: ID3D11Texture2D,
+    scaler: Converter,
+}
+
+/// Desktop Duplication of one output, keeping a copy of the newest picture. The picture keeps
+/// the size the screen had at the start, whatever mode a game switches it to later.
 pub struct Duplication {
     output: IDXGIOutput1,
-    duplication: IDXGIOutputDuplication,
+    /// `None` while the screen is out of reach; the last picture stays in `latest` meanwhile.
+    duplication: Option<IDXGIOutputDuplication>,
+    lost_since: Option<Instant>,
+    retry_at: Instant,
+    rescale: Option<Rescale>,
     pub width: u32,
     pub height: u32,
     /// The newest captured picture, BGRA, ready for the video processor.
@@ -148,7 +167,10 @@ impl Duplication {
         )?;
         Ok(Self {
             output,
-            duplication,
+            duplication: Some(duplication),
+            lost_since: None,
+            retry_at: Instant::now(),
+            rescale: None,
             width,
             height,
             latest,
@@ -157,17 +179,19 @@ impl Duplication {
 
     /// Waits up to `timeout_ms` for the screen to change and copies the new picture.
     pub fn grab(&mut self, gpu: &Gpu, timeout_ms: u32) -> Result<Grab> {
+        let Some(duplication) = &self.duplication else {
+            self.reopen(gpu, timeout_ms)?;
+            return Ok(Grab::Unchanged);
+        };
         let mut info = DXGI_OUTDUPL_FRAME_INFO::default();
         let mut resource: Option<IDXGIResource> = None;
-        match unsafe {
-            self.duplication
-                .AcquireNextFrame(timeout_ms, &mut info, &mut resource)
-        } {
+        match unsafe { duplication.AcquireNextFrame(timeout_ms, &mut info, &mut resource) } {
             Ok(()) => {}
             Err(error) if error.code() == DXGI_ERROR_WAIT_TIMEOUT => return Ok(Grab::Unchanged),
             Err(error) if error.code() == DXGI_ERROR_ACCESS_LOST => {
-                // A mode change, a full-screen game taking over, the secure desktop: start over.
-                self.duplication = unsafe { self.output.DuplicateOutput(&gpu.device)? };
+                // A mode change, a full-screen game taking over, the secure desktop. The lost
+                // duplication must be released before the screen can be duplicated again.
+                self.lose();
                 return Ok(Grab::Unchanged);
             }
             Err(error) => return Err(error),
@@ -176,10 +200,73 @@ impl Duplication {
         let fresh = info.LastPresentTime != 0;
         if fresh && let Some(resource) = resource {
             let texture: ID3D11Texture2D = resource.cast()?;
-            unsafe { gpu.context.CopyResource(&self.latest, &texture) };
+            match &self.rescale {
+                None => unsafe { gpu.context.CopyResource(&self.latest, &texture) },
+                Some(rescale) => unsafe {
+                    gpu.context.CopyResource(&rescale.raw, &texture);
+                    let scaled = rescale.scaler.convert(0)?;
+                    gpu.context.CopyResource(&self.latest, scaled);
+                },
+            }
         }
-        unsafe { self.duplication.ReleaseFrame()? };
+        if let Err(error) = unsafe { duplication.ReleaseFrame() } {
+            if error.code() != DXGI_ERROR_ACCESS_LOST {
+                return Err(error);
+            }
+            self.lose();
+        }
         Ok(if fresh { Grab::Fresh } else { Grab::Unchanged })
+    }
+
+    fn lose(&mut self) {
+        self.duplication = None;
+        self.lost_since.get_or_insert_with(Instant::now);
+        self.retry_at = Instant::now();
+    }
+
+    /// Asks for the screen again, every `RETRY_EVERY`: right after a mode change it refuses
+    /// for a while. Waits out `timeout_ms` either way, as a grab would.
+    fn reopen(&mut self, gpu: &Gpu, timeout_ms: u32) -> Result<()> {
+        let now = Instant::now();
+        if now < self.retry_at {
+            std::thread::sleep((self.retry_at - now).min(Duration::from_millis(timeout_ms.into())));
+            return Ok(());
+        }
+        let duplication = match unsafe { self.output.DuplicateOutput(&gpu.device) } {
+            Ok(duplication) => duplication,
+            Err(error) => {
+                if self.lost_since.is_some_and(|since| since.elapsed() > LOST_LIMIT) {
+                    return Err(error);
+                }
+                self.retry_at = now + RETRY_EVERY;
+                return Ok(());
+            }
+        };
+        let desc = unsafe { duplication.GetDesc() };
+        let size = (desc.ModeDesc.Width, desc.ModeDesc.Height);
+        if size == (self.width, self.height) {
+            self.rescale = None;
+        } else if self.rescale.as_ref().is_none_or(|rescale| rescale.size != size) {
+            let raw = gpu.texture(
+                size.0,
+                size.1,
+                DXGI_FORMAT_B8G8R8A8_UNORM,
+                D3D11_BIND_RENDER_TARGET,
+            )?;
+            let scaler = Converter::new(
+                gpu,
+                &raw,
+                size,
+                (self.width, self.height),
+                60,
+                DXGI_FORMAT_B8G8R8A8_UNORM,
+                1,
+            )?;
+            self.rescale = Some(Rescale { size, raw, scaler });
+        }
+        self.duplication = Some(duplication);
+        self.lost_since = None;
+        Ok(())
     }
 }
 

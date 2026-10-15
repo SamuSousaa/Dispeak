@@ -58,7 +58,10 @@ let engineProbe: Promise<boolean> | null = null;
 /** What the engine said when it could not run here. */
 let engineProblem: string | null = null;
 
-/** Whether the engine runs here: a hardware H.264 encoder on the card. Asked once. */
+/**
+ * Whether the engine runs here: a hardware H.264 encoder on the card. A yes is kept; a no is
+ * asked again next time, since it can be passing (a game holding all of the card's memory).
+ */
 function engineWorks(engine: string): Promise<boolean> {
   engineProbe ??= new Promise((resolve) => {
     execFile(engine, ['probe'], { windowsHide: true, timeout: 10_000 }, (error, out) => {
@@ -69,6 +72,7 @@ function engineWorks(engine: string): Promise<boolean> {
           0,
           500,
         );
+        engineProbe = null;
         resolve(false);
         return;
       }

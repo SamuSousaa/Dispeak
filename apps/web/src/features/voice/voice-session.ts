@@ -81,6 +81,15 @@ const get = useVoiceStore.getState;
 const RECONNECT_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 8000, 8000];
 const ICE_RESTART_GRACE_MS = 4000;
 const STATS_INTERVAL_MS = 2000;
+/**
+ * A native capture that stops by itself (a game taking the screen over in a new mode can end
+ * it) is started again on the same monitor, at most this many times a minute, each attempt
+ * after a pause for the screen to settle.
+ */
+const NATIVE_RESTARTS_PER_MINUTE = 4;
+const NATIVE_RESTART_DELAYS_MS = [1000, 2000, 4000];
+/** A stream watched when it ended is watched again if its streamer shares within this. */
+const RESUME_WATCH_MS = 30_000;
 /** Opus target for a voice: well above what browsers choose on their own (about 32 kbps). */
 const VOICE_BITRATE = 64_000;
 const SCREEN_AUDIO_BITRATE = 256_000;
@@ -145,6 +154,8 @@ export class VoiceSession {
   /** The system's audio that goes with a native share, captured by the browser. */
   private nativeAudio: { track: MediaStreamTrack; echoRisk: boolean } | null = null;
   private unsubscribeNative: (() => void) | null = null;
+  /** When the native capture was started again after stopping by itself. */
+  private nativeRestarts: number[] = [];
   private unsubscribeNativeStats: (() => void) | null = null;
   /** The capture engine's latest numbers, while it sends (app 0.11 and later). */
   private nativeStats: DesktopNativeCaptureStats | null = null;
@@ -162,6 +173,8 @@ export class VoiceSession {
   private readonly consuming = new Set<string>();
   /** Streamers this client chose to watch. */
   private readonly watched = new Set<string>();
+  /** Streams that were being watched when they ended, until when a new one is watched again. */
+  private readonly resumable = new Map<string, number>();
   /** Simulcast layer wanted for each watched stream, from the size it is displayed at. */
   private readonly wantedLayers = new Map<string, number>();
   /** Same, for each participant's camera. */
@@ -697,6 +710,7 @@ export class VoiceSession {
     for (const track of this.cameraStream?.getTracks() ?? []) track.stop();
     this.cameraStream = null;
     this.watched.clear();
+    this.resumable.clear();
     this.wantedLayers.clear();
     this.cameraLayers.clear();
   }
@@ -731,6 +745,9 @@ export class VoiceSession {
       // watch them.
       if (!isScreenSource(producer.source) || this.watched.has(peerId)) {
         void this.consume(peerId, producer.id, producer.source);
+      } else if (producer.source === 'screen' && (this.resumable.get(peerId) ?? 0) > Date.now()) {
+        this.resumable.delete(peerId);
+        this.watch(peerId);
       }
     });
 
@@ -744,7 +761,7 @@ export class VoiceSession {
         if (entry.consumer.producerId === producerId) this.removeConsumer(consumerId);
       }
       if (removed?.source === 'screen') {
-        this.watched.delete(peerId);
+        if (this.watched.delete(peerId)) this.resumable.set(peerId, Date.now() + RESUME_WATCH_MS);
         this.forgetStream(peerId);
       }
     });
@@ -1127,10 +1144,7 @@ export class VoiceSession {
         if (this.nativeShare) this.nativeStats = stats;
       }) ?? null;
     this.unsubscribeNative ??= native.onEnded(() => {
-      if (!this.nativeShare) return;
-      void this.stopScreenShare().then(() =>
-        set({ screen: { ...screenOff, error: 'A captura nativa parou.' } }),
-      );
+      if (this.nativeShare) void this.restartNativeShare();
     });
     try {
       if (await this.publishNative()) return true;
@@ -1142,6 +1156,45 @@ export class VoiceSession {
     await this.stopScreenShare();
     set({ screen: { ...screenOff, status: 'starting', preset } });
     return false;
+  }
+
+  /**
+   * The app's capture stopped by itself while live: a new ingest and a new capture of the same
+   * monitor, so the share survives a game switching the screen's mode. Gives up, and ends the
+   * share, when it keeps stopping.
+   */
+  private async restartNativeShare(): Promise<void> {
+    const now = Date.now();
+    this.nativeRestarts = this.nativeRestarts.filter((at) => now - at < 60_000);
+    if (this.nativeRestarts.length < NATIVE_RESTARTS_PER_MINUTE) {
+      this.nativeRestarts.push(now);
+      const producerId = this.nativeProducerId;
+      this.nativeProducerId = null;
+      this.nativeStats = null;
+      if (producerId) {
+        await this.connection?.rpc.request('closeProducer', { producerId }).catch(() => undefined);
+      }
+      for (const delay of NATIVE_RESTART_DELAYS_MS) {
+        await new Promise((resolve) => window.setTimeout(resolve, delay));
+        if (!this.nativeShare || this.disposed) return;
+        try {
+          if (await this.publishNative()) return;
+        } catch (error) {
+          console.warn('[voice] native capture did not start again', error);
+          // The ingest asked for this attempt carries nothing.
+          const unused = this.nativeProducerId;
+          this.nativeProducerId = null;
+          if (unused) {
+            await this.connection?.rpc
+              .request('closeProducer', { producerId: unused })
+              .catch(() => undefined);
+          }
+        }
+      }
+    }
+    if (!this.nativeShare) return;
+    await this.stopScreenShare();
+    set({ screen: { ...screenOff, error: 'A captura nativa parou.' } });
   }
 
   /** Asks the media service for an ingest and points the app's capture at it. */
@@ -1193,7 +1246,9 @@ export class VoiceSession {
     }
     const { sendTransport } = this;
     const audioTrack = this.gameAudio?.track ?? this.nativeAudio?.track;
-    if (sendTransport && audioTrack?.readyState === 'live') {
+    // A capture started again keeps the sound it already publishes.
+    const publishing = this.screenAudioProducer && !this.screenAudioProducer.closed;
+    if (sendTransport && audioTrack?.readyState === 'live' && !publishing) {
       this.screenAudioProducer = await this.produceScreenAudio(sendTransport, audioTrack).catch(
         (error: unknown) => {
           console.warn('[voice] failed to publish the system audio', error);
@@ -1266,6 +1321,10 @@ export class VoiceSession {
   private async consume(peerId: string, producerId: string, source: ProducerSource): Promise<void> {
     const { connection, recvTransport } = this;
     if (!connection || !recvTransport || this.consuming.has(producerId)) return;
+    // A stream watched again finds the sound of the earlier share still playing.
+    for (const entry of this.consumers.values()) {
+      if (entry.consumer.producerId === producerId) return;
+    }
     this.consuming.add(producerId);
 
     try {

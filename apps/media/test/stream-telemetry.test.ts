@@ -182,8 +182,13 @@ describe('stream telemetry, as reported through the media service', () => {
         preset: '1080p60',
       },
     });
-    // Two reports of one viewer in a window: counters add up, rates average.
-    bruno.rpc.notify('stream-stats', { role: 'viewer', producerId, sample: viewerSample });
+    // Two reports of one viewer in a window: counters add up, rates average, the size is the
+    // last one (an average of two sizes is no size at all, and the API refuses it).
+    bruno.rpc.notify('stream-stats', {
+      role: 'viewer',
+      producerId,
+      sample: { ...viewerSample, width: 1280, height: 720 },
+    });
     bruno.rpc.notify('stream-stats', {
       role: 'viewer',
       producerId,

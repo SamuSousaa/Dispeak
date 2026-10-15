@@ -57,10 +57,17 @@ function gather<T extends Record<string, unknown>>(
   return gathered;
 }
 
-/** Counters added up, other numbers averaged, labels as last reported. */
+/**
+ * Numbers kept as last reported, like labels: a picture that changed size within the window
+ * has the new size, not one between the two (which is not a whole number of pixels).
+ */
+const LATEST = new Set(['width', 'height']);
+
+/** Counters added up, sizes and labels as last reported, other numbers averaged. */
 function merged<T extends Record<string, unknown>>(gathered: Gathered<T>): T {
   const result: Record<string, unknown> = { ...gathered.last };
   for (const [key, sum] of Object.entries(gathered.sums)) {
+    if (LATEST.has(key)) continue;
     const count = gathered.counts[key] ?? 1;
     result[key] = VIEWER_COUNTERS.has(key) ? sum : Math.round((sum / count) * 10) / 10;
   }
