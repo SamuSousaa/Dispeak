@@ -1,4 +1,5 @@
 import {
+  DESKTOP_CALL_ACTION,
   DESKTOP_GAME_AUDIO_DATA,
   DESKTOP_GAME_AUDIO_START,
   DESKTOP_GAME_AUDIO_STOP,
@@ -11,10 +12,12 @@ import {
   DESKTOP_NATIVE_CAPTURE_PREVIEW,
   DESKTOP_NATIVE_CAPTURE_STATS,
   DESKTOP_NATIVE_CAPTURE_STOP,
+  DESKTOP_SET_CALL_STATE,
   DESKTOP_SET_CLOSE_TO_TRAY,
   DESKTOP_SET_SHORTCUTS,
   DESKTOP_SHORTCUT,
   DESKTOP_UPDATE_READY,
+  desktopCallActionSchema,
   desktopGameAudioSchema,
   desktopNativeCaptureChoiceSchema,
   desktopNativeCaptureProbeSchema,
@@ -58,6 +61,15 @@ const bridge: DesktopBridge = {
   installUpdate: () => ipcRenderer.invoke(DESKTOP_INSTALL_UPDATE) as Promise<void>,
   setCloseToTray: (enabled) =>
     ipcRenderer.invoke(DESKTOP_SET_CLOSE_TO_TRAY, { enabled }) as Promise<void>,
+  setCallState: (state) => ipcRenderer.send(DESKTOP_SET_CALL_STATE, state),
+  onCallAction: (listener) => {
+    const handler = (_event: unknown, payload: unknown) => {
+      const parsed = desktopCallActionSchema.safeParse(payload);
+      if (parsed.success) listener(parsed.data.action);
+    };
+    ipcRenderer.on(DESKTOP_CALL_ACTION, handler);
+    return () => ipcRenderer.removeListener(DESKTOP_CALL_ACTION, handler);
+  },
   nativeCapture: {
     probe: async () =>
       desktopNativeCaptureProbeSchema.parse(await ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_PROBE))

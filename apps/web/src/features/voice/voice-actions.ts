@@ -24,8 +24,17 @@ export function leaveVoice(): void {
   }
 }
 
+/** In a call, the microphone; outside one, how the next call starts. */
 export function toggleMute(): void {
-  void session?.toggleMute();
+  if (session) {
+    void session.toggleMute();
+    return;
+  }
+  const { selfMuted, selfDeafened } = useSettingsStore.getState();
+  // Unmuting while deafened makes no sense: both go, as in a call.
+  updateSettings(
+    selfDeafened ? { selfMuted: false, selfDeafened: false } : { selfMuted: !selfMuted },
+  );
 }
 
 /** Push-to-talk: opens the microphone while the key is held. */
@@ -34,7 +43,11 @@ export function setPushToTalk(held: boolean): void {
 }
 
 export function toggleDeafen(): void {
-  void session?.toggleDeafen();
+  if (session) {
+    void session.toggleDeafen();
+    return;
+  }
+  updateSettings({ selfDeafened: !useSettingsStore.getState().selfDeafened });
 }
 
 export function startScreenShare(preset: ScreenPresetId): void {

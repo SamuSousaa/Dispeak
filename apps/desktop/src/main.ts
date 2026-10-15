@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { DESKTOP_SHARE_ACTION } from '@frequencia/shared';
 import { app, BrowserWindow, desktopCapturer, screen, session, shell } from 'electron';
+import { serveCallState } from './call-state';
 import { config } from './config';
 import { showDiagnostics } from './diagnostics';
 import { serveGameAudio } from './game-audio';
@@ -10,7 +11,8 @@ import { applyBackgroundSwitches, keepProcessesResponsive } from './performance'
 import { pickSource } from './picker/picker';
 import { noteShareShortcut, takeShortcutShare } from './share-target';
 import { serveShortcuts } from './shortcuts';
-import { serveCloseToTray } from './tray';
+import { serveThumbar } from './thumbar';
+import { serveTray } from './tray';
 import { serveUpdates } from './updater';
 
 /** What the web app may ask the operating system for. Everything else is refused. */
@@ -110,7 +112,9 @@ function createWindow(): BrowserWindow {
     if (action === DESKTOP_SHARE_ACTION) noteShareShortcut();
   });
   serveUpdates(window);
-  revealWindow = serveCloseToTray(window);
+  const call = serveCallState(window);
+  revealWindow = serveTray(window, call);
+  serveThumbar(window, call);
   nativeCapture = serveNativeCapture(window, () => chooseSource(window));
   serveGameAudio(window, () => pickedWindow);
   if (config.devtools) webContents.openDevTools({ mode: 'detach' });

@@ -21,6 +21,11 @@ export const DESKTOP_INSTALL_UPDATE = 'desktop:install-update';
 /** Page → app: whether the window's close button hides the app in the notification area. */
 export const DESKTOP_SET_CLOSE_TO_TRAY = 'desktop:set-close-to-tray';
 
+/** Page → app: how the user is in a call, for the notification area and the taskbar. */
+export const DESKTOP_SET_CALL_STATE = 'desktop:set-call-state';
+/** App → page: a button of the notification area or of the taskbar thumbnail was used. */
+export const DESKTOP_CALL_ACTION = 'desktop:call-action';
+
 /** Page → app: the codec this machine's native capture would send, if it has one. */
 export const DESKTOP_NATIVE_CAPTURE_PROBE = 'desktop:native-capture-probe';
 /** Page → app: ask the user what to share and say which capture it is for. */
@@ -66,6 +71,26 @@ export const desktopUpdateSchema = z.object({ version: z.string().min(1).max(32)
 export type DesktopUpdate = z.infer<typeof desktopUpdateSchema>;
 
 export const desktopCloseToTraySchema = z.object({ enabled: z.boolean() });
+
+export const desktopCallStateSchema = z.object({
+  /** Name of the voice channel the user is in, or `null` outside a call. */
+  channel: z.string().max(100).nullable(),
+  /** The user's choice, also outside a call: the next call starts that way. */
+  muted: z.boolean(),
+  deafened: z.boolean(),
+  /** The others hear the user right now: microphone open and a voice going through it. */
+  speaking: z.boolean(),
+});
+export type DesktopCallState = z.infer<typeof desktopCallStateSchema>;
+
+export const DESKTOP_CALL_ACTIONS = [
+  'toggle-mute',
+  'toggle-deafen',
+  'disconnect',
+  'voice-settings',
+] as const;
+export const desktopCallActionSchema = z.object({ action: z.enum(DESKTOP_CALL_ACTIONS) });
+export type DesktopCallAction = (typeof DESKTOP_CALL_ACTIONS)[number];
 
 export const desktopNativeCaptureProbeSchema = z.object({
   codec: ingestCodecSchema.nullable(),
@@ -179,6 +204,13 @@ export interface DesktopBridge {
    * quitting. Absent in apps older than 0.6.0.
    */
   setCloseToTray?(enabled: boolean): Promise<void>;
+  /**
+   * What the notification area icon and the taskbar thumbnail buttons show. Absent in apps
+   * older than 0.12.0.
+   */
+  setCallState?(state: DesktopCallState): void;
+  /** Called when one of those buttons is used. Returns the function that stops listening. */
+  onCallAction?(listener: (action: DesktopCallAction) => void): () => void;
   /** Absent in apps older than 0.7.0; its `probe` answers `null` where the experiment is off. */
   nativeCapture?: DesktopNativeCapture;
   /** Absent in apps older than 0.8.0; the mix without voice chats needs 0.10.0. */
