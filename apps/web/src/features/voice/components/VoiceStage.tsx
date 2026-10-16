@@ -1,5 +1,5 @@
 import type { Guild } from '@frequencia/shared';
-import { useState } from 'react';
+import { useState, type HTMLAttributes } from 'react';
 import { isContextMenuOpen } from '../../../components/ContextMenu';
 import { memberColor, memberName } from '../../guilds/permissions';
 import { userContextMenu } from '../../guilds/user-menu';
@@ -54,6 +54,9 @@ export function VoiceStage({
   userId,
   selfName: givenName,
   onManageMembers,
+  personMenu,
+  serverMutedOf,
+  serverMutedLabel,
 }: {
   /** The server the channel belongs to; absent in the lab, where there are only nicknames. */
   guild?: Guild;
@@ -61,6 +64,11 @@ export function VoiceStage({
   /** Name of the local user when there is no server to look it up in. */
   selfName?: string;
   onManageMembers?: () => void;
+  /** Right-click menu of a person, by their media user id, when there is no server (meetings). */
+  personMenu?: (userId: string) => HTMLAttributes<HTMLDivElement> | undefined;
+  /** Whether someone's microphone was taken from them, when there is no server to ask. */
+  serverMutedOf?: (userId: string) => boolean;
+  serverMutedLabel?: string;
 }) {
   const selfId = useVoiceStore((state) => state.selfId);
   const muted = useVoiceStore((state) => state.muted);
@@ -88,7 +96,11 @@ export function VoiceStage({
   const menuOf = (targetId: string | undefined) =>
     guild && userId && targetId
       ? userContextMenu({ guild, targetId, selfId: userId, onManageMembers })
-      : undefined;
+      : targetId
+        ? personMenu?.(targetId)
+        : undefined;
+  const mutedOf = (id: string | undefined) =>
+    memberOf(id)?.serverMuted ?? (id ? serverMutedOf?.(id) : undefined);
   const others = Object.values(peers).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
   const selfName = guild && userId ? memberName(guild, userId) : (givenName ?? '');
@@ -178,7 +190,8 @@ export function VoiceStage({
           speaking={selfId !== null && speaking.includes(selfId)}
           muted={muted}
           deafened={deafened}
-          serverMuted={memberOf(userId)?.serverMuted}
+          serverMuted={mutedOf(userId)}
+          serverMutedLabel={serverMutedLabel}
           live={screen.status === 'live'}
           picture={memberOf(userId)?.user.avatar}
           video={camera.stream}
@@ -198,7 +211,8 @@ export function VoiceStage({
         speaking={speaking.includes(peer.id)}
         muted={peer.muted}
         deafened={peer.deafened}
-        serverMuted={memberOf(peer.userId)?.serverMuted}
+        serverMuted={mutedOf(peer.userId)}
+        serverMutedLabel={serverMutedLabel}
         live={isLive(peer)}
         watching={Boolean(watching[peer.id])}
         picture={memberOf(peer.userId)?.user.avatar}

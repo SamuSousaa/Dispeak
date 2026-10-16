@@ -21,3 +21,4 @@ o que se abriu mão. São curtos de propósito.
 | [0014](0014-preferencias-da-conta.md)        | Preferências da conta no servidor, separadas das do aparelho          |
 | [0015](0015-conversa-separada-da-amizade.md) | Conversa privada separada da amizade: pedidos de mensagem e bloqueio  |
 | [0016](0016-processo-nativo-do-app.md)       | Um processo nativo em Rust para o que o app pede ao Windows           |
+| [0017](0017-reuniao-temporaria.md)           | Reunião temporária por link, só no Redis                              |

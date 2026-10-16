@@ -231,6 +231,13 @@ Redis, alimentado pelos eventos `voice-state` do RPC interno:
   servidor: sem `Connect`, a pessoa é desconectada; se `Speak`/`Stream` mudaram, é forçada a
   reentrar para receber um token com os direitos novos.
 
+### Reuniões
+
+Chamadas por link fora de qualquer servidor, que somem quando a chamada acaba (ADR 0017). Tudo
+fica no Redis (`meeting:<id>*`); a chamada é a sala `meet:<id>` do serviço de mídia, e os
+eventos `voice-state` dessas salas vão para `MeetingService` em vez do espelho de voz. Sala de
+espera e chat chegam por um WebSocket próprio de cada reunião, com fan-out por Redis pub/sub.
+
 ## Dados
 
 PostgreSQL guarda o que é durável (usuários, sessões, servidores, canais, cargos, sobrescritas,

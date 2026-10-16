@@ -34,6 +34,8 @@ import { GuildService } from './modules/guilds/service';
 import { AttachmentFiles } from './modules/messages/attachment-files';
 import { messageRoutes } from './modules/messages/routes';
 import { MessageService } from './modules/messages/service';
+import { meetingRoutes } from './modules/meetings/routes';
+import { MeetingService } from './modules/meetings/service';
 import { MediaLink } from './modules/voice/media-link';
 import { PictureStore } from './modules/users/pictures';
 import { userRoutes } from './modules/users/routes';
@@ -95,16 +97,34 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     config,
     log: app.log,
   });
+  const meetings = new MeetingService({
+    db: database.db,
+    redis,
+    subscriber,
+    config,
+    log: app.log,
+  });
+  await meetings.start();
   const streamReports = new StreamReportService({ db: database.db, redis, log: app.log });
   const media = new MediaLink({
     url: config.MEDIA_INTERNAL_URL,
     sharedSecret: config.MEDIA_SHARED_SECRET,
     log: app.log,
-    onConnected: (snapshot) => voice.resync(snapshot),
-    onVoiceState: (event) => voice.applyVoiceState(event),
+    onConnected: async (snapshot) => {
+      // One snapshot for both voice channels and meeting calls, taken when the voice mirror
+      // asks for it (it reads its clock first).
+      let peers: Awaited<ReturnType<typeof snapshot>> = [];
+      await voice.resync(async () => (peers = await snapshot()));
+      await meetings.resync(peers);
+    },
+    onVoiceState: (event) =>
+      MeetingService.owns(event.roomId)
+        ? meetings.applyVoiceState(event)
+        : voice.applyVoiceState(event),
     onStreamReport: (event) => streamReports.record(event),
   });
   voice.attach(media);
+  meetings.attach(media);
   // Subdirectories are out of reach of the attachment sweep.
   const pictures = new PictureStore(
     new AttachmentFiles(path.resolve(config.UPLOADS_DIR, 'pictures')),
@@ -184,6 +204,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     media,
     hub,
     streamReports,
+    meetings,
   });
   app.decorateRequest('auth');
   app.decorate('authenticate', async (request) => {
@@ -196,6 +217,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
 
   app.addHook('onClose', async () => {
     clearInterval(sweepTimer);
+    meetings.stop();
     media.stop();
     await hub.close();
     await closeRedis();
@@ -254,6 +276,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       await api.register(conversationRoutes);
       await api.register(voiceRoutes);
       await api.register(streamReportRoutes);
+      await api.register(meetingRoutes);
       if (config.LAB_ENABLED) await api.register(labRoutes);
     },
     { prefix: API_PREFIX },

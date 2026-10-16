@@ -11,8 +11,11 @@ const withKey = (text: string, binding: string | null) => (binding ? `${text} ($
 export function VoiceControls({
   onLeave,
   canStream = true,
+  noMicNote = 'SEM MICROFONE',
 }: {
   onLeave?: () => void;
+  /** Why there is no microphone, when the call knows better than "none found". */
+  noMicNote?: string;
   /** Whether the user may share their screen in this channel. */
   canStream?: boolean;
 }) {
@@ -70,8 +73,8 @@ export function VoiceControls({
         </span>
       )}
       {!micAvailable && (
-        <span role="status" className="label text-danger">
-          SEM MICROFONE — SOMENTE ESCUTA
+        <span role="status" className="label text-danger" data-testid="mic-status">
+          {noMicNote} — SOMENTE ESCUTA
         </span>
       )}
     </div>

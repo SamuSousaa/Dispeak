@@ -1,23 +1,38 @@
 import { useQuery } from '@tanstack/react-query';
-import { NavLink, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { initials, pictureUrl } from '../../components/Avatar';
 import { contextMenu } from '../../components/ContextMenu';
 import { Icon } from '../../components/Icon';
+import { toast } from '../../components/Toast';
 import { cx } from '../../lib/cx';
+import { describeError } from '../../lib/http';
 import { HOME } from '../friends/dm';
 import { FRIEND_REQUESTS_KEY, friendsApi } from '../friends/friends-api';
 import { useGatewayStore } from '../gateway/gateway-store';
+import { startMeeting } from '../meetings/meeting-store';
 import { markGuildRead, sumUnread, useUnreadStore } from '../unread/unread-store';
 
 /**
  * Leftmost rail: the home screen (friends and private conversations) on top, then one square
- * per server, plus the button to create or join one.
+ * per server, plus the button to create or join one. Below home, the one that starts a meeting.
  */
 export function ServerRail({ onAdd }: { onAdd: () => void }) {
   const guilds = useGatewayStore((state) => state.guilds);
   const order = useGatewayStore((state) => state.guildOrder);
   const unread = useUnreadStore((state) => state.channels);
   const { guildId } = useParams();
+  const navigate = useNavigate();
+  const [starting, setStarting] = useState(false);
+  const newMeeting = async () => {
+    setStarting(true);
+    try {
+      navigate(`/reuniao/${await startMeeting()}`);
+    } catch (error) {
+      toast(describeError(error, 'Não foi possível criar a reunião.'));
+      setStarting(false);
+    }
+  };
   const { data: requests = [] } = useQuery({
     queryKey: FRIEND_REQUESTS_KEY,
     queryFn: friendsApi.requests,
@@ -69,6 +84,17 @@ export function ServerRail({ onAdd }: { onAdd: () => void }) {
           </span>
         )}
       </NavLink>
+      <button
+        type="button"
+        onClick={() => void newMeeting()}
+        disabled={starting}
+        title="Nova reunião: uma chamada por link, que some quando acaba"
+        aria-label="Nova reunião"
+        data-testid="new-meeting"
+        className="rail-item relative flex h-10 w-10 shrink-0 items-center justify-center border border-line-strong text-muted hover:border-accent hover:text-accent disabled:opacity-40"
+      >
+        <Icon name="camera" size={18} />
+      </button>
       <div aria-hidden="true" className="h-px w-8 shrink-0 bg-line" />
       {order.map((id) => {
         const guild = guilds[id];

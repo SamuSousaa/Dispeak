@@ -13,6 +13,8 @@ interface ParticipantTileProps {
   nameColor?: string;
   /** Silenced by a moderator. */
   serverMuted?: boolean;
+  /** How a server mute is called where the tile is. */
+  serverMutedLabel?: string;
   isSelf?: boolean;
   speaking: boolean;
   muted: boolean;
@@ -46,6 +48,7 @@ export function ParticipantTile({
   name,
   nameColor,
   serverMuted = false,
+  serverMutedLabel = 'MUTADO NO SERVIDOR',
   isSelf = false,
   speaking,
   muted,
@@ -63,7 +66,7 @@ export function ParticipantTile({
   onToggleFocus,
   menu,
 }: ParticipantTileProps) {
-  const status = serverMuted ? 'MUTADO NO SERVIDOR' : deafened ? 'SURDO' : muted ? 'MUDO' : null;
+  const status = serverMuted ? serverMutedLabel : deafened ? 'SURDO' : muted ? 'MUDO' : null;
   const containerRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
 

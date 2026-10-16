@@ -25,7 +25,13 @@ export interface TestApp {
   request: (
     method: InjectOptions['method'],
     url: string,
-    options?: { token?: string; body?: unknown; cookie?: string; ip?: string },
+    options?: {
+      token?: string;
+      body?: unknown;
+      cookie?: string;
+      ip?: string;
+      headers?: Record<string, string>;
+    },
   ) => Promise<LightMyRequestResponse>;
   /** Registers a fresh account with a unique username. */
   account: (displayName?: string) => Promise<Account>;
@@ -76,6 +82,7 @@ export async function createTestApp(env: Record<string, string> = {}): Promise<T
       headers: {
         ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
         ...(options.cookie ? { cookie: options.cookie } : {}),
+        ...options.headers,
       },
       ...(options.body === undefined ? {} : { payload: options.body as object }),
     });

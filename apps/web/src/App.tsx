@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage';
 import { InvitePage } from './pages/InvitePage';
 import { LabP2pPage } from './pages/LabP2pPage';
 import { LabVoicePage } from './pages/LabVoicePage';
+import { MeetingPage } from './pages/MeetingPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { StreamReportsPage } from './pages/StreamReportsPage';
 
@@ -68,6 +69,8 @@ export function App() {
           </RequireAuth>
         }
       />
+      {/* Meetings: anyone with the link, signed in or not. */}
+      <Route path="/reuniao/:meetingId" element={<MeetingPage />} />
       <Route path="/app" element={app} />
       <Route path="/app/:guildId" element={app} />
       <Route path="/app/:guildId/:channelId" element={app} />
