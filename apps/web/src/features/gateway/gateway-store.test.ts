@@ -48,6 +48,7 @@ const guild = (overrides: Partial<Guild> = {}): Guild => ({
   roles: [],
   members: [member(ALICE, 'Alice'), member(BRUNO, 'Bruno')],
   onlineUserIds: [ALICE],
+  activities: {},
   voiceStates: [],
   sounds: {
     join: null,
@@ -180,5 +181,19 @@ describe('gateway reducers', () => {
     expect(apply(voice(ALICE, TEXT))).toMatchObject([{ channelId: TEXT }]);
     expect(apply(voice(BRUNO, VOICE))).toHaveLength(2);
     expect(apply(voice(ALICE, null))).toMatchObject([{ userId: BRUNO }]);
+  });
+});
+
+describe('activity', () => {
+  it('shows the game a member plays in every guild they are in, and forgets it', () => {
+    const state: GatewayState = { ...initialGatewayState, guilds: { [GUILD]: guild() } };
+    const activity = { game: 'ELDEN RING', since: '2026-10-15T22:00:00.000Z' };
+    const playing = gatewayReducers.ACTIVITY_UPDATE(state, { userId: ALICE, activity });
+    expect(playing.guilds?.[GUILD]?.activities).toEqual({ [ALICE]: activity });
+    const done = gatewayReducers.ACTIVITY_UPDATE(
+      { ...state, ...playing },
+      { userId: ALICE, activity: null },
+    );
+    expect(done.guilds?.[GUILD]?.activities).toEqual({});
   });
 });

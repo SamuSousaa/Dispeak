@@ -1,6 +1,8 @@
 import type { Redis } from '../redis';
 
 const key = (userId: string) => `presence:${userId}`;
+/** The Redis hash of a user's sessions and their expiry times. */
+export const presenceKey = key;
 
 /**
  * Online presence in Redis, shared by every API instance. Each user has a hash of

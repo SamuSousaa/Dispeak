@@ -216,6 +216,10 @@ export class GatewayHub {
           if (session) void this.deps.live.presence.touch(session.userId, session.id);
           break;
 
+        case GatewayOp.UpdateActivity:
+          if (session) void this.updateActivity(session, frame.data.d.game);
+          break;
+
         case GatewayOp.Identify:
         case GatewayOp.Resume: {
           if (session || authenticating) {
@@ -343,6 +347,10 @@ export class GatewayHub {
     const guildIds = [...session.guildIds];
     for (const guildId of guildIds) this.unsubscribe(session, guildId);
 
+    // While the session still counts as online, so the change is seen as one.
+    await this.updateActivity(session, null, guildIds).catch((error: unknown) =>
+      this.deps.log.debug({ err: error }, 'failed to clear activity'),
+    );
     try {
       const wentOffline = await this.deps.live.presence.disconnect(session.userId, session.id);
       if (wentOffline) {
@@ -356,6 +364,29 @@ export class GatewayHub {
     } catch (error) {
       this.deps.log.debug({ err: error }, 'failed to clear presence');
     }
+  }
+
+  /**
+   * A session says what its user is doing (or that it stopped). The others in the user's
+   * guilds hear of it when that changes what the user shows, unless the user is invisible.
+   */
+  private async updateActivity(
+    session: Session,
+    game: string | null,
+    guildIds: string[] = [...session.guildIds],
+  ): Promise<void> {
+    const { activity } = this.deps.live;
+    const before = await activity.of(session.userId);
+    const after = await activity.set(session.userId, session.id, game);
+    if (before?.game === after?.game && before?.since === after?.since) return;
+    const user = await this.deps.auth.getUser(session.userId);
+    if (!user || user.presence === 'invisible') return;
+    await this.deps.bus.publish({
+      kind: 'activity',
+      userId: session.userId,
+      activity: after,
+      guildIds,
+    });
   }
 
   // --- bus ----------------------------------------------------------------------------------
@@ -377,6 +408,20 @@ export class GatewayHub {
           // Users learn their own presence from READY, not from an echo.
           if (session.userId === message.userId) continue;
           session.dispatch('PRESENCE_UPDATE', { userId: message.userId, status: message.status });
+        }
+        break;
+      }
+
+      case 'activity': {
+        const audience = new Set<Session>();
+        for (const guildId of message.guildIds) {
+          for (const session of this.byGuild.get(guildId) ?? []) audience.add(session);
+        }
+        for (const session of audience) {
+          session.dispatch('ACTIVITY_UPDATE', {
+            userId: message.userId,
+            activity: message.activity,
+          });
         }
         break;
       }

@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { changeAccountSettings, useAccountSettings } from '../settings/account-settings';
 import { useSettingsStore } from '../settings/settings-store';
 import { startScreenShare } from '../voice/voice-actions';
+import { gateway } from '../gateway/gateway-client';
 import { desktop } from './desktop';
 
 /** Games running on this machine, as the desktop app reports them; empty in a browser. */
@@ -20,6 +21,28 @@ export function useGames(): DesktopGame[] {
 export function useMainGame(): DesktopGame | null {
   const games = useGames().filter((game) => game.windowHandle !== null);
   return games.find((game) => game.fullscreen) ?? games[0] ?? null;
+}
+
+/** The game being played: the one on screen first. */
+export function usePlayingGame(): DesktopGame | null {
+  const games = useGames();
+  return games.find((game) => game.fullscreen) ?? games[0] ?? null;
+}
+
+/** Shows the others the game being played, unless the user turned that off. */
+export function useShareActivity(): void {
+  const game = usePlayingGame();
+  const share = useAccountSettings((settings) => settings.shareActivity);
+  const name = share && game ? game.name : null;
+  useEffect(() => {
+    gateway.setActivity(name);
+  }, [name]);
+  // Closing the app: the others stop seeing the game now, not when the session expires.
+  useEffect(() => {
+    const leave = () => gateway.setActivity(null);
+    window.addEventListener('pagehide', leave);
+    return () => window.removeEventListener('pagehide', leave);
+  }, []);
 }
 
 /** Keeps the list of games running current while the app is open. */

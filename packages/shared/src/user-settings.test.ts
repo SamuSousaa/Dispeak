@@ -28,6 +28,7 @@ describe('user settings', () => {
       people: { [ANA]: { voiceVolume: 0.2 } },
       showEmbeds: false,
       privateProfile: false,
+      shareActivity: true,
       games: { added: [], hidden: [] },
     });
   });

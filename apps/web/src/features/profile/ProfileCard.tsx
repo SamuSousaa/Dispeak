@@ -1,4 +1,4 @@
-import type { User } from '@frequencia/shared';
+import type { Activity, User } from '@frequencia/shared';
 import { Avatar, pictureUrl } from '../../components/Avatar';
 import { cx } from '../../lib/cx';
 
@@ -45,6 +45,16 @@ export interface ProfileCardProps {
   /** ISO date the person joined the current server. */
   memberSince?: string;
   isOwner?: boolean;
+  /** The game the person plays right now. */
+  activity?: Activity | null;
+}
+
+/** "HÁ 25 MIN", "HÁ 2 H". */
+function elapsed(since: string): string {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / 60_000));
+  if (minutes < 1) return 'AGORA';
+  if (minutes < 60) return `HÁ ${minutes} MIN`;
+  return `HÁ ${Math.floor(minutes / 60)} H`;
 }
 
 const dateFormat = new Intl.DateTimeFormat('pt-BR', {
@@ -65,6 +75,7 @@ export function ProfileCard({
   roles = [],
   memberSince,
   isOwner = false,
+  activity = null,
 }: ProfileCardProps) {
   return (
     <div data-testid="profile-card" className="flex flex-col">
@@ -107,6 +118,12 @@ export function ProfileCard({
           <p className="text-sm break-words text-fg" data-testid="profile-status">
             {user.customStatus}
           </p>
+        )}
+        {activity && presence !== 'offline' && (
+          <div className="border border-line px-2 py-1.5" data-testid="profile-activity">
+            <p className="label text-muted">JOGANDO AGORA · {elapsed(activity.since)}</p>
+            <p className="label-lg truncate text-fg">{activity.game}</p>
+          </div>
         )}
         {user.bio && (
           <div>

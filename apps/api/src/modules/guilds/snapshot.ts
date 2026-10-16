@@ -6,6 +6,7 @@ import {
   highestRolePosition,
   Permissions,
   serializePermissions,
+  type Activity,
   type Channel,
   type DmState,
   type Guild,
@@ -333,7 +334,11 @@ const byPosition = <T extends { position: number; id: string }>(a: T, b: T) =>
 export function guildPayloadFor(
   snapshot: GuildSnapshot,
   userId: string,
-  live: { onlineUserIds: string[]; voiceStates: VoiceState[] },
+  live: {
+    onlineUserIds: string[];
+    activities: Record<string, Activity>;
+    voiceStates: VoiceState[];
+  },
 ): Guild {
   const visible = [...snapshot.channels.values()]
     .filter((channel) => canViewChannel(snapshot, userId, channel.id))
@@ -355,6 +360,13 @@ export function guildPayloadFor(
       const member = snapshot.members.get(id);
       return member !== undefined && (id === userId || member.row.presenceMode !== 'invisible');
     }),
+    // Same for what they are doing.
+    activities: Object.fromEntries(
+      Object.entries(live.activities).filter(([id]) => {
+        const member = snapshot.members.get(id);
+        return member !== undefined && (id === userId || member.row.presenceMode !== 'invisible');
+      }),
+    ),
     voiceStates: live.voiceStates.filter((state) => visibleIds.has(state.channelId)),
     sounds: Object.fromEntries(
       GUILD_SOUND_EVENTS.map((event) => [event, snapshot.sounds.get(event) ?? null]),

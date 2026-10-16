@@ -520,6 +520,18 @@ function DirectMessages() {
   );
 }
 
+function ActivitySharing() {
+  const shareActivity = useAccountSettings((account) => account.shareActivity);
+  return (
+    <Toggle
+      label="MOSTRAR O QUE ESTOU JOGANDO"
+      hint="Quem divide um servidor ou uma conversa com você vê o jogo aberto (JOGANDO ELDEN RING) no seu nome e no seu perfil. Só no app de desktop, que é quem reconhece os jogos."
+      checked={shareActivity}
+      onChange={(value) => changeAccountSettings({ shareActivity: value })}
+    />
+  );
+}
+
 function BlockedPeople() {
   const { data: blocked, isPending } = useQuery({
     queryKey: BLOCKS_KEY,
@@ -666,6 +678,13 @@ function buildPages({ user, guild, onSignOut, goTo }: PageContext): PageEntry[] 
           scope: 'account',
           keywords: 'perfil privado conversa pedido de mensagem quem pode',
           render: () => <DirectMessages />,
+        },
+        {
+          id: 'activity',
+          title: 'ATIVIDADE',
+          scope: 'account',
+          keywords: 'jogando jogo status mostrar',
+          render: () => <ActivitySharing />,
         },
         {
           id: 'blocked',

@@ -141,6 +141,7 @@ export function openUserProfile(
               roles={roles}
               memberSince={member.joinedAt}
               isOwner={guild.ownerId === targetId}
+              activity={guild.activities[targetId]}
             />
             {targetId !== selfId && (
               <ProfileActions

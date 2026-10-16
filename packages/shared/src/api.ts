@@ -231,6 +231,14 @@ export const uploadGuildSoundQuerySchema = z.object({
  * the same thing underneath (a text channel and a voice channel), without owner, roles or
  * invites, and never listed among the servers.
  */
+/** What someone is doing right now: the game the desktop app sees running. */
+export const activitySchema = z.object({
+  game: z.string().trim().min(1).max(128),
+  /** When it started. */
+  since: z.iso.datetime(),
+});
+export type Activity = z.infer<typeof activitySchema>;
+
 export const guildKindSchema = z.enum(['server', 'dm']);
 export type GuildKind = z.infer<typeof guildKindSchema>;
 
@@ -266,6 +274,8 @@ export const guildSchema = z.object({
   members: z.array(memberSchema),
   /** Ids of the members currently online. */
   onlineUserIds: z.array(idSchema),
+  /** What the online members are doing (the game they play), by user id. */
+  activities: z.record(idSchema, activitySchema),
   voiceStates: z.array(voiceStateSchema),
   /** Sounds chosen by the owner for everyone in the guild; `null` means the built-in one. */
   sounds: z.object({

@@ -39,6 +39,8 @@ export const userSettingsSchema = z.object({
   showEmbeds: z.boolean(),
   /** Only friends may start a private conversation; otherwise anyone sharing a server can. */
   privateProfile: z.boolean(),
+  /** Others see the game the desktop app sees running ("JOGANDO ELDEN RING"). */
+  shareActivity: z.boolean(),
   /**
    * Corrections to the desktop app's game detection, by program file name (lowercase):
    * programs that are games though nothing says so, and programs taken for games that are not.
@@ -51,6 +53,7 @@ export const defaultUserSettings: UserSettings = {
   people: {},
   showEmbeds: true,
   privateProfile: false,
+  shareActivity: true,
   games: { added: [], hidden: [] },
 };
 
@@ -65,6 +68,7 @@ export const userSettingsPatchSchema = z
       .refine((people) => Object.keys(people).length <= PEOPLE_PREFERENCES_MAX),
     showEmbeds: z.boolean(),
     privateProfile: z.boolean(),
+    shareActivity: z.boolean(),
     /** Replaces both lists. */
     games: gameChoicesSchema,
   })
@@ -107,6 +111,7 @@ export function applyUserSettingsPatch(
     people,
     showEmbeds: patch.showEmbeds ?? settings.showEmbeds,
     privateProfile: patch.privateProfile ?? settings.privateProfile,
+    shareActivity: patch.shareActivity ?? settings.shareActivity,
     games: patch.games ?? settings.games,
   };
 }

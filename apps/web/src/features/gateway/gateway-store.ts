@@ -118,6 +118,22 @@ export const gatewayReducers: { [T in GatewayEventName]: Reducer<T> } = {
     ),
   }),
 
+  ACTIVITY_UPDATE: (state, data) => ({
+    guilds: Object.fromEntries(
+      Object.entries(state.guilds).map(([id, guild]) => {
+        if (!guild.members.some((member) => member.user.id === data.userId)) return [id, guild];
+        const { [data.userId]: _previous, ...others } = guild.activities;
+        return [
+          id,
+          {
+            ...guild,
+            activities: data.activity ? { ...others, [data.userId]: data.activity } : others,
+          },
+        ];
+      }),
+    ),
+  }),
+
   VOICE_STATE_UPDATE: (state, data) =>
     updateGuild(state, data.guildId, (guild) => {
       const others = guild.voiceStates.filter((voice) => voice.userId !== data.userId);

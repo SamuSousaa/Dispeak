@@ -43,12 +43,14 @@ describe('user settings', () => {
       people: {},
       showEmbeds: true,
       privateProfile: false,
+      shareActivity: true,
       games: { added: [], hidden: [] },
     });
     expect(await read(other)).toEqual({
       people: {},
       showEmbeds: true,
       privateProfile: false,
+      shareActivity: true,
       games: { added: [], hidden: [] },
     });
   });

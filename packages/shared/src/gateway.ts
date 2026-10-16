@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  activitySchema,
   channelSchema,
   friendRequestSchema,
   guildSchema,
@@ -25,6 +26,8 @@ export const GatewayOp = {
   Heartbeat: 1,
   /** client -> server: start a new session with an access token. */
   Identify: 2,
+  /** client -> server: what the user is doing (the game running), or nothing. */
+  UpdateActivity: 3,
   /** client -> server: continue a previous session, replaying missed events. */
   Resume: 6,
   /** server -> client: the session cannot be resumed (or identify failed softly). */
@@ -56,6 +59,10 @@ export const gatewayClientFrameSchema = z.discriminatedUnion('op', [
       sessionId: z.string().max(64),
       seq: z.number().int().nonnegative(),
     }),
+  }),
+  z.object({
+    op: z.literal(GatewayOp.UpdateActivity),
+    d: z.object({ game: z.string().trim().min(1).max(128).nullable() }),
   }),
 ]);
 export type GatewayClientFrame = z.infer<typeof gatewayClientFrameSchema>;
@@ -95,6 +102,8 @@ export const gatewayEvents = {
   MEMBER_REMOVE: guildRef.extend({ userId: idSchema }),
 
   PRESENCE_UPDATE: z.object({ userId: idSchema, status: presenceStatusSchema }),
+  /** What a member is doing changed (`null`: nothing to show). */
+  ACTIVITY_UPDATE: z.object({ userId: idSchema, activity: activitySchema.nullable() }),
 
   /** `channelId: null` means the user left voice. */
   VOICE_STATE_UPDATE: guildRef.extend({

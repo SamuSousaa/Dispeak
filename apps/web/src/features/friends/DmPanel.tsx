@@ -87,6 +87,13 @@ export function DmPanel({ userId, onNavigate }: { userId: string; onNavigate: ()
                     </span>
                     {inCall ? (
                       <span className="label text-accent">EM CHAMADA</span>
+                    ) : online && guild.activities[friend.user.id] ? (
+                      <span className="label truncate text-muted">
+                        JOGANDO{' '}
+                        <span className="text-fg">
+                          {guild.activities[friend.user.id]?.game.toUpperCase()}
+                        </span>
+                      </span>
                     ) : (
                       online &&
                       friend.user.customStatus && (

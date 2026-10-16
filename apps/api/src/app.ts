@@ -18,6 +18,7 @@ import { connectDatabase, runMigrations } from './db/client';
 import { errorHandler, unauthorized } from './errors';
 import { GatewayBus } from './gateway/bus';
 import { GatewayHub } from './gateway/hub';
+import { ActivityService } from './gateway/activity';
 import { PresenceService } from './gateway/presence';
 import { labRoutes } from './lab/routes';
 import { registerMetrics } from './metrics';
@@ -83,7 +84,8 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     config.GATEWAY_HEARTBEAT_MS * 2 + config.GATEWAY_RESUME_WINDOW_MS + 5000,
   );
   const voiceStates = new VoiceStateStore(redis);
-  const live = { presence, voiceStates };
+  const activity = new ActivityService(redis);
+  const live = { presence, activity, voiceStates };
   const auth = new AuthService(database.db, redis, bus, config);
   const voice = new VoiceAccess({
     db: database.db,

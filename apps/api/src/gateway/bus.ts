@@ -1,4 +1,9 @@
-import type { GatewayEventInput, GatewayEventName, PresenceStatus } from '@frequencia/shared';
+import type {
+  Activity,
+  GatewayEventInput,
+  GatewayEventName,
+  PresenceStatus,
+} from '@frequencia/shared';
 import type { Redis } from '../redis';
 
 const CHANNEL = 'frequencia:gateway';
@@ -31,6 +36,8 @@ export type BusMessage =
   | { kind: 'guild-delete'; guildId: string }
   /** Presence changed; `guildIds` are the guilds whose members should hear about it. */
   | { kind: 'presence'; userId: string; status: PresenceStatus; guildIds: string[] }
+  /** What a user is doing changed: told to the guilds they are in. */
+  | { kind: 'activity'; userId: string; activity: Activity | null; guildIds: string[] }
   /** A login session was revoked: drop its gateway connections (`null` = all of the user's). */
   | { kind: 'session-revoked'; userId: string; sessionId: string | null };
 

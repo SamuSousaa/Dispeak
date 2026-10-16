@@ -75,6 +75,7 @@ function parseStored(data: unknown): UserSettings {
     people: field('people'),
     showEmbeds: field('showEmbeds'),
     privateProfile: field('privateProfile'),
+    shareActivity: field('shareActivity'),
     games: field('games'),
   };
 }

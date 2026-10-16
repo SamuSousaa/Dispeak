@@ -49,6 +49,20 @@ class GatewayClient {
     useGatewayStore.setState(initialGatewayState);
   }
 
+  /** What the user is doing (the game running), kept to tell every new session. */
+  private activity: string | null = null;
+
+  /** Shows the others what the user plays (`null`: nothing). Sent again after a reconnection. */
+  setActivity(game: string | null): void {
+    if (game === this.activity) return;
+    this.activity = game;
+    this.sendActivity();
+  }
+
+  private sendActivity(): void {
+    if (this.sessionId) this.send({ op: GatewayOp.UpdateActivity, d: { game: this.activity } });
+  }
+
   /** Observes every dispatch after it has been applied to the store. */
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -108,6 +122,8 @@ class GatewayClient {
     }
     if (name === 'READY') {
       this.sessionId = (data.data as { sessionId: string }).sessionId;
+      // A new session starts with nothing to show: tell it what the user is doing.
+      if (this.activity) this.sendActivity();
     }
     if (name === 'READY' || name === 'RESUMED') this.attempt = 0;
     applyGatewayEvent(name, data.data as never);

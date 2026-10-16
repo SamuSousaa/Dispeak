@@ -18,6 +18,7 @@ function Row({ guild, member, online, userId, onManageMembers }: RowProps) {
   const name = member.nickname ?? member.user.displayName;
   const isOwner = guild.ownerId === member.user.id;
   const color = online ? memberColor(guild, member.user.id) : undefined;
+  const activity = guild.activities[member.user.id];
 
   return (
     <li data-testid="member" data-online={online}>
@@ -47,10 +48,17 @@ function Row({ guild, member, online, userId, onManageMembers }: RowProps) {
             >
               {name}
             </span>
-            {online && member.user.customStatus && (
-              <span className="truncate text-xs text-muted" data-testid="member-status">
-                {member.user.customStatus}
+            {online && activity ? (
+              <span className="label truncate text-muted" data-testid="member-activity">
+                JOGANDO <span className="text-fg">{activity.game.toUpperCase()}</span>
               </span>
+            ) : (
+              online &&
+              member.user.customStatus && (
+                <span className="truncate text-xs text-muted" data-testid="member-status">
+                  {member.user.customStatus}
+                </span>
+              )
             )}
           </span>
         </span>
