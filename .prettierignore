@@ -10,3 +10,4 @@ apps/api/drizzle/meta
 .dev
 .claude
 apps/desktop/native/capture/target
+apps/desktop/native/host/target

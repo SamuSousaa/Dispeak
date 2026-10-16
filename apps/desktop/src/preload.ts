@@ -110,6 +110,8 @@ const bridge: DesktopBridge = {
     return () => ipcRenderer.removeListener(DESKTOP_CALL_ACTION, handler);
   },
   nativeCapture: {
+    // The capture engine and ffmpeg both encode Main (native-capture.ts).
+    h264Profile: 'main',
     probe: async () =>
       desktopNativeCaptureProbeSchema.parse(await ipcRenderer.invoke(DESKTOP_NATIVE_CAPTURE_PROBE))
         .codec,

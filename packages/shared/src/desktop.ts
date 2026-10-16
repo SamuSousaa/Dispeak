@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { runningGameSchema, type RunningWindow } from './native-host';
-import { ingestCodecSchema, voiceIngestSchema, type IngestCodec } from './signaling/voice';
+import {
+  ingestCodecSchema,
+  voiceIngestSchema,
+  type IngestCodec,
+  type IngestProfile,
+} from './signaling/voice';
 
 /**
  * What the desktop app (Electron) and the web page it shows say to each other. The page is the
@@ -210,6 +215,8 @@ export interface DesktopNativeCapturePreview {
 export interface DesktopNativeCapture {
   /** The codec this machine would send, or `null` when it cannot capture natively. */
   probe(): Promise<IngestCodec | null>;
+  /** The H.264 profile its captures send. Absent before 0.12.2, whose captures send High. */
+  h264Profile?: IngestProfile;
   /**
    * Shows the app's picker; `start` then captures what was picked. Absent in apps older than
    * 0.9.0, which capture the main monitor without asking.

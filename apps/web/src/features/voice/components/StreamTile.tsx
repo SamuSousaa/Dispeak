@@ -46,6 +46,8 @@ interface StreamTileProps {
    * comes back in it when the person shares again.
    */
   ended?: boolean;
+  /** Why the picture will not come: shown instead of the loading signal. */
+  error?: string;
   focused: boolean;
   /** Thumbnail rendition shown next to a focused stream. */
   compact?: boolean;
@@ -172,6 +174,7 @@ export function StreamTile({
   stream,
   hasAudio = false,
   ended = false,
+  error,
   focused,
   compact = false,
   onToggleFocus,
@@ -358,6 +361,8 @@ export function StreamTile({
             {isSelf ? (
               // A native capture from an app before 0.11.2, which sends no preview.
               <p className="label text-muted">CAPTURA NATIVA · SEM PRÉVIA</p>
+            ) : error ? (
+              <p className="label px-3 text-center text-muted">{error}</p>
             ) : (
               <Loading label="CARREGANDO TRANSMISSÃO" />
             )}

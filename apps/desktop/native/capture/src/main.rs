@@ -63,8 +63,9 @@ fn bench(args: &[String]) -> windows::core::Result<()> {
             first_key = false;
             let types: Vec<u8> = nal_types(&frame.data);
             println!(
-                "{{\"type\":\"key-frame\",\"nals\":{:?},\"bytes\":{}}}",
+                "{{\"type\":\"key-frame\",\"nals\":{:?},\"profile\":{},\"bytes\":{}}}",
                 types,
+                sps_profile(&frame.data).unwrap_or(0),
                 frame.data.len()
             );
         }
@@ -256,6 +257,13 @@ fn probe(args: &[String]) -> Result<(), String> {
         }
     }
     Err(problems.join("; "))
+}
+
+/// The profile_idc of the first sequence parameter set: 66 Baseline, 77 Main, 100 High.
+fn sps_profile(data: &[u8]) -> Option<u8> {
+    data.windows(5)
+        .find(|w| w[0] == 0 && w[1] == 0 && w[2] == 1 && w[3] & 0x1f == 7)
+        .map(|w| w[4])
 }
 
 /// NAL unit types in an Annex B buffer, in order.

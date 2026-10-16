@@ -161,7 +161,10 @@ impl Encoder {
             output_type.SetUINT64(&MF_MT_FRAME_RATE, ratio(settings.frame_rate, 1))?;
             output_type.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, ratio(1, 1))?;
             output_type.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
-            output_type.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High.0 as u32)?;
+            // Main, not High: browsers without a graphics card's decoder offer no High, and
+            // such a viewer could not watch at all. Main keeps CABAC; it loses only the 8x8
+            // transform.
+            output_type.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_Main.0 as u32)?;
             // What the converter produces, said in the stream so players use the same colours.
             output_type.SetUINT32(&MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709.0 as u32)?;
             output_type.SetUINT32(&MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709.0 as u32)?;

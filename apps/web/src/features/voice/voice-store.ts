@@ -40,6 +40,8 @@ export interface WatchedStream {
   stream: MediaStream | null;
   /** Simulcast layer the server is currently forwarding (0 = lowest). */
   spatialLayer: number | null;
+  /** Why the picture will not come, when it will not: shown instead of waiting forever. */
+  error?: string;
 }
 
 export interface StreamLayerStats {

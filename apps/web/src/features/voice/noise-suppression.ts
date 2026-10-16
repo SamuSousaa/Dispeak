@@ -14,6 +14,7 @@ import noiseGateWorkletUrl from '@sapphi-red/web-noise-suppressor/noiseGateWorkl
 import rnnoiseWasmUrl from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import rnnoiseSimdWasmUrl from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
 import rnnoiseWorkletUrl from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url';
+import highbandRestoreUrl from './highband-restore.worklet.js?url';
 
 /** Both models run at this rate. */
 const SAMPLE_RATE = 48_000;
@@ -28,9 +29,10 @@ const RUMBLE_CUTOFF_HZ = 100;
 const RUMBLE_FILTER_Q = [0.5412, 1.3066];
 
 /**
- * The neural models that can clean the microphone. RNNoise works on the full band (48 kHz), so
- * the voice keeps its brightness. GTCRN removes more, but it is a 16 kHz model: everything
- * above 8 kHz is lost and the voice sounds duller, like a phone line.
+ * The neural models that can clean the microphone. RNNoise works on the full band (48 kHz).
+ * GTCRN removes more, but it is a 16 kHz model: everything above 8 kHz leaves it, and on its own
+ * the voice sounds like a phone line. Behind it, `highband-restore.worklet.js` gives that treble
+ * back wherever the model kept the voice.
  */
 export type DenoiseModel = 'rnnoise' | 'gtcrn';
 
@@ -93,6 +95,7 @@ export async function processMicrophone(
       model
         ? context.audioWorklet.addModule(model === 'gtcrn' ? gtcrnWorkletUrl : rnnoiseWorkletUrl)
         : null,
+      model === 'gtcrn' ? context.audioWorklet.addModule(highbandRestoreUrl) : null,
       gated ? context.audioWorklet.addModule(noiseGateWorkletUrl) : null,
     ]);
     // A context created outside a user gesture can start suspended and never produce audio.
@@ -120,7 +123,20 @@ export async function processMicrophone(
           ? new GtcrnWorkletNode(context, { maxChannels: 1, wasmBinary: binary })
           : new RnnoiseWorkletNode(context, { maxChannels: 1, wasmBinary: binary })
         : null;
+    // What goes into the model, for the treble it cannot keep.
+    const beforeModel = nodes.at(-1);
     if (denoiser) nodes.push(denoiser);
+    if (model === 'gtcrn' && beforeModel) {
+      const restore = new AudioWorkletNode(context, 'highband-restore', {
+        numberOfInputs: 2,
+        outputChannelCount: [1],
+        channelCount: 1,
+        channelCountMode: 'explicit',
+      });
+      // Input 0 (the model's output) is wired with the rest of the chain below.
+      beforeModel.connect(restore, 0, 1);
+      nodes.push(restore);
+    }
     if (gated) {
       nodes.push(
         new NoiseGateWorkletNode(context, {

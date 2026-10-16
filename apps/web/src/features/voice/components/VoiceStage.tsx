@@ -27,6 +27,8 @@ interface StageStream {
   stream: MediaStream | null;
   /** Whether the streamer is sending the sound of what they share. */
   hasAudio?: boolean;
+  /** Why the picture will not come. */
+  error?: string;
 }
 
 /** What has the main area to itself: one stream, or one person's camera. */
@@ -103,6 +105,7 @@ export function VoiceStage({
         stream: watching[peer.id]?.stream ?? null,
         hasAudio: peer.producers.some((producer) => producer.source === 'screen-audio'),
         ended: !watching[peer.id],
+        error: watching[peer.id]?.error,
       })),
   ];
 
@@ -147,6 +150,7 @@ export function VoiceStage({
       userId={stream.userId}
       name={stream.name}
       ended={stream.ended ?? false}
+      error={stream.error}
       stream={stream.stream}
       hasAudio={stream.hasAudio ?? false}
       focused={stream.id === focusedStream?.id}

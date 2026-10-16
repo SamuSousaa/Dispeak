@@ -6,6 +6,7 @@ import {
   type EventData,
   type EventInput,
   type IngestCodec,
+  type IngestProfile,
   type MediaKind,
   type ProducerSource,
   type StreamPath,
@@ -350,9 +351,14 @@ export class Room {
   /**
    * Publishes the screen from a native capture: a plain transport of its own receives the
    * video outside WebRTC, and the producer on it is a screen share like any other. Transport
-   * and producer live and die together.
+   * and producer live and die together. `profile`: what the app's H.264 is, which viewers
+   * need to know to decode it.
    */
-  async createIngest(peer: Peer, codec: IngestCodec): Promise<VoiceIngest> {
+  async createIngest(
+    peer: Peer,
+    codec: IngestCodec,
+    profile: IngestProfile = 'high',
+  ): Promise<VoiceIngest> {
     this.assertJoined(peer);
     this.assertMayPublish(peer, 'screen');
 
@@ -404,7 +410,9 @@ export class Room {
         rtpParameters: {
           codecs: [
             {
-              ...INGEST.codecs[codec],
+              ...(codec === 'h264' && profile === 'main'
+                ? INGEST.codecs.h264Main
+                : INGEST.codecs[codec]),
               payloadType: INGEST.payloadType,
               rtcpFeedback: INGEST.rtcpFeedback,
             },

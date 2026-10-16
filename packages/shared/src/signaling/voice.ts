@@ -123,6 +123,12 @@ export type VoicePeer = z.infer<typeof voicePeerSchema>;
 /** Codecs the desktop app's native capture can send. */
 export const ingestCodecSchema = z.enum(['av1', 'h264']);
 export type IngestCodec = z.infer<typeof ingestCodecSchema>;
+/**
+ * The H.264 profile a native capture sends. Main is what every viewer decodes, with or without a
+ * graphics card; High needs the card's decoder. Desktop apps before 0.12.2 send High.
+ */
+export const ingestProfileSchema = z.enum(['main', 'high']);
+export type IngestProfile = z.infer<typeof ingestProfileSchema>;
 
 const udpPort = z.number().int().min(1).max(65535);
 
@@ -194,7 +200,10 @@ export const voiceServerSide = defineSide({
      * plain transport, announces the producer like any other screen share and answers where
      * to send. `closeProducer` ends it.
      */
-    createIngest: { request: z.object({ codec: ingestCodecSchema }), response: voiceIngestSchema },
+    createIngest: {
+      request: z.object({ codec: ingestCodecSchema, profile: ingestProfileSchema.optional() }),
+      response: voiceIngestSchema,
+    },
     closeProducer: { request: producerRef, response: empty },
     consume: {
       request: producerRef,

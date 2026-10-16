@@ -158,7 +158,8 @@ function ffmpegArguments(
           ...['-rc', 'cbr', '-strict', 'experimental'],
         ]
       : [
-          ...['-c:v', 'h264_nvenc', '-preset', 'p4', '-tune', 'll', '-profile:v', 'high'],
+          // Main: every viewer decodes it, also without a graphics card's decoder.
+          ...['-c:v', 'h264_nvenc', '-preset', 'p4', '-tune', 'll', '-profile:v', 'main'],
           // The parameter sets go with every key frame: a viewer may arrive at any of them.
           ...['-rc', 'cbr', '-bf', '0', '-bsf:v', 'dump_extra=freq=keyframe'],
         ];

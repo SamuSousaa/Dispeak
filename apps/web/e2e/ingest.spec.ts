@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { chromium, expect, test, type Browser, type Page } from '@playwright/test';
 
 /**
  * A screen published outside the browser: ffmpeg sends SRTP to the plain transport the media
@@ -64,8 +64,17 @@ async function connectSignaling(url: string) {
   };
 }
 
-async function join(browser: Browser, channel: string, nickname: string): Promise<Page> {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+/** `baseURL` for a browser launched by the test itself, which the config does not reach. */
+async function join(
+  browser: Browser,
+  channel: string,
+  nickname: string,
+  baseURL?: string,
+): Promise<Page> {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    ...(baseURL ? { baseURL, permissions: ['microphone', 'camera'] } : {}),
+  });
   const page = await context.newPage();
   await page.goto(`/lab/voice?canal=${channel}`);
   await page.getByLabel('APELIDO').fill(nickname);
@@ -75,7 +84,12 @@ async function join(browser: Browser, channel: string, nickname: string): Promis
 }
 
 /** A lab participant that publishes through an ingest instead of a browser. */
-async function ingestFor(baseURL: string | undefined, channel: string, codec: 'h264' | 'av1') {
+async function ingestFor(
+  baseURL: string | undefined,
+  channel: string,
+  codec: 'h264' | 'av1',
+  profile?: 'main' | 'high',
+) {
   const origin = new URL(baseURL ?? 'http://localhost:5173');
   const response = await fetch(new URL('/api/lab/voice-token', origin), {
     method: 'POST',
@@ -91,63 +105,86 @@ async function ingestFor(baseURL: string | undefined, channel: string, codec: 'h
     {},
   );
   await signaling.request('join', { rtpCapabilities, muted: true, deafened: false });
-  const ingest = await signaling.request<Ingest>('createIngest', { codec });
+  const ingest = await signaling.request<Ingest>('createIngest', { codec, profile });
   return { signaling, ingest };
 }
 
-test('a browser watches the screen sent by the capture engine', async ({ browser, baseURL }) => {
-  test.skip(!engine, 'set E2E_CAPTURE_ENGINE to the path of dispeaker-capture.exe');
-  test.skip(!process.env.E2E_CHANNEL, 'H.264 needs the installed Chrome: E2E_CHANNEL=chrome');
-  test.setTimeout(60_000);
-  const channel = `e2e-engine-${Date.now()}`;
-  const viewer = await join(browser, channel, 'Carla');
-  const { signaling, ingest } = await ingestFor(baseURL, channel, 'h264');
-  const sender = spawn(
-    engine as string,
-    [
-      'stream',
-      ...['--width', '1280', '--height', '720', '--fps', '30', '--bitrate', '3000000'],
-      ...['--address', ingest.address, '--pt', String(ingest.payloadType)],
-      ...['--rtp-port', String(ingest.rtpPort), '--rtcp-port', String(ingest.rtcpPort)],
-      ...['--ssrc', String(ingest.ssrc)],
-    ],
-    { stdio: ['pipe', 'pipe', 'inherit'] },
-  );
-  try {
-    sender.stdin.write(
-      `${ingest.srtp.keyBase64}\n${ingest.srtp.serverKeyBase64 ?? ingest.srtp.keyBase64}\n`,
+/**
+ * The engine sends H.264 Main. A browser without a graphics card's decoder (no driver, an old
+ * card, acceleration off) offers no High at all, so this is what lets such a viewer watch.
+ */
+for (const gpu of [true, false]) {
+  test(`a browser ${gpu ? 'with' : 'without'} a graphics card watches the capture engine`, async ({
+    browser,
+    baseURL,
+  }) => {
+    test.skip(!engine, 'set E2E_CAPTURE_ENGINE to the path of dispeaker-capture.exe');
+    test.skip(!process.env.E2E_CHANNEL, 'H.264 needs the installed Chrome: E2E_CHANNEL=chrome');
+    test.setTimeout(60_000);
+    const channel = `e2e-engine-${Date.now()}`;
+    const viewerBrowser = gpu
+      ? browser
+      : await chromium.launch({
+          channel: process.env.E2E_CHANNEL,
+          args: [
+            '--use-fake-device-for-media-stream',
+            '--use-fake-ui-for-media-stream',
+            '--autoplay-policy=no-user-gesture-required',
+            '--disable-gpu',
+          ],
+        });
+    const viewer = await join(viewerBrowser, channel, 'Carla', gpu ? undefined : baseURL);
+    const { signaling, ingest } = await ingestFor(baseURL, channel, 'h264', 'main');
+    const sender = spawn(
+      engine as string,
+      [
+        'stream',
+        ...['--width', '1280', '--height', '720', '--fps', '30', '--bitrate', '3000000'],
+        ...['--address', ingest.address, '--pt', String(ingest.payloadType)],
+        ...['--rtp-port', String(ingest.rtpPort), '--rtcp-port', String(ingest.rtcpPort)],
+        ...['--ssrc', String(ingest.ssrc)],
+      ],
+      { stdio: ['pipe', 'pipe', 'inherit'] },
     );
-    const said: string[] = [];
-    sender.stdout.on('data', (chunk: Buffer) => said.push(...chunk.toString().trim().split('\n')));
-    await expect.poll(() => said.some((line) => line.includes('"type":"ready"'))).toBe(true);
-
-    // The engine sends a key frame as soon as the server asks for one, when the viewer starts
-    // watching: the picture shows within seconds, not at the next periodic key frame.
-    await viewer.getByRole('button', { name: 'Assistir Nativo' }).click();
-    const video = viewer.locator('[data-stream="Nativo"]').getByTestId('stream-video');
-    await expect
-      .poll(() => video.evaluate((element) => (element as HTMLVideoElement).videoWidth), {
-        timeout: 5000,
-      })
-      .toBeGreaterThan(0);
-    expect(
-      await video.evaluate((element) => (element as HTMLVideoElement).videoWidth),
-    ).toBeLessThanOrEqual(1280);
-    const decoded = () =>
-      video.evaluate(
-        (element) => (element as HTMLVideoElement).getVideoPlaybackQuality().totalVideoFrames,
+    try {
+      sender.stdin.write(
+        `${ingest.srtp.keyBase64}\n${ingest.srtp.serverKeyBase64 ?? ingest.srtp.keyBase64}\n`,
       );
-    const before = await decoded();
-    await expect.poll(decoded, { timeout: 10_000 }).toBeGreaterThan(before + 30);
-    // It heard the server: the request for a key frame reached it.
-    await expect
-      .poll(() => said.some((line) => /"keyFramesAsked":[1-9]/.test(line)), { timeout: 10_000 })
-      .toBe(true);
-  } finally {
-    sender.kill();
-    signaling.close();
-  }
-});
+      const said: string[] = [];
+      sender.stdout.on('data', (chunk: Buffer) =>
+        said.push(...chunk.toString().trim().split('\n')),
+      );
+      await expect.poll(() => said.some((line) => line.includes('"type":"ready"'))).toBe(true);
+
+      // The engine sends a key frame as soon as the server asks for one, when the viewer starts
+      // watching: the picture shows within seconds, not at the next periodic key frame.
+      await viewer.getByRole('button', { name: 'Assistir Nativo' }).click();
+      const video = viewer.locator('[data-stream="Nativo"]').getByTestId('stream-video');
+      await expect
+        .poll(() => video.evaluate((element) => (element as HTMLVideoElement).videoWidth), {
+          timeout: 5000,
+        })
+        .toBeGreaterThan(0);
+      expect(
+        await video.evaluate((element) => (element as HTMLVideoElement).videoWidth),
+      ).toBeLessThanOrEqual(1280);
+      const decoded = () =>
+        video.evaluate(
+          (element) => (element as HTMLVideoElement).getVideoPlaybackQuality().totalVideoFrames,
+        );
+      const before = await decoded();
+      await expect.poll(decoded, { timeout: 10_000 }).toBeGreaterThan(before + 30);
+      // It heard the server: the request for a key frame reached it.
+      await expect
+        .poll(() => said.some((line) => /"keyFramesAsked":[1-9]/.test(line)), { timeout: 10_000 })
+        .toBe(true);
+    } finally {
+      sender.kill();
+      signaling.close();
+      if (!gpu) await viewerBrowser.close();
+    }
+  });
+}
 
 for (const codec of ['h264', 'av1'] as const) {
   test(`a browser watches a screen ingested as ${codec}`, async ({ browser, request, baseURL }) => {

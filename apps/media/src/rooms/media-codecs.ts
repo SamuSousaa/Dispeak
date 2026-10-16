@@ -3,9 +3,9 @@ import type { types } from 'mediasoup';
 
 /**
  * Codecs offered by every router. Opus carries in-band FEC; DTX is negotiated per producer by
- * the browser. VP8 is what every browser can send and receive, and what cameras use. H.264
- * High is there for screen shares: it is the profile graphics cards encode, which takes a
- * 1440p60 stream off the sender's CPU. The sender picks it only when its hardware does the work.
+ * the browser. VP8 is what every browser can send and receive, and what cameras use. H.264 is
+ * there for screen shares: graphics cards encode it, which takes a 1440p60 stream off the
+ * sender's CPU. The sender picks it only when its hardware does the work, and Main before High.
  */
 export const mediaCodecs: types.RouterRtpCodecCapability[] = [
   {
@@ -21,6 +21,20 @@ export const mediaCodecs: types.RouterRtpCodecCapability[] = [
     clockRate: 90000,
     parameters: { 'x-google-start-bitrate': 1000 },
   },
+  // Main: decoded everywhere, also by browsers without a graphics card's decoder, which offer
+  // no High (2026-10-16: a viewer without one waited forever for every stream).
+  {
+    kind: 'video',
+    mimeType: 'video/H264',
+    clockRate: 90000,
+    parameters: {
+      'packetization-mode': 1,
+      'profile-level-id': '4d0032',
+      'level-asymmetry-allowed': 1,
+      'x-google-start-bitrate': 1000,
+    },
+  },
+  // High: what desktop apps before 0.12.2 send from their native capture.
   {
     kind: 'video',
     mimeType: 'video/H264',
@@ -78,13 +92,22 @@ export const INGEST = {
         'level-asymmetry-allowed': 1,
       },
     },
+    h264Main: {
+      mimeType: 'video/H264',
+      clockRate: 90000,
+      parameters: {
+        'packetization-mode': 1,
+        'profile-level-id': '4d0032',
+        'level-asymmetry-allowed': 1,
+      },
+    },
   },
 } as const satisfies {
   payloadType: number;
   srtpCryptoSuite: types.SrtpCryptoSuite;
   srtpKeyLength: number;
   rtcpFeedback: types.RtcpFeedback[];
-  codecs: Record<IngestCodec, Omit<types.RtpCodecParameters, 'payloadType'>>;
+  codecs: Record<IngestCodec | 'h264Main', Omit<types.RtpCodecParameters, 'payloadType'>>;
 };
 
 export const AUDIO_LEVEL_OBSERVER = {

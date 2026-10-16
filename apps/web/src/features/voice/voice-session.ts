@@ -97,8 +97,11 @@ const NATIVE_RESTART_DELAYS_MS = [1000, 2000, 4000];
  * through another channel and back costs nothing, a minimised window saves the decoding.
  */
 const HIDE_STREAM_DELAY_MS = 1500;
-/** Opus target for a voice: well above what browsers choose on their own (about 32 kbps). */
-const VOICE_BITRATE = 64_000;
+/**
+ * Opus target for a voice. Measured through a loopback (2026-10-16): at 64 kbps the voice lost
+ * 2-3 dB between 4 and 8 kHz; at 128 it comes out as it went in. Browsers pick about 32.
+ */
+const VOICE_BITRATE = 128_000;
 const SCREEN_AUDIO_BITRATE = 256_000;
 
 /**
@@ -1124,7 +1127,7 @@ export class VoiceSession {
         track: this.micTrack,
         // The session owns the track: it must survive reconnections.
         stopTracks: false,
-        // Twice the bitrate browsers pick for speech on their own, and no DTX: the voice
+        // Four times the bitrate browsers pick for speech on their own, and no DTX: the voice
         // keeps its detail and the first syllable after a pause is not clipped.
         codecOptions: {
           opusDtx: false,
@@ -1333,7 +1336,10 @@ export class VoiceSession {
     if (!native || !rpc || !presetId || !codec) return false;
 
     const preset = SCREEN_PRESETS[presetId];
-    const ingest = await rpc.request('createIngest', { codec });
+    const ingest = await rpc.request('createIngest', {
+      codec,
+      ...(codec === 'h264' ? { profile: native.h264Profile ?? 'high' } : {}),
+    });
     this.nativeProducerId = ingest.producerId;
     // The engine sends a small picture of what it captures (app 0.11.2 and later).
     this.stopNativePreview();
@@ -1509,6 +1515,20 @@ export class VoiceSession {
       // The producer may be gone by the time we ask for it; that is not an error.
       if (!(error instanceof RpcError && error.code === VoiceErrorCode.NotFound)) {
         console.warn('[voice] failed to consume', error);
+      }
+      // The server refuses a picture this machine cannot decode (a codec or profile its
+      // browser does not offer): the tile says so instead of loading forever.
+      if (
+        source === 'screen' &&
+        error instanceof RpcError &&
+        error.code === VoiceErrorCode.CannotConsume &&
+        this.watched.has(peerId)
+      ) {
+        this.setWatching(peerId, {
+          stream: null,
+          spatialLayer: null,
+          error: 'ESTE COMPUTADOR NÃO CONSEGUE ABRIR ESTA TRANSMISSÃO',
+        });
       }
     } finally {
       this.consuming.delete(producerId);
