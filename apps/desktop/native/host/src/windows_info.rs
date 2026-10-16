@@ -1,7 +1,7 @@
 //! Top-level windows: the one in front, and every one a person could be looking at.
 
 use serde::Serialize;
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT, TRUE};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT, TRUE, WPARAM};
 use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
@@ -9,8 +9,9 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GWL_EXSTYLE, GetForegroundWindow, GetWindowLongW, GetWindowRect,
     GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-    WS_EX_TOOLWINDOW,
+    PostMessageW, RegisterWindowMessageW, WS_EX_TOOLWINDOW,
 };
+use windows::core::w;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +30,24 @@ pub struct TopWindow {
     pub minimized: bool,
     /// Area on screen, to tell the main window of a program from its small ones.
     pub area: i64,
+}
+
+/// Sends a window the message Windows broadcasts when the taskbar is created anew. Electron
+/// answers it by adding the window's taskbar thumbnail buttons again: the only way to get them
+/// back once the window's taskbar button was made again (the window hidden and shown) or did not
+/// exist yet when they were first set.
+pub fn announce_taskbar(handle: i64) -> bool {
+    unsafe {
+        let message = RegisterWindowMessageW(w!("TaskbarCreated"));
+        message != 0
+            && PostMessageW(
+                HWND(handle as *mut std::ffi::c_void),
+                message,
+                WPARAM(0),
+                LPARAM(0),
+            )
+            .is_ok()
+    }
 }
 
 /// The process that owns a window, by its handle as a number.

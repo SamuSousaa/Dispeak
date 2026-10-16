@@ -83,6 +83,10 @@ fn handle(host: &Host, request: &Request) -> Result<Value, String> {
         }
         "windows" => Ok(json!(games::running_windows())),
         "monitors" => Ok(json!(display::monitors())),
+        "announceTaskbar" => {
+            let handle: i64 = param(params, "handle")?;
+            Ok(json!({ "done": windows_info::announce_taskbar(handle) }))
+        }
         "describe" => {
             let handle: i64 = param(params, "handle")?;
             Ok(json!(display::describe(handle)))
