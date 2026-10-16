@@ -173,8 +173,9 @@ export class MeetingService {
   }
 
   /**
-   * Asks to come in. The host comes straight in (from another device, or after losing their
-   * key); anyone else waits until someone inside answers.
+   * Asks to come in. The host, and anyone with an account who was let in before and not
+   * removed, comes straight back in (from another tab or device, after losing their key);
+   * anyone else waits until someone inside answers.
    */
   async knock(
     id: string,
@@ -183,11 +184,15 @@ export class MeetingService {
     const meeting = await this.meeting(id);
     const name = who.userId ? await this.nameOf(who.userId) : who.name;
     if (!name) throw badRequest('a name is required');
-    if (who.userId && who.userId === meeting.hostUserId) {
-      return {
-        status: 'admitted',
-        key: await this.addParticipant(id, { name, userId: who.userId, host: true }),
-      };
+    if (who.userId) {
+      const known = await this.participantOfUser(id, who.userId);
+      if (known) return { status: 'admitted', key: await this.rekey(id, known) };
+      if (who.userId === meeting.hostUserId) {
+        return {
+          status: 'admitted',
+          key: await this.addParticipant(id, { name, userId: who.userId, host: true }),
+        };
+      }
     }
     const { redis } = this.deps;
     if ((await redis.hlen(waitingKey(id))) >= MEETING_MAX_WAITING) {
@@ -531,6 +536,23 @@ export class MeetingService {
   ): Promise<string> {
     const secret = randomBytes(24).toString('base64url');
     const record: ParticipantRecord = { id: newId('p'), ...person, secret: hash(secret) };
+    await this.deps.redis.hset(participantsKey(id), record.id, JSON.stringify(record));
+    return `${record.id}.${secret}`;
+  }
+
+  private async participantOfUser(id: string, userId: string): Promise<ParticipantRecord | null> {
+    const people = await this.deps.redis.hvals(participantsKey(id));
+    return (
+      people
+        .map((raw) => JSON.parse(raw) as ParticipantRecord)
+        .find((person) => person.userId === userId) ?? null
+    );
+  }
+
+  /** A new key for someone already let in; the one they had stops working. */
+  private async rekey(id: string, person: ParticipantRecord): Promise<string> {
+    const secret = randomBytes(24).toString('base64url');
+    const record: ParticipantRecord = { ...person, secret: hash(secret) };
     await this.deps.redis.hset(participantsKey(id), record.id, JSON.stringify(record));
     return `${record.id}.${secret}`;
   }

@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import { ApiError, describeError } from '../../lib/http';
 import { wsUrl } from '../../lib/api';
 import { toast } from '../../components/Toast';
+import { playSound } from '../sounds/sound-player';
 import { joinVoice, leaveVoice } from '../voice/voice-actions';
 import { VoiceAccessError } from '../voice/voice-session';
 import { meetingApi } from './meeting-api';
@@ -104,6 +105,7 @@ function connect(meetingId: string, hello: { key: string } | { requestKey: strin
         const mutedOf = (state: MeetingState | null) =>
           state?.participants.find((p) => p.id === state.selfId)?.mutedByHost ?? false;
         const before = get().meeting;
+        if (before) announceKnocks(before, frame.d);
         if (before && mutedOf(before) !== mutedOf(frame.d)) {
           toast(
             mutedOf(frame.d)
@@ -149,6 +151,38 @@ function connect(meetingId: string, hello: { key: string } | { requestKey: strin
       set({ phase: 'outside', error: 'A conexão caiu. Peça para entrar de novo.' });
     }
   };
+}
+
+/**
+ * Someone new at the door: everyone inside hears it and sees it, and gets a system
+ * notification when the page is not in view, so nobody is left waiting unseen.
+ */
+function announceKnocks(before: MeetingState, after: MeetingState): void {
+  const seen = new Set(before.waiting.map((knock) => knock.id));
+  const fresh = after.waiting.filter((knock) => !seen.has(knock.id));
+  if (fresh.length === 0) return;
+  const text =
+    fresh.length === 1
+      ? `${fresh[0]?.name ?? 'Alguém'} está pedindo para entrar.`
+      : `${fresh.length} pessoas estão pedindo para entrar.`;
+  toast(text, 'info');
+  void playSound('join');
+  if (
+    document.visibilityState === 'visible' ||
+    typeof Notification === 'undefined' ||
+    Notification.permission !== 'granted'
+  ) {
+    return;
+  }
+  try {
+    const notification = new Notification('Reunião', { body: text, tag: fresh[0]?.id });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  } catch {
+    // Some mobile browsers expose the API but only let a service worker use it.
+  }
 }
 
 /** The meeting is over (or over for this person): everything of it goes. */

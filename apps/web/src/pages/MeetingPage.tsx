@@ -228,7 +228,9 @@ function MeetingRoom() {
       </header>
       <div className="relative flex min-h-0 flex-1">
         <section className="flex min-w-0 flex-1 flex-col">
-          {phase === 'left' ? (
+          {/* The call can also end outside this page (the desktop app's disconnect button): it
+              is then the same as having left it, never an endless wait. */}
+          {phase === 'left' || voiceStatus === 'idle' ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4 text-center">
               <p className="label-lg text-fg">VOCÊ SAIU DA CHAMADA</p>
               <p className="text-sm text-muted">A reunião continua enquanto houver alguém nela.</p>

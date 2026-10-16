@@ -232,11 +232,44 @@ describe('meetings', () => {
     const waiting = (await state(meeting.id, meeting.key)).waiting;
     expect(waiting).toMatchObject([{ name: 'Amigo', hasAccount: true }]);
 
-    // The host on another device.
+    // The host on another device: the same person, not a second host.
     const back = (await knock(meeting.id, { token: host.token })).json<MeetingKnockResponse>();
     expect(back.status).toBe('admitted');
+    if (back.status !== 'admitted') return;
+    expect(back.key.split('.')[0]).toBe(meeting.key.split('.')[0]);
+    expect((await state(meeting.id, back.key)).participants).toHaveLength(1);
     // A guest has to give a name.
     expect((await knock(meeting.id, {})).statusCode).toBe(400);
+  });
+
+  it('lets someone with an account who was let in come back without asking again', async () => {
+    const host = await t.account('Anfitriã');
+    const friend = await t.account('Amiga');
+    const meeting = await create(host);
+    const asked = (await knock(meeting.id, { token: friend.token })).json<MeetingKnockResponse>();
+    if (asked.status !== 'waiting') throw new Error('expected to wait');
+    const door = await connect(meeting.id, { requestKey: asked.requestKey });
+    const requestId = asked.requestKey.split('.')[0] ?? '';
+    await t.request('POST', `/meetings/${meeting.id}/waiting/${requestId}/admit`, as(meeting.key));
+    const first = (await door.next('admitted')).d.key;
+
+    // Another tab, or the page closed and opened again: the key was lost with it.
+    const again = (await knock(meeting.id, { token: friend.token })).json<MeetingKnockResponse>();
+    expect(again.status).toBe('admitted');
+    if (again.status !== 'admitted') return;
+    expect(again.key.split('.')[0]).toBe(first.split('.')[0]);
+    expect((await state(meeting.id, meeting.key)).participants).toHaveLength(2);
+    expect((await state(meeting.id, meeting.key)).waiting).toHaveLength(0);
+    // The new key replaces the old one.
+    expect((await t.request('GET', `/meetings/${meeting.id}/state`, as(first))).statusCode).toBe(
+      403,
+    );
+
+    // Taken out, they ask like anyone else.
+    const friendId = first.split('.')[0] ?? '';
+    await t.request('DELETE', `/meetings/${meeting.id}/participants/${friendId}`, as(meeting.key));
+    const removed = (await knock(meeting.id, { token: friend.token })).json<MeetingKnockResponse>();
+    expect(removed.status).toBe('waiting');
   });
 
   it('keeps the chat for whoever is inside', async () => {

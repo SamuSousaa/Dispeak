@@ -45,6 +45,7 @@ test('meetings: a link, a guest at the door, the call and its chat, the end of i
   const knock = host.page.getByTestId('knock');
   await expect(knock).toContainText('Visitante');
   await expect(knock).toContainText('CONVIDADO');
+  await expect(host.page.getByText('Visitante está pedindo para entrar.')).toBeVisible();
   await shot(host.page, '2-pedido');
   await knock.getByRole('button', { name: 'ADMITIR' }).click();
   await expect(knock).toHaveCount(0);
