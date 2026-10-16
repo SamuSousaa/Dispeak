@@ -93,7 +93,7 @@ pub struct RunningWindow {
 }
 
 /// The product name a program declares in its version information.
-fn description_of(path: &str) -> Option<String> {
+pub fn description_of(path: &str) -> Option<String> {
     let file = HSTRING::from(path);
     unsafe {
         let size = GetFileVersionInfoSizeW(&file, None);

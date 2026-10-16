@@ -30,8 +30,12 @@ Nesta primeira etapa ele faz:
   player. Pelo caminho do executável, com a menor permissão de leitura, que mesmo jogos com
   anti-cheat concedem.
 
-Fica para a próxima etapa trazer para cá o que ainda está no programa em C# (monitores e áudio do
-jogo).
+Numa segunda etapa (no mesmo dia) ele absorveu o programa em C#: responde quais são os monitores
+e se uma janela cobre um deles (para a captura nativa escolher o monitor) e, chamado como
+`dispeaker-host audio …`, captura o som do jogo (process loopback do WASAPI, uma árvore de
+processos por vez, mistura sem os chats de voz) e o escreve como PCM na saída padrão — um
+processo por transmissão, porque a saída dele é o próprio som. Os argumentos e o formato são os
+mesmos do C#.
 
 ## Consequências
 

@@ -31,6 +31,11 @@ pub struct TopWindow {
     pub area: i64,
 }
 
+/// The process that owns a window, by its handle as a number.
+pub fn process_of_handle(handle: i64) -> u32 {
+    process_of(HWND(handle as *mut std::ffi::c_void))
+}
+
 fn process_of(window: HWND) -> u32 {
     let mut pid = 0u32;
     unsafe { GetWindowThreadProcessId(window, Some(&mut pid as *mut u32)) };

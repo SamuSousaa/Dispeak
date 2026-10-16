@@ -14,11 +14,15 @@ import {
   type DesktopNativeCaptureChoice,
   type DesktopNativeCaptureStart,
   type IngestCodec,
+  hostDescribedSchema,
+  hostMonitorsSchema,
+  type HostMonitor,
 } from '@frequencia/shared';
 import { app, ipcMain, screen, type BrowserWindow, type DesktopCapturerSource } from 'electron';
 import { z } from 'zod';
 import { config } from './config';
 import { findBundled } from './bundled';
+import { nativeHost } from './native-host';
 import { openPreviewServer } from './capture-preview';
 import { isAppUrl } from './navigation';
 import { keepTimersFine } from './windows-scheduling';
@@ -108,34 +112,7 @@ const HANDOVER_MS = 10_000;
 /** An ffmpeg that cannot capture or encode gives up well within this. */
 const STARTUP_MS = 1500;
 
-const rectSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  width: z.number(),
-  height: z.number(),
-});
-/** What the helper (`native/game-audio.cs`) says about a window, in real pixels. */
-const describedSchema = z.object({ covers: z.boolean(), monitor: rectSchema });
-/** The monitors as Desktop Duplication numbers them: by graphics card, then by output. */
-const monitorsSchema = z.array(
-  rectSchema.extend({ adapter: z.number().int().min(0), output: z.number().int().min(0) }),
-);
-type Monitor = z.infer<typeof monitorsSchema>[number];
-
-/** Runs the helper for an answer on its standard output; `null` when it has none. */
-function askHelper(args: string[]): Promise<unknown> {
-  const helper = findBundled('game-audio', 'dispeaker-game-audio.exe');
-  if (!helper) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    execFile(helper, args, { windowsHide: true, timeout: 3000 }, (error, out) => {
-      try {
-        resolve(error ? null : JSON.parse(out));
-      } catch {
-        resolve(null);
-      }
-    });
-  });
-}
+type Monitor = HostMonitor;
 
 /**
  * The monitor the capture should grab for what the user picked: the monitor itself, or the one
@@ -144,7 +121,7 @@ function askHelper(args: string[]): Promise<unknown> {
  * monitor that cannot be told apart: the browser's capture takes those.
  */
 async function monitorOf(source: DesktopCapturerSource): Promise<Monitor | null> {
-  let rect: z.infer<typeof rectSchema> | null = null;
+  let rect: { x: number; y: number } | null = null;
   if (source.id.startsWith('screen:')) {
     const displays = screen.getAllDisplays();
     const display =
@@ -153,19 +130,18 @@ async function monitorOf(source: DesktopCapturerSource): Promise<Monitor | null>
     if (display) rect = screen.dipToScreenRect(null, display.bounds);
   } else {
     // On Windows a window source is named `window:<handle>:<n>`.
-    const described = describedSchema.safeParse(
-      await askHelper(['--describe', source.id.split(':')[1] ?? '']),
-    );
-    if (described.success && described.data.covers) rect = described.data.monitor;
+    const handle = Number(source.id.split(':')[1]);
+    const described = Number.isFinite(handle)
+      ? await nativeHost.request('describe', { handle }, hostDescribedSchema).catch(() => null)
+      : null;
+    if (described?.covers) rect = described.monitor;
   }
   if (!rect) return null;
-  const monitors = monitorsSchema.safeParse(await askHelper(['--monitors']));
-  if (!monitors.success) return null;
+  const monitors = await nativeHost.request('monitors', {}, hostMonitorsSchema).catch(() => null);
+  if (!monitors) return null;
   const { x, y } = rect;
   // Scaled displays may land a pixel off.
-  return (
-    monitors.data.find((entry) => Math.abs(entry.x - x) <= 2 && Math.abs(entry.y - y) <= 2) ?? null
-  );
+  return monitors.find((entry) => Math.abs(entry.x - x) <= 2 && Math.abs(entry.y - y) <= 2) ?? null;
 }
 
 /** One key frame a second: the sender answers no requests, so that is how long a viewer waits. */

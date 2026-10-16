@@ -58,3 +58,21 @@ export const runningWindowSchema = z.object({
 export type RunningWindow = z.infer<typeof runningWindowSchema>;
 
 export const hostWindowsSchema = z.array(runningWindowSchema);
+
+const areaSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+
+/** A window: whether it covers a whole monitor, and which, in real pixels. */
+export const hostDescribedSchema = z
+  .object({ covers: z.boolean(), monitor: areaSchema })
+  .nullable();
+
+/** The monitors as Desktop Duplication numbers them: by graphics card, then by output. */
+export const hostMonitorsSchema = z.array(
+  areaSchema.extend({ adapter: z.number().int().min(0), output: z.number().int().min(0) }),
+);
+export type HostMonitor = z.infer<typeof hostMonitorsSchema>[number];

@@ -23,9 +23,9 @@ const startedSchema = z.union([
 ]);
 
 /**
- * The sound of a share without the voice chats: a helper that comes with the app
- * (`native/game-audio.cs`) asks Windows for the audio of process trees and writes it out as
- * PCM, which goes to the page piece by piece. It is the program of the window picked for the
+ * The sound of a share without the voice chats: the app's Windows helper, run as
+ * `dispeaker-host audio` (`native/host/src/audio.rs`), asks Windows for the audio of process
+ * trees and writes it out as PCM, which goes to the page piece by piece. It is the program of the window picked for the
  * share (`pickedWindow`) or, for a whole screen, the one covering a monitor; without one,
  * everything that plays except voice chats (Discord, this app). On a Windows too old for it,
  * the page shares the system's sound.
@@ -53,6 +53,7 @@ export function serveGameAudio(window: BrowserWindow, pickedWindow: () => string
     const child = spawn(
       helper,
       [
+        'audio',
         ...(handle ? ['--window', handle] : ['--covering']),
         ...['--or-mix', '--exclude', own.join(',')],
       ],
@@ -105,8 +106,7 @@ export function serveGameAudio(window: BrowserWindow, pickedWindow: () => string
   ipcMain.handle(DESKTOP_GAME_AUDIO_START, (event) => {
     assertFromApp(event);
     stop();
-    const helper =
-      process.platform === 'win32' ? findBundled('game-audio', 'dispeaker-game-audio.exe') : null;
+    const helper = process.platform === 'win32' ? findBundled('host', 'dispeaker-host.exe') : null;
     return helper ? start(helper) : null;
   });
 

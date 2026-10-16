@@ -8,6 +8,8 @@
 //!
 //! It ends when stdin closes, that is, with the app.
 
+mod audio;
+mod display;
 mod games;
 mod gpu;
 mod processes;
@@ -80,6 +82,11 @@ fn handle(host: &Host, request: &Request) -> Result<Value, String> {
             Ok(json!(games::detect_once(&added)))
         }
         "windows" => Ok(json!(games::running_windows())),
+        "monitors" => Ok(json!(display::monitors())),
+        "describe" => {
+            let handle: i64 = param(params, "handle")?;
+            Ok(json!(display::describe(handle)))
+        }
         // For the diagnostics: what the launchers say is installed.
         "installed" => Ok(json!(games::installed())),
         other => Err(format!("unknown method {other}")),
@@ -87,6 +94,12 @@ fn handle(host: &Host, request: &Request) -> Result<Value, String> {
 }
 
 fn main() {
+    display::use_real_pixels();
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    // A capture of the sound of a share runs as a process of its own: its output is the sound.
+    if arguments.first().is_some_and(|first| first == "audio") {
+        std::process::exit(audio::run(&arguments[1..]));
+    }
     let output = Arc::new(Output(Mutex::new(std::io::stdout())));
     let host = Host {
         gpu: gpu::Watcher::new(output.clone()),
